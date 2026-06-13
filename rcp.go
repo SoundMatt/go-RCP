@@ -1,5 +1,46 @@
 //fusa:req REQ-ZONE-001
+//fusa:req REQ-ZONE-002
+//fusa:req REQ-ZONE-003
+//fusa:req REQ-ZONE-004
+//fusa:req REQ-ZONE-005
+//fusa:req REQ-ZONE-006
+//fusa:req REQ-ZONE-007
+//fusa:req REQ-ZONE-008
+//fusa:req REQ-PRI-001
+//fusa:req REQ-PRI-002
+//fusa:req REQ-PRI-003
+//fusa:req REQ-CMD-001
+//fusa:req REQ-CMD-002
+//fusa:req REQ-CMD-003
+//fusa:req REQ-CMD-004
+//fusa:req REQ-CMD-005
+//fusa:req REQ-CMD-006
 //fusa:req REQ-STATUS-001
+//fusa:req REQ-STATUS-002
+//fusa:req REQ-STATUS-003
+//fusa:req REQ-STATUS-004
+//fusa:req REQ-STATUS-005
+//fusa:req REQ-STATUS-006
+//fusa:req REQ-ERR-001
+//fusa:req REQ-ERR-002
+//fusa:req REQ-ERR-003
+//fusa:req REQ-ERR-004
+//fusa:req REQ-ERR-005
+//fusa:req REQ-ERR-006
+//fusa:req REQ-ERR-007
+//fusa:req REQ-ERR-008
+//fusa:req REQ-ERR-009
+//fusa:req REQ-ERR-010
+//fusa:req REQ-CMDSTRUCT-001
+//fusa:req REQ-CMDSTRUCT-002
+//fusa:req REQ-RESP-001
+//fusa:req REQ-RESP-002
+//fusa:req REQ-RESP-003
+//fusa:req REQ-STAT-001
+//fusa:req REQ-STAT-002
+//fusa:req REQ-STAT-003
+//fusa:req REQ-STAT-004
+//fusa:req REQ-STAT-005
 
 // Package rcp provides the Remote Control Protocol for automotive zonal architecture.
 //
