@@ -142,7 +142,7 @@ func TestController_Send_CustomHandler(t *testing.T) {
 
 func TestController_Send_AfterClose(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontRight, nil)
-	ctrl.Close()
+	_ = ctrl.Close()
 
 	_, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1})
 	if err == nil {
@@ -209,7 +209,7 @@ func TestController_Subscribe_ClosedOnControllerClose(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	ctrl.Close()
+	_ = ctrl.Close()
 
 	select {
 	case _, ok := <-ch:
@@ -223,7 +223,7 @@ func TestController_Subscribe_ClosedOnControllerClose(t *testing.T) {
 
 func TestController_Subscribe_AfterClose(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	ctrl.Close()
+	_ = ctrl.Close()
 
 	_, err := ctrl.Subscribe(context.Background())
 	if err == nil {
@@ -307,7 +307,7 @@ func TestResponseStatus_String(t *testing.T) {
 
 func TestRegistry_Register_AfterClose(t *testing.T) {
 	reg := mock.NewRegistry()
-	reg.Close()
+	_ = reg.Close()
 
 	ctrl := mock.NewController(rcp.ZoneUnknown, nil)
 	err := reg.Register(ctrl)
