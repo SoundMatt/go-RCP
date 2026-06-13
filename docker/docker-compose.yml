@@ -1,0 +1,32 @@
+# go-RCP quickstart — controller and zone simulators in under two minutes.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# The controller sends periodic CmdSet commands to all zones.
+# The zone container simulates a front-left zone controller.
+
+networks:
+  rcp:
+    driver: bridge
+
+services:
+  controller:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: controller
+    networks:
+      - rcp
+    restart: unless-stopped
+
+  zone:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: zone
+    networks:
+      - rcp
+    restart: unless-stopped
+    depends_on:
+      - controller

@@ -1,0 +1,156 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-REG-001",
+      "title": "Registry pre-populates all standard zones",
+      "text": "A Registry created by NewRegistry shall contain controllers for ZoneFrontLeft, ZoneFrontRight, ZoneRearLeft, ZoneRearRight, and ZoneCentral.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REG-002",
+      "title": "Registry rejects duplicate zone registration",
+      "text": "Registering a controller for a zone that is already registered shall return ErrAlreadyExists.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-REG-003",
+      "title": "Registry deregisters and closes zone controller",
+      "text": "Deregister shall remove the controller from the registry and call Close() on it. After deregistration, Lookup for the same zone shall return ErrNotFound.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-REG-004",
+      "title": "Registry Lookup returns ErrNotFound for absent zone",
+      "text": "Lookup for a zone that has no registered controller shall return ErrNotFound.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-REG-005",
+      "title": "Registry Close idempotency",
+      "text": "Registry.Close() shall be safe to call multiple times; subsequent calls shall be no-ops returning nil.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-REG-006",
+      "title": "Registry Controllers returns all registered controllers",
+      "text": "Controllers() shall return exactly the set of currently registered controllers.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-REG-007",
+      "title": "Registry Register rejected after Close",
+      "text": "Register called on a closed Registry shall return an error wrapping ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-CTRL-001",
+      "title": "Controller Send default OK response",
+      "text": "When no handler is configured, Controller.Send shall return a Response with StatusOK and CommandID equal to the command ID.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-002",
+      "title": "Controller Send dispatches to handler",
+      "text": "When a handler is configured, Controller.Send shall invoke the handler and return its result.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-003",
+      "title": "Controller Send rejected after Close",
+      "text": "Send called on a closed Controller shall return an error wrapping ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-004",
+      "title": "Controller Send respects cancelled context",
+      "text": "If the context passed to Send is already cancelled, Send shall return an error wrapping ErrTimeout.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-005",
+      "title": "Controller Close idempotency",
+      "text": "Controller.Close() shall be safe to call multiple times; subsequent calls shall be no-ops returning nil.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-CTRL-006",
+      "title": "Controller Subscribe receives published status",
+      "text": "A Status published via Publish shall be delivered to all active Subscribe channels within the controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-007",
+      "title": "Controller Subscribe channel closed on controller close",
+      "text": "When Controller.Close() is called, all active Subscribe channels shall be closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-008",
+      "title": "Controller Subscribe rejected after Close",
+      "text": "Subscribe called on a closed Controller shall return an error wrapping ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-CTRL-009",
+      "title": "Controller Zone returns declared zone",
+      "text": "Controller.Zone() shall return the Zone value provided at construction time.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-CTRL-010",
+      "title": "Controller Subscribe sequence numbers strictly increasing",
+      "text": "Successive Status updates published by Publish shall carry strictly increasing Seq values.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZONE-001",
+      "title": "Zone String representation",
+      "text": "Zone.String() shall return a unique, human-readable identifier for each defined zone constant.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-STATUS-001",
+      "title": "ResponseStatus String representation",
+      "text": "ResponseStatus.String() shall return a unique, human-readable identifier for each defined status constant.",
+      "standard": "iso26262",
+      "level": "ASIL-A",
+      "asil": "ASIL-A"
+    }
+  ]
+}

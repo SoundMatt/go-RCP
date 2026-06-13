@@ -1,0 +1,12 @@
+# CODEOWNERS — require review from @SoundMatt on all changes
+# This satisfies SLSA L3 two-party review requirements.
+
+* @SoundMatt
+
+# Safety-critical artifacts always require owner review
+.fusa-reqs.json      @SoundMatt
+.fusa-hara.json      @SoundMatt
+.fusa.json           @SoundMatt
+SAFETY_PLAN.md       @SoundMatt
+SECURITY.md          @SoundMatt
+INCIDENT-RESPONSE.md @SoundMatt

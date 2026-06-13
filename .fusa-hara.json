@@ -1,0 +1,71 @@
+{
+  "project": "go-RCP",
+  "standard": "ISO 26262",
+  "createdAt": "2026-06-13T00:00:00Z",
+  "operationalSituations": [
+    {
+      "id": "OS-001",
+      "description": "Normal vehicle operation — all zone controllers reachable"
+    },
+    {
+      "id": "OS-002",
+      "description": "Partial network fault — one or more zone controllers unreachable"
+    },
+    {
+      "id": "OS-003",
+      "description": "Safety-critical manoeuvre — emergency braking or collision avoidance active"
+    }
+  ],
+  "hazards": [
+    {
+      "id": "H-001",
+      "description": "Loss of command delivery to safety-critical zone (e.g. braking actuator)",
+      "situations": ["OS-001", "OS-002", "OS-003"],
+      "risk": {
+        "severity": "S3",
+        "exposure": "E4",
+        "controllability": "C2",
+        "asil": "ASIL-B"
+      },
+      "safetyGoals": ["SG-001"]
+    },
+    {
+      "id": "H-002",
+      "description": "Spurious command sent to wrong zone controller",
+      "situations": ["OS-001"],
+      "risk": {
+        "severity": "S2",
+        "exposure": "E3",
+        "controllability": "C2",
+        "asil": "ASIL-B"
+      },
+      "safetyGoals": ["SG-002"]
+    },
+    {
+      "id": "H-003",
+      "description": "Zone controller watchdog not kicked, leading to unintended reset",
+      "situations": ["OS-001", "OS-003"],
+      "risk": {
+        "severity": "S2",
+        "exposure": "E3",
+        "controllability": "C3",
+        "asil": "ASIL-B"
+      },
+      "safetyGoals": ["SG-003"]
+    }
+  ],
+  "safetyGoals": [
+    {
+      "id": "SG-001",
+      "description": "The RCP library shall detect and report command delivery failures within the timeout period."
+    },
+    {
+      "id": "SG-002",
+      "description": "The RCP library shall validate that commands are addressed to the correct zone and reject mismatched deliveries."
+    },
+    {
+      "id": "SG-003",
+      "description": "The RCP library shall provide a CmdWatchdog command type and ensure it is delivered with at least PriorityHigh."
+    }
+  ]
+}
