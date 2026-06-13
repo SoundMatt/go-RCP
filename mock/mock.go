@@ -14,6 +14,20 @@ package mock
 //fusa:req REQ-CTRL-008
 //fusa:req REQ-CTRL-009
 //fusa:req REQ-CTRL-010
+//fusa:req REQ-CTRL-011
+//fusa:req REQ-CTRL-012
+//fusa:req REQ-CTRL-013
+//fusa:req REQ-CTRL-014
+//fusa:req REQ-CTRL-015
+//fusa:req REQ-CTRL-016
+//fusa:req REQ-CTRL-017
+//fusa:req REQ-CTRL-018
+//fusa:req REQ-CTRL-019
+//fusa:req REQ-CTRL-020
+//fusa:req REQ-CTRL-021
+//fusa:req REQ-CTRL-022
+//fusa:req REQ-CTRL-023
+//fusa:req REQ-CTRL-024
 //fusa:req REQ-REG-001
 //fusa:req REQ-REG-002
 //fusa:req REQ-REG-003
@@ -21,6 +35,18 @@ package mock
 //fusa:req REQ-REG-005
 //fusa:req REQ-REG-006
 //fusa:req REQ-REG-007
+//fusa:req REQ-REG-008
+//fusa:req REQ-REG-009
+//fusa:req REQ-REG-010
+//fusa:req REQ-REG-011
+//fusa:req REQ-REG-012
+//fusa:req REQ-RESP-001
+//fusa:req REQ-RESP-002
+//fusa:req REQ-STAT-001
+//fusa:req REQ-STAT-002
+//fusa:req REQ-STAT-003
+//fusa:req REQ-STAT-004
+//fusa:req REQ-STAT-005
 
 import (
 	"context"
