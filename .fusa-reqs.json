@@ -2231,6 +2231,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-001",
+      "title": "ParseManifest decodes YAML manifest",
+      "text": "The codegen package shall decode a v1 YAML zone manifest and return a validated Manifest struct.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-002",
+      "title": "ParseManifest decodes JSON manifest",
+      "text": "The codegen package shall decode a v1 JSON zone manifest and return a validated Manifest struct.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-003",
+      "title": "ErrInvalidVersion on bad version",
+      "text": "ParseManifest shall return ErrInvalidVersion when the manifest version field is not 1.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-004",
+      "title": "ErrMissingPackage on empty package",
+      "text": "ParseManifest shall return ErrMissingPackage when the package field is missing or empty.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-005",
+      "title": "Generate produces impl and test files",
+      "text": "Generate shall produce one gofmt-formatted implementation file and one test skeleton file per zone in the manifest.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-006",
+      "title": "Generated impl contains fusa:req annotations",
+      "text": "The generated implementation file shall contain //fusa:req annotations for all 8 zone requirements.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-007",
+      "title": "Generated test contains fusa:test annotations",
+      "text": "The generated test skeleton shall contain //fusa:test annotations for all 8 zone requirements.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-008",
+      "title": "GenerateRequirements produces 8 reqs per zone",
+      "text": "GenerateRequirements shall produce exactly 8 requirement entries per zone with correct ASIL and standard fields.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
