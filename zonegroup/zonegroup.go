@@ -99,7 +99,6 @@ func (g *Group) Broadcast(ctx context.Context, cmd *rcp.Command) (BroadcastResul
 	wg.Add(len(g.members))
 
 	for i, m := range g.members {
-		i, m := i, m
 		go func() {
 			defer wg.Done()
 			c := *cmd // copy so Zone override doesn't race
