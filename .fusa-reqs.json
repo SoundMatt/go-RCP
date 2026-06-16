@@ -2039,6 +2039,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-001",
+      "title": "GET /zones lists all zones",
+      "text": "The admin server shall return a JSON array of ZoneInfo for all registered zones on GET /zones.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-002",
+      "title": "GET /zones/{zone} returns zone detail",
+      "text": "The admin server shall return a JSON ZoneInfo for a known zone on GET /zones/{zone}, and 404 for an unknown zone.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-003",
+      "title": "POST /zones/{zone}/send dispatches command",
+      "text": "The admin server shall parse the JSON body, dispatch the command via the registry, and return the JSON response on POST /zones/{zone}/send.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-004",
+      "title": "Bearer auth on write endpoints",
+      "text": "When BearerToken is configured, POST /zones/{zone}/send shall return 401 if the Authorization header does not match.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-005",
+      "title": "GET /events SSE stream",
+      "text": "The admin server shall stream zone health events as Server-Sent Events on GET /events, one event per Flush boundary.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-006",
+      "title": "GET /metrics Prometheus format",
+      "text": "The admin server shall emit zone health, command count, error count, and deadline miss count in Prometheus text format on GET /metrics.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-007",
+      "title": "RecordSend updates telemetry",
+      "text": "The admin server shall update zone health, last-seen timestamp, error count, and deadline miss count when RecordSend is called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADM-008",
+      "title": "Concurrent RecordSend race-free",
+      "text": "The admin server shall be safe for concurrent RecordSend and HTTP handler invocations without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
