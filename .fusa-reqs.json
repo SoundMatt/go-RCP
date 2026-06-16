@@ -919,6 +919,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-001",
+      "title": "Shmem Controller.Send delivers commands with StatusOK via shared bus",
+      "text": "A Controller.Send over a shmem Bus shall receive a Response with StatusOK when no handler is installed, without serialisation or network I/O.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-002",
+      "title": "Shmem ZoneServer handler is invoked for each Command",
+      "text": "When a handler is installed via ZoneServer.SetHandler, it shall be called for every Command and its Response shall be delivered to the sender.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-003",
+      "title": "Shmem Controller.Send copies payload before delivery",
+      "text": "Controller.Send shall copy the Command payload into a pooled buffer before dispatching so that mutation of the original slice after Send does not affect the bytes seen by the handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-004",
+      "title": "Shmem Controller.Send returns ErrZoneMismatch for wrong zone",
+      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not match the bus zone, consistent with REQ-CTRL-025.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-005",
+      "title": "Shmem Controller.Send returns ErrTimeout on cancelled context",
+      "text": "Controller.Send shall return ErrTimeout when the provided context is cancelled before the command is dispatched.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-006",
+      "title": "Shmem Subscribe receives Status published by ZoneServer",
+      "text": "A Controller.Subscribe channel shall receive a Status frame each time ZoneServer.Publish is called while the subscription is active.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-007",
+      "title": "Shmem Subscribe channel closes on context cancellation",
+      "text": "The Status channel returned by Subscribe shall be closed when the subscriber's context is cancelled.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-008",
+      "title": "Shmem Controller.Send is safe under concurrent callers",
+      "text": "Multiple goroutines calling Controller.Send concurrently shall each receive a correct Response without data races or deadlocks.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
