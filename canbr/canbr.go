@@ -187,7 +187,6 @@ type Controller struct {
 	zone   rcp.Zone
 	bus    *Bus
 	ch     chan Frame
-	nextID atomic.Uint32
 	closed atomic.Bool
 	done   chan struct{}
 
