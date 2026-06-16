@@ -46,7 +46,7 @@ The project focuses on:
 | **Safety mechanisms** | v0.15.0 | Priority queuing | Per-zone priority queue honouring PriorityCritical/High/Normal ✅ |
 | **Safety mechanisms** | v0.16.0 | Rate limiting | Per-zone token-bucket admission control against command flooding ✅ |
 | **Verification** | v0.17.0 | Zone simulator | Timing-realistic zone controller simulator for SiL/HIL testing ✅ |
-| **Verification** | v0.18.0 | Fault injection | Structured fault injection to validate watchdog, E2E, and replay-guard mechanisms |
+| **Verification** | v0.18.0 | Fault injection | Structured fault injection to validate watchdog, E2E, and replay-guard mechanisms ✅ |
 | **Security** | v0.19.0 | Authorization | Command-level access control; ISO 21434 SL-2 policy enforcement |
 | **Security** | v0.20.0 | Firmware update | CmdUpdate and firmware/ package for zone controller OTA delivery |
 | **Topology** | v0.21.0 | Zone groups | Atomic multi-zone command broadcast with typed zone group sets |
