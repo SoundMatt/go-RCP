@@ -1399,6 +1399,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-001",
+      "title": "Token bucket refills at Config.Rate tokens per second",
+      "text": "ratelimit.Controller shall refill its token bucket at Config.Rate tokens per second. After N seconds with no sends, the bucket shall contain min(N*Rate, Burst) additional tokens.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-002",
+      "title": "Bucket token count is capped at Config.Burst",
+      "text": "ratelimit.Controller shall cap the token bucket at Config.Burst. Accumulated tokens from refill shall never exceed Burst regardless of elapsed time.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-003",
+      "title": "Send returns rcp.ErrBusy immediately when bucket is exhausted",
+      "text": "ratelimit.Controller.Send shall return an error wrapping rcp.ErrBusy immediately (without blocking) when the token bucket contains fewer than one token. No command shall be forwarded to the inner controller on an ErrBusy return.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-004",
+      "title": "PriorityCritical commands bypass the bucket when ExemptCritical is true",
+      "text": "When Config.ExemptCritical is true, ratelimit.Controller shall forward PriorityCritical commands to the inner controller without consuming a token and without returning ErrBusy. When ExemptCritical is false, PriorityCritical commands are subject to the same bucket check as all other priorities.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-005",
+      "title": "Zone() and Subscribe() delegate to the inner controller",
+      "text": "ratelimit.Controller.Zone() shall return the inner controller's zone. ratelimit.Controller.Subscribe() shall delegate to and return the inner controller's Subscribe result.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-006",
+      "title": "Close() is idempotent and subsequent Sends return ErrClosed",
+      "text": "ratelimit.Controller.Close() shall be safe to call multiple times and shall return nil on all calls. After Close(), Send shall return an error wrapping rcp.ErrClosed without forwarding to the inner controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-007",
+      "title": "Controller is safe for concurrent use",
+      "text": "ratelimit.Controller shall be safe for concurrent use by multiple goroutines each calling Send simultaneously, without data races or incorrect token accounting.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RL-008",
+      "title": "Bucket starts full; DefaultConfig returns ASIL-B recommended values",
+      "text": "A newly created ratelimit.Controller shall start with tokens equal to Config.Burst (bucket full). DefaultConfig() shall return a Config with positive Rate, positive Burst, and ExemptCritical=true.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
