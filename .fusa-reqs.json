@@ -1527,6 +1527,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-001",
+      "title": "FaultDrop returns an error without forwarding to the inner controller",
+      "text": "A faultinject.Controller with a FaultDrop rule shall return an error from Send without calling inner.Send. The inner controller shall receive no commands during the fault window.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-002",
+      "title": "FaultSlow adds Rule.Latency before forwarding to the inner controller",
+      "text": "A faultinject.Controller with a FaultSlow rule shall sleep Rule.Latency then forward the command to the inner controller. If ctx expires during the sleep, Send shall return rcp.ErrTimeout without calling inner.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-003",
+      "title": "FaultError returns StatusError without forwarding to the inner controller",
+      "text": "A faultinject.Controller with a FaultError rule shall return a Response with StatusError from Send without calling inner.Send.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-004",
+      "title": "FaultTimeout returns rcp.ErrTimeout without forwarding to the inner controller",
+      "text": "A faultinject.Controller with a FaultTimeout rule shall return rcp.ErrTimeout from Send without calling inner.Send and without blocking.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-005",
+      "title": "Count-limited rules auto-expire after N applications",
+      "text": "A Rule with Count > 0 shall be automatically removed from the active rules list after it has been applied exactly Count times. Subsequent Sends shall proceed without that rule.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-006",
+      "title": "ClearRules() removes all active rules",
+      "text": "faultinject.Controller.ClearRules() shall atomically remove all active fault rules. Subsequent Send calls shall go directly to the inner controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-007",
+      "title": "Controller is safe for concurrent use",
+      "text": "faultinject.Controller shall be safe for concurrent use by multiple goroutines simultaneously calling Send, AddRule, or ClearRules, without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-008",
+      "title": "Zone/Subscribe/Close delegate to inner; Close is idempotent",
+      "text": "faultinject.Controller.Zone() and Subscribe() shall delegate to the inner controller. Close() shall close the inner controller and be safe to call multiple times. Subsequent Sends after Close return rcp.ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
