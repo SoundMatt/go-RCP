@@ -2727,6 +2727,54 @@
       "text": "Bridge.Close stops background goroutines and is idempotent.",
       "asil": "B",
       "package": "mqttbr"
+    },
+    {
+      "id": "REQ-LIN-001",
+      "text": "EncodeFrame produces a valid 11-byte LIN frame with protected ID and classic checksum.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-002",
+      "text": "DecodeFrame parses an encoded frame back to the original ID, DataLen, and Data bytes.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-003",
+      "text": "DecodeFrame returns ErrChecksumMismatch when the checksum field is corrupted.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-004",
+      "text": "Bus.Send delivers frames to all Slaves registered for the matching frame ID.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-005",
+      "text": "Bus.Send does not deliver frames to Slaves registered for a different ID.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-006",
+      "text": "Slave receives frames dispatched by the Bus on its registered ID.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-007",
+      "text": "Bridge decodes LIN frames and dispatches them as rcp.Commands via Controller.Send.",
+      "asil": "B",
+      "package": "linbr"
+    },
+    {
+      "id": "REQ-LIN-008",
+      "text": "Bridge.Close stops the dispatch goroutine and is idempotent.",
+      "asil": "B",
+      "package": "linbr"
     }
   ]
 }
