@@ -1719,6 +1719,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-001",
+      "title": "Broadcast delivers command to all group members concurrently",
+      "text": "zonegroup.Group.Broadcast shall send the command to every member controller concurrently and wait for all responses before returning, achieving atomic multi-zone delivery within the context deadline.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-002",
+      "title": "cmd.Zone is overridden per member before Send",
+      "text": "Broadcast shall set cmd.Zone to each member controller's Zone() value before calling Send, ensuring the command targets the correct zone regardless of the caller-supplied Zone field.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-003",
+      "title": "BroadcastResult.OK is false if any member fails",
+      "text": "BroadcastResult.OK shall return false if any member returns a non-nil error or a Response with Status != StatusOK. All results are collected regardless of individual failures.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-004",
+      "title": "Context cancellation propagates to all member Sends",
+      "text": "If the context passed to Broadcast is cancelled or times out, that same context is forwarded to each member Send call so all in-flight commands are cancelled simultaneously.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-005",
+      "title": "Zones and Len report the group membership",
+      "text": "Group.Zones shall return the Zone() of each member in insertion order. Group.Len shall return the number of members.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-006",
+      "title": "NewGroup rejects empty or nil-member lists",
+      "text": "NewGroup shall return an error if the member slice is empty or contains a nil controller, preventing construction of an invalid group.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-007",
+      "title": "Close is idempotent; Broadcast after Close returns ErrClosed",
+      "text": "Group.Close shall close every member controller exactly once and be safe to call multiple times. Any Broadcast call after the first Close shall return rcp.ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ZG-008",
+      "title": "Concurrent Broadcasts are race-free",
+      "text": "Multiple goroutines may call Broadcast simultaneously on the same Group without data races. The Group's internal state is immutable after construction.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

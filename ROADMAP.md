@@ -49,7 +49,7 @@ The project focuses on:
 | **Verification** | v0.18.0 | Fault injection | Structured fault injection to validate watchdog, E2E, and replay-guard mechanisms ✅ |
 | **Security** | v0.19.0 | Authorization | Command-level access control; ISO 21434 SL-2 policy enforcement ✅ |
 | **Security** | v0.20.0 | Firmware update | CmdUpdate and firmware/ package for zone controller OTA delivery ✅ |
-| **Topology** | v0.21.0 | Zone groups | Atomic multi-zone command broadcast with typed zone group sets |
+| **Topology** | v0.21.0 | Zone groups | Atomic multi-zone command broadcast with typed zone group sets ✅ |
 | **Topology** | v0.22.0 | Zone proxy | Transparent zone proxy for multi-hop zonal topologies |
 | **Topology** | v0.23.0 | Redundancy | Hot-standby Registry and HPC failover for ASIL-B fault tolerance |
 | **Topology** | v0.24.0 | Multi-HPC federation | Multi-HPC active coordination over shared zone bus |
