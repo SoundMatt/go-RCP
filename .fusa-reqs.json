@@ -1975,6 +1975,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-001",
+      "title": "OTel span per Send call",
+      "text": "The observe.Controller shall create and end an OpenTelemetry trace span for every Send call, recording zone, command type, priority, and command ID as span attributes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-002",
+      "title": "OTel span per Subscribe call",
+      "text": "The observe.Controller shall create and end an OpenTelemetry trace span for every Subscribe call, recording the zone as a span attribute.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-003",
+      "title": "Send latency histogram",
+      "text": "The observe.Controller shall call Metrics.ObserveSendLatency with the round-trip time in milliseconds for every successful Send.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-004",
+      "title": "Send error counter",
+      "text": "The observe.Controller shall call Metrics.IncSendError for every Send that returns an error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-005",
+      "title": "Zone health gauge",
+      "text": "The observe.Controller shall call Metrics.SetZoneHealth after every successful Send, passing true when the response status is StatusOK.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-006",
+      "title": "Deadline miss counter",
+      "text": "The observe.Controller shall call Metrics.IncDeadlineMiss when a Send error wraps context.DeadlineExceeded or rcp.ErrTimeout.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-007",
+      "title": "Send-after-Close returns ErrClosed",
+      "text": "The observe.Controller shall return a wrapped rcp.ErrClosed error for any Send or Subscribe call made after Close.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-008",
+      "title": "Concurrent Send race-free",
+      "text": "The observe.Controller shall be safe for concurrent Send and Subscribe calls without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
