@@ -30,14 +30,14 @@ func startServer(t *testing.T, zone rcp.Zone, handler func(*rcp.Command) *rcp.Re
 	inner := mock.NewController(zone, handler)
 	gs := grpc.NewServer()
 	grpcbridge.RegisterServer(gs, grpcbridge.NewServer(inner))
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
 	go func() { _ = gs.Serve(ln) }()
 	return ln.Addr().String(), func() {
 		gs.Stop()
-		inner.Close()
+		_ = inner.Close()
 	}
 }
 
@@ -53,7 +53,7 @@ func TestServer_AcceptsConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 }
 
 // REQ-GRPC-002: Controller.Send transmits a command and returns a response.
@@ -70,7 +70,7 @@ func TestController_Send(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Priority: rcp.PriorityNormal}
 	resp, err := c.Send(ctx, cmd)
@@ -94,7 +94,7 @@ func TestController_Send_ZoneMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneRearLeft, Type: rcp.CmdSet}
 	_, err = c.Send(ctx, cmd)
@@ -120,7 +120,7 @@ func TestServer_Send_PayloadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Payload: want}
 	resp, err := c.Send(ctx, cmd)
@@ -140,13 +140,13 @@ func TestController_Subscribe(t *testing.T) {
 	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
 	gs := grpc.NewServer()
 	grpcbridge.RegisterServer(gs, grpcbridge.NewServer(inner))
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
 	go func() { _ = gs.Serve(ln) }()
 	defer gs.Stop()
-	defer inner.Close()
+	defer func() { _ = inner.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -155,7 +155,7 @@ func TestController_Subscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ch, err := c.Subscribe(ctx)
 	if err != nil {
@@ -238,13 +238,13 @@ func TestServer_Send_InnerError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	c, err := grpcbridge.NewController(ctx, rcp.ZoneFrontLeft, addr)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet}
 	resp, err := c.Send(ctx, cmd)

@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"sync/atomic"
 
 	rcp "github.com/SoundMatt/go-RCP"
@@ -103,11 +102,13 @@ func sendHandler(srv any, ctx context.Context, dec func(any) error, interceptor 
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BridgeServer).Send(ctx, req)
+		resp, err := srv.(BridgeServer).Send(ctx, req)
+		return resp, err
 	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/rcp.Bridge/Send"}
 	handler := func(ctx context.Context, req any) (any, error) {
-		return srv.(BridgeServer).Send(ctx, req.(*SendRequest))
+		resp, err := srv.(BridgeServer).Send(ctx, req.(*SendRequest))
+		return resp, err
 	}
 	return interceptor(ctx, req, info, handler)
 }
@@ -117,7 +118,8 @@ func subscribeHandler(srv any, stream grpc.ServerStream) error {
 	if err := stream.RecvMsg(req); err != nil {
 		return err
 	}
-	return srv.(BridgeServer).Subscribe(req, stream)
+	err := srv.(BridgeServer).Subscribe(req, stream)
+	return err
 }
 
 // ─── Server ───────────────────────────────────────────────────────────────────
@@ -187,11 +189,7 @@ func (s *Server) Subscribe(req *SubscribeRequest, stream grpc.ServerStream) erro
 type Controller struct {
 	zone   rcp.Zone
 	cc     *grpc.ClientConn
-	nextID atomic.Uint32
 	closed atomic.Bool
-
-	mu   sync.Mutex
-	subs []chan *rcp.Status
 }
 
 // NewController dials serverAddr and returns an rcp.Controller for zone.
