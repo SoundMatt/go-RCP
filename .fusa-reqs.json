@@ -2423,6 +2423,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-001",
+      "title": "HTTP send endpoint",
+      "text": "Server shall expose POST /v1/zones/{zone}/send to deliver a JSON-encoded Command to the inner rcp.Controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-002",
+      "title": "JSON response status",
+      "text": "Server shall return a JSON SendResponse containing the CommandID, Zone, Status, and optional Payload fields.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-003",
+      "title": "Unknown zone rejection",
+      "text": "Server shall return HTTP 422 Unprocessable Entity when the zone path parameter does not match a valid rcp.Zone.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-004",
+      "title": "SSE events endpoint",
+      "text": "Server shall expose GET /v1/zones/{zone}/events as a Server-Sent Events stream delivering rcp.Status updates.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-005",
+      "title": "Controller HTTP send",
+      "text": "Controller.Send shall POST the Command to the server and decode the JSON SendResponse into an rcp.Response.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-006",
+      "title": "Zone mismatch rejection",
+      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone without making a network request.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-007",
+      "title": "Idempotent close",
+      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REST-008",
+      "title": "Closed send error",
+      "text": "Controller.Send shall return ErrClosed without making a network request after Controller.Close has been called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
