@@ -2103,6 +2103,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-001",
+      "title": "RecordCommand appends command entry",
+      "text": "The Recorder shall append a timestamped Entry of TypeCommand for every RecordCommand call, copying the payload to prevent aliasing.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-002",
+      "title": "RecordResponse appends response entry",
+      "text": "The Recorder shall append a timestamped Entry of TypeResponse for every RecordResponse call.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-003",
+      "title": "RecordStatus appends status entry",
+      "text": "The Recorder shall append a timestamped Entry of TypeStatus for every RecordStatus call.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-004",
+      "title": "Ring-buffer overwrites oldest entry",
+      "text": "When maxEntries > 0, the Recorder shall overwrite the oldest entry when the buffer is full, preserving the most recent maxEntries entries.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-005",
+      "title": "WriteTo/ReadFrom binary round-trip",
+      "text": "The Recorder shall serialise entries to a binary format with CRC-32 per frame via WriteTo, and ReadFrom shall deserialise them and return ErrCorrupted on checksum failure.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-006",
+      "title": "Controller records Send events",
+      "text": "The record.Controller shall record the command before Send and the response after a successful Send.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-007",
+      "title": "Replay sends recorded commands",
+      "text": "Replay shall re-send all TypeCommand entries to the target in order and return the collected responses.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-008",
+      "title": "Concurrent record race-free",
+      "text": "The Recorder and record.Controller shall be safe for concurrent use from multiple goroutines without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
