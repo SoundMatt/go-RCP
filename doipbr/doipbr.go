@@ -104,6 +104,8 @@ func (s *Server) Addr() net.Addr { return s.ln.Addr() }
 
 // Serve starts accepting TCP connections. It returns when Close is called.
 func (s *Server) Serve() {
+	s.wg.Add(1)
+	defer s.wg.Done()
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
