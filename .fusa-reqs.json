@@ -1143,6 +1143,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-001",
+      "title": "Zone starts not-alive; transitions to alive on first Status",
+      "text": "deadline.Monitor shall initialise every registered zone as not-alive. The zone shall transition to alive and emit a LivenessEvent{Alive:true} upon receiving the first Status frame. A zone whose Subscribe call fails shall remain not-alive.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-002",
+      "title": "Alive zone transitions to dead when deadline exceeded",
+      "text": "deadline.Monitor shall transition an alive zone to dead and emit LivenessEvent{Alive:false} when no Status frame arrives within Config.Deadline after the most recent Status.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-003",
+      "title": "Dead zone recovers to alive on next Status",
+      "text": "deadline.Monitor shall transition a dead zone back to alive and emit LivenessEvent{Alive:true} as soon as the next Status frame arrives, regardless of how long the zone was dead.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-004",
+      "title": "Deadline is configurable per Monitor instance",
+      "text": "deadline.Config.Deadline shall control the maximum inter-Status gap. A Monitor created with a custom Deadline shall honour that value independently of other Monitor instances.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-005",
+      "title": "DefaultConfig returns 50 ms deadline",
+      "text": "deadline.DefaultConfig().Deadline shall equal 50 ms, matching a 20 Hz Status cadence and satisfying SG-007 liveness detection latency budget.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-006",
+      "title": "Alive() returns false for unregistered zone",
+      "text": "deadline.Monitor.Alive shall return false for any Zone that was not passed to NewMonitor, providing a safe-state default.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-007",
+      "title": "Subscriber channel closes on Monitor.Close() or context cancellation",
+      "text": "A channel returned by deadline.Monitor.Subscribe shall be closed when Monitor.Close() is called or the subscriber's context is cancelled. Subscribe shall return an error if the Monitor is already closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DL-008",
+      "title": "Monitor.Close() is idempotent",
+      "text": "deadline.Monitor.Close() shall be safe to call multiple times and shall return nil on all calls, preventing panics from double-close in cleanup paths.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
