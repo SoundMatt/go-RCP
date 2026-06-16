@@ -2775,6 +2775,54 @@
       "text": "Bridge.Close stops the dispatch goroutine and is idempotent.",
       "asil": "B",
       "package": "linbr"
+    },
+    {
+      "id": "REQ-UDS-001",
+      "text": "BuildRequest produces a PDU with the correct SID, DID, and payload.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-002",
+      "text": "BuildPositiveResponse produces the correct response PDU with SID+0x40 prefix.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-003",
+      "text": "BuildNegativeResponse produces a 0x7F PDU with the echoed SID and NRC byte.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-004",
+      "text": "Server.Handle dispatches WriteDataByIdentifier (0x2E) PDUs to rcp.Controller.Send.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-005",
+      "text": "Server.Handle returns ErrNegativeResponse for unsupported service IDs.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-006",
+      "text": "Server.Handle(ReadDataByIdentifier, DIDRCPStatus) returns the current rcp.Status.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-007",
+      "text": "Server.Handle returns ErrPDUTooShort when the PDU is shorter than 3 bytes.",
+      "asil": "B",
+      "package": "udsbr"
+    },
+    {
+      "id": "REQ-UDS-008",
+      "text": "Server.Close prevents further Handle calls and is idempotent.",
+      "asil": "B",
+      "package": "udsbr"
     }
   ]
 }
