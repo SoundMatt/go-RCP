@@ -54,7 +54,7 @@ The project focuses on:
 | **Topology** | v0.23.0 | Redundancy | Hot-standby Registry and HPC failover for ASIL-B fault tolerance ✅ |
 | **Topology** | v0.24.0 | Multi-HPC federation | Multi-HPC active coordination over shared zone bus | ✅
 | **Tooling** | v0.25.0 | Observability | OpenTelemetry traces and Prometheus metrics adapter | ✅
-| **Tooling** | v0.26.0 | Admin API | HTTP admin interface for runtime registry inspection and control |
+| **Tooling** | v0.26.0 | Admin API | HTTP admin interface for runtime registry inspection and control | ✅
 | **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics |
 | **Tooling** | v0.28.0 | Config | YAML/JSON zone registry configuration |
 | **Tooling** | v0.29.0 | Code generation | Zone manifest → typed Go controller stubs and fusa-annotated requirements |
@@ -326,7 +326,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - Prometheus-compatible metrics: command latency histogram, error rate, zone health gauge, power state distribution, deadline miss counter
 - `monitor` subcommand in `rcptool` for live zone status dashboard
 
-### 26. Admin API (v0.26.0)
+### 26. Admin API (v0.26.0) ✅
 
 - HTTP admin interface (`admin/` package, mirrors go-DDS `admin/`)
 - `GET /zones` — list all registered zones with health, power state, and last-seen timestamp
