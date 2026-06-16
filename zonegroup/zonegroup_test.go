@@ -12,7 +12,6 @@ package zonegroup_test
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,15 +51,6 @@ func TestZoneGroup_BroadcastAllOK(t *testing.T) {
 // TestZoneGroup_CmdZoneOverride cmd.Zone is overridden per member (REQ-ZG-002).
 func TestZoneGroup_CmdZoneOverride(t *testing.T) {
 	var gotZones []rcp.Zone
-	// Use a custom fake that records the zone from the received command.
-	type capCtrl struct {
-		*mock.Controller
-	}
-	_ = capCtrl{}
-
-	// Use a recorder that captures Zone from cmd.
-	var mu atomic.Int32
-	_ = mu
 
 	g, err := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft, rcp.ZoneRearRight))
 	if err != nil {
