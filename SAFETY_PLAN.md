@@ -37,6 +37,7 @@ analysis and risk assessment that derives these levels.
 | IEC62443 | IEC 62443 Security Target | `.fusa-iec62443.json` |
 | IR | Incident Response Plan | `INCIDENT-RESPONSE.md` |
 | SEC | Security Policy | `SECURITY.md` |
+| LAT | Command Latency Safety Evidence | `safety/COMMAND_LATENCY.md` |
 
 ---
 
@@ -60,6 +61,8 @@ analysis and risk assessment that derives these levels.
 | Static analysis | `go vet`, `golangci-lint`, `gofusa check` | All findings fixed before merge |
 | Test coverage | `go test -race -count=1 ./...` | All requirements traced to tests |
 | Fuzz testing | `go test -fuzz=...` | Seed corpus + 10 s in CI |
+| Benchmarks | `go test -bench=. -benchmem ./mock/...` | CI smoke: 1× iteration; local: `b.N` iterations |
+| Latency evidence | `RCP_LATENCY_DURATION=30s go test ./safety/` | Evidence in `safety/COMMAND_LATENCY.md` (REQ-SAFETY-001) |
 | Traceability | `fusa:req REQ-xxx` annotations | Checked by `gofusa trace` |
 | DCO | `Signed-off-by` trailer | Enforced by DCO workflow |
 | Code review | CODEOWNERS | All changes reviewed by @SoundMatt |
