@@ -1271,6 +1271,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-001",
+      "title": "Wrap prepends 4-byte sequence number and 2-byte CRC-16 header",
+      "text": "e2e.Wrap shall prepend a 6-byte E2E header — bytes [0:4] seqNum uint32 big-endian, bytes [4:6] CRC-16/CCITT-FALSE uint16 big-endian — to the original payload and return the combined frame.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-002",
+      "title": "CRC-16 covers both sequence number and payload bytes",
+      "text": "The CRC-16/CCITT-FALSE checksum computed by e2e.Wrap shall be calculated over the 4-byte seqNum followed by the original payload bytes. A change in either the seqNum or any payload byte shall produce a different CRC value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-003",
+      "title": "Unwrap rejects frames with CRC mismatch or insufficient length",
+      "text": "e2e.Unwrap shall return ErrCRCMismatch when the computed CRC does not match the stored CRC, and ErrShortFrame when the frame is shorter than HeaderLen (6 bytes). On success it returns the original seqNum and payload.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-004",
+      "title": "e2e.Controller auto-increments sequence counter on every Send",
+      "text": "e2e.Controller.Send shall atomically increment its per-instance sequence counter, call e2e.Wrap with the new seqNum, and delegate to the inner Controller. Each call shall produce a strictly increasing seqNum visible in the protected payload.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-005",
+      "title": "ReplayGuard detects replayed sequence numbers within the sliding window",
+      "text": "e2e.ReplayGuard.Check shall return ErrReplay when seqNum was already seen within the last replayWindow (32) entries, and nil for a new seqNum which is then recorded. ReplayGuard shall be safe for concurrent use.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-006",
+      "title": "E2E header length is exactly 6 bytes",
+      "text": "e2e.HeaderLen shall equal 6 (4 bytes seqNum + 2 bytes CRC-16). The wrapped frame length shall equal HeaderLen plus the original payload length.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-007",
+      "title": "Wrap and Unwrap are exact inverse operations",
+      "text": "For any seqNum and payload, e2e.Unwrap(e2e.Wrap(seqNum, payload)) shall return the same seqNum, the same payload bytes, and nil error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-E2E-008",
+      "title": "Single-bit corruption in payload or header is detected by Unwrap",
+      "text": "Flipping any bit in the payload section or the seqNum field of a wrapped frame shall cause e2e.Unwrap to return ErrCRCMismatch, ensuring single-fault detection coverage per ISO 26262 Part 7 E2E profile guidance.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
