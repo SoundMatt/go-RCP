@@ -1079,6 +1079,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-001",
+      "title": "Keeper initial health is Healthy for all registered zones",
+      "text": "watchdog.NewKeeper shall initialise the HealthState of every registered zone to HealthStateHealthy before the first tick fires.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-002",
+      "title": "Keeper.Health returns Faulted for unregistered zone",
+      "text": "watchdog.Keeper.Health shall return HealthStateFaulted when called with a Zone that was not passed to NewKeeper, providing a safe-state default.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-003",
+      "title": "Zone transitions to Degraded after DegradeAfter consecutive failures",
+      "text": "watchdog.Keeper shall transition a zone from HealthStateHealthy to HealthStateDegraded after Config.DegradeAfter consecutive watchdog kick failures, and emit a HealthEvent with State=HealthStateDegraded.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-004",
+      "title": "Zone transitions to Faulted after FaultAfter consecutive failures",
+      "text": "watchdog.Keeper shall transition a zone from HealthStateDegraded to HealthStateFaulted after Config.FaultAfter total consecutive watchdog kick failures, and emit a HealthEvent with State=HealthStateFaulted.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-005",
+      "title": "Zone recovers to Healthy when kicks succeed after fault",
+      "text": "watchdog.Keeper shall transition a zone from HealthStateFaulted back to HealthStateHealthy upon the first successful watchdog kick, resetting the consecutive-miss counter to zero and emitting a HealthEvent with State=HealthStateHealthy.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-006",
+      "title": "Watchdog kicks use PriorityHigh",
+      "text": "watchdog.Keeper shall set Command.Priority = PriorityHigh on every CmdWatchdog kick, ensuring watchdog frames are prioritised above normal traffic per REQ-PRI-002.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-007",
+      "title": "Watchdog kicks use CmdWatchdog command type",
+      "text": "watchdog.Keeper shall set Command.Type = CmdWatchdog on every kick, allowing zone controllers to distinguish watchdog frames from application commands.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WDG-008",
+      "title": "Subscriber channel closes on Keeper.Close() or context cancellation",
+      "text": "A channel returned by watchdog.Keeper.Subscribe shall be closed when either Keeper.Close() is called or the subscriber's context is cancelled, preventing goroutine leaks. Keeper.Close() shall be idempotent and return nil on repeated calls.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
