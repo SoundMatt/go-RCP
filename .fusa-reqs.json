@@ -2679,6 +2679,54 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MQTT-001",
+      "text": "Broker routes PUBLISH messages to all matching subscribers on a topic.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-002",
+      "text": "Client.Publish delivers payload to all subscribers on the topic.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-003",
+      "text": "Client.Subscribe returns a channel that receives subsequent publishes to the topic.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-004",
+      "text": "Client.Unsubscribe removes the subscription so no further messages are delivered.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-005",
+      "text": "Bridge publishes encoded rcp.Status payloads to the configured status topic.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-006",
+      "text": "Bridge subscribes to the command topic and dispatches decoded rcp.Command via Controller.Send.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-007",
+      "text": "Client.Close unsubscribes from all topics idempotently.",
+      "asil": "B",
+      "package": "mqttbr"
+    },
+    {
+      "id": "REQ-MQTT-008",
+      "text": "Bridge.Close stops background goroutines and is idempotent.",
+      "asil": "B",
+      "package": "mqttbr"
     }
   ]
 }
