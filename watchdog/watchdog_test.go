@@ -162,42 +162,52 @@ func TestKeeper_Recovery(t *testing.T) {
 	waitForState(t, events, watchdog.HealthStateHealthy, 500*time.Millisecond)
 }
 
-// TestKeeper_HealthStatePriority verifies kicks use PriorityHigh (REQ-WDG-006).
+// TestKeeper_KickUsesPriorityHigh verifies kicks use PriorityHigh (REQ-WDG-006).
 func TestKeeper_KickUsesPriorityHigh(t *testing.T) {
-	var observed rcp.Priority
+	// Buffer of 1: the first kick writes; subsequent kicks are dropped.
+	observed := make(chan rcp.Priority, 1)
 	handler := func(cmd *rcp.Command) *rcp.Response {
-		observed = cmd.Priority
+		select {
+		case observed <- cmd.Priority:
+		default:
+		}
 		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
 	}
 	ctrl := mock.NewController(rcp.ZoneFrontRight, handler)
 	k := watchdog.NewKeeper(testConfig(), []rcp.Controller{ctrl})
 	t.Cleanup(func() { _ = k.Close() })
 
-	// Wait long enough for at least one kick.
-	time.Sleep(20 * time.Millisecond)
-	_ = k.Close()
-
-	if observed != rcp.PriorityHigh {
-		t.Errorf("kick priority = %v, want PriorityHigh", observed)
+	select {
+	case p := <-observed:
+		if p != rcp.PriorityHigh {
+			t.Errorf("kick priority = %v, want PriorityHigh", p)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("no kick observed within timeout")
 	}
 }
 
 // TestKeeper_KickUsesCmdWatchdog verifies kick commands use CmdWatchdog (REQ-WDG-007).
 func TestKeeper_KickUsesCmdWatchdog(t *testing.T) {
-	var observed rcp.CommandType
+	observed := make(chan rcp.CommandType, 1)
 	handler := func(cmd *rcp.Command) *rcp.Response {
-		observed = cmd.Type
+		select {
+		case observed <- cmd.Type:
+		default:
+		}
 		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
 	}
 	ctrl := mock.NewController(rcp.ZoneCentral, handler)
 	k := watchdog.NewKeeper(testConfig(), []rcp.Controller{ctrl})
 	t.Cleanup(func() { _ = k.Close() })
 
-	time.Sleep(20 * time.Millisecond)
-	_ = k.Close()
-
-	if observed != rcp.CmdWatchdog {
-		t.Errorf("kick cmd type = %v, want CmdWatchdog", observed)
+	select {
+	case tp := <-observed:
+		if tp != rcp.CmdWatchdog {
+			t.Errorf("kick cmd type = %v, want CmdWatchdog", tp)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("no kick observed within timeout")
 	}
 }
 
