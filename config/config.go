@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	rcp "github.com/SoundMatt/go-RCP"
 	"gopkg.in/yaml.v3"
@@ -97,8 +98,9 @@ func Decode(r io.Reader, ext string) (*File, error) {
 // Watcher watches a config file for changes and calls onChange whenever a
 // reload succeeds. Call Stop to release resources.
 type Watcher struct {
-	path     string
-	onChange func(*File)
+	path         string
+	onChange     func(*File)
+	pollInterval time.Duration
 
 	mu      sync.RWMutex
 	current *File
@@ -114,11 +116,12 @@ func Watch(path string, onChange func(*File)) (*Watcher, error) {
 		return nil, err
 	}
 	w := &Watcher{
-		path:     path,
-		onChange: onChange,
-		current:  cfg,
-		stop:     make(chan struct{}),
-		done:     make(chan struct{}),
+		path:         path,
+		onChange:     onChange,
+		current:      cfg,
+		stop:         make(chan struct{}),
+		done:         make(chan struct{}),
+		pollInterval: 250 * time.Millisecond,
 	}
 	onChange(cfg)
 	go w.run()
@@ -154,7 +157,32 @@ func (w *Watcher) Stop() {
 
 func (w *Watcher) run() {
 	defer close(w.done)
-	// fsnotify-based hot-reload would be wired here in a production build.
-	// The goroutine exits cleanly when Stop is called.
-	<-w.stop
+	ticker := time.NewTicker(w.pollInterval)
+	defer ticker.Stop()
+
+	var lastMod time.Time
+	if info, err := os.Stat(w.path); err == nil {
+		lastMod = info.ModTime()
+	}
+
+	for {
+		select {
+		case <-w.stop:
+			return
+		case <-ticker.C:
+			info, err := os.Stat(w.path)
+			if err != nil {
+				continue
+			}
+			if t := info.ModTime(); t != lastMod {
+				lastMod = t
+				if cfg, err := Load(w.path); err == nil {
+					w.mu.Lock()
+					w.current = cfg
+					w.mu.Unlock()
+					w.onChange(cfg)
+				}
+			}
+		}
+	}
 }

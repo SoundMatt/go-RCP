@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	rcp "github.com/SoundMatt/go-RCP"
 	"github.com/SoundMatt/go-RCP/config"
@@ -191,5 +192,49 @@ func TestWatcher_Current(t *testing.T) {
 
 	if c := w.Current(); c == nil {
 		t.Error("Current() = nil")
+	}
+}
+
+func TestWatcher_AutoReload(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "cfg.yaml")
+	if err := os.WriteFile(f, []byte(yamlConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := make(chan *config.File, 4)
+	w, err := config.Watch(f, func(c *config.File) { calls <- c })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	<-calls // drain initial
+
+	// Ensure mtime differs by sleeping past filesystem resolution.
+	time.Sleep(20 * time.Millisecond)
+
+	const updated = `
+version: 1
+zones:
+  - zone: 1
+    transport: udp
+    address: "10.0.0.1:5000"
+  - zone: 2
+    transport: udp
+    address: "10.0.0.2:5000"
+  - zone: 3
+    transport: udp
+    address: "10.0.0.3:5000"
+`
+	if err := os.WriteFile(f, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case cfg := <-calls:
+		if len(cfg.Zones) != 3 {
+			t.Errorf("auto-reload: want 3 zones, got %d", len(cfg.Zones))
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("onChange not called after file was updated")
 	}
 }

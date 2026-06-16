@@ -145,6 +145,12 @@ func (c *Controller) removeSub(sub *subscription) {
 }
 
 // Close implements rcp.Controller.
+// RawConn returns the underlying syscall.RawConn so callers can set
+// socket options (e.g. SO_PRIORITY for TSN) via Control.
+func (c *Controller) RawConn() (interface{ Control(func(uintptr)) error }, error) {
+	return c.conn.SyscallConn()
+}
+
 func (c *Controller) Close() error {
 	if !c.closed.CompareAndSwap(false, true) {
 		return nil
