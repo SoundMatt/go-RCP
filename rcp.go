@@ -187,6 +187,42 @@ type Controller interface {
 	Close() error
 }
 
+// Loan is a payload buffer borrowed from a LoaningController's pool.
+// The caller MUST either pass it to LoaningController.SendLoaned (transferring ownership)
+// or call Return to release it back to the pool.
+type Loan struct {
+	Payload []byte
+	release func()
+}
+
+// Return releases the Loan back to the pool without sending.
+// Must not be called after the Loan has been passed to SendLoaned.
+func (l *Loan) Return() {
+	if l.release != nil {
+		l.release()
+	}
+}
+
+// NewLoan creates a Loan with the given payload and release function.
+// Intended for use by LoaningController implementations in external packages.
+func NewLoan(payload []byte, release func()) *Loan {
+	return &Loan{Payload: payload, release: release}
+}
+
+// LoaningController extends Controller with zero-copy payload loaning.
+// Transports that implement this interface allow the caller to obtain a
+// pre-allocated buffer, fill it in-place, and send it with no extra copy.
+type LoaningController interface {
+	Controller
+	// Loan returns a zeroed payload buffer of exactly size bytes.
+	// Returns ErrClosed if the controller is closed.
+	Loan(size int) (*Loan, error)
+	// SendLoaned sends cmd whose Payload is the buffer from a prior Loan call.
+	// Ownership of cmd.Payload transfers to the transport on return.
+	// The caller must not access cmd.Payload after this call returns.
+	SendLoaned(ctx context.Context, cmd *Command) (*Response, error)
+}
+
 // Registry discovers and manages a set of zone controllers.
 type Registry interface {
 	// Register adds a controller to the registry.

@@ -983,6 +983,54 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-001",
+      "title": "LoaningController.Loan returns a zeroed buffer of the requested size",
+      "text": "loan.Controller.Loan(size) shall return a *rcp.Loan whose Payload slice has length exactly size and all bytes equal to zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-002",
+      "title": "LoaningController.SendLoaned delivers the loaned payload via the inner controller",
+      "text": "SendLoaned shall dispatch the command to the inner Controller.Send and return the Response. A StatusOK response shall be returned when no handler overrides it.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-003",
+      "title": "Loaned payload reaches the handler unmodified",
+      "text": "Bytes written into a Loan.Payload before SendLoaned shall be byte-for-byte identical to the payload seen by the server-side command handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-004",
+      "title": "Loan.Return is safe to call and does not panic",
+      "text": "Calling Loan.Return on any Loan obtained from LoaningController.Loan shall not panic and shall return the buffer to the pool.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-005",
+      "title": "LoaningController.Loan returns an error for negative size",
+      "text": "loan.Controller.Loan(size) shall return a non-nil error when size is negative, rather than panicking or returning a nil Loan.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-006",
+      "title": "LoaningController.Send delegates to the inner controller",
+      "text": "loan.Controller.Send shall delegate to the wrapped inner Controller.Send, preserving all error semantics including ErrZoneMismatch.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
