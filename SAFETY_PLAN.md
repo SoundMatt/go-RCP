@@ -32,7 +32,7 @@ analysis and risk assessment that derives these levels.
 
 | ID | Document | Location |
 |---|---|---|
-| HARA | Hazard Analysis & Risk Assessment | `.fusa-hara.json` |
+| HARA | Hazard Analysis & Risk Assessment | `.fusa-hara.json`, `HARA.md` |
 | REQS | Software Requirements | `.fusa-reqs.json` |
 | IEC62443 | IEC 62443 Security Target | `.fusa-iec62443.json` |
 | IR | Incident Response Plan | `INCIDENT-RESPONSE.md` |
