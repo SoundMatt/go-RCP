@@ -30,7 +30,7 @@ func startTestServer(t *testing.T, zone rcp.Zone, handler func(*rcp.Command) *rc
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() {
 		ts.Close()
-		inner.Close()
+		_ = inner.Close()
 	})
 	return ts, inner
 }
@@ -42,7 +42,7 @@ func TestServer_Send(t *testing.T) {
 	})
 
 	c := restbridge.NewController(rcp.ZoneFrontLeft, ts.URL)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Priority: rcp.PriorityNormal}
 	resp, err := c.Send(context.Background(), cmd)
@@ -61,7 +61,7 @@ func TestServer_SendResponse_StatusField(t *testing.T) {
 	})
 
 	c := restbridge.NewController(rcp.ZoneFrontLeft, ts.URL)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdGet}
 	resp, err := c.Send(context.Background(), cmd)
@@ -81,7 +81,7 @@ func TestServer_Send_UnknownZone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("status = %d, want 422", resp.StatusCode)
 	}
@@ -95,7 +95,7 @@ func TestServer_Events_SSE(t *testing.T) {
 	defer cancel()
 
 	c := restbridge.NewController(rcp.ZoneFrontLeft, ts.URL)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ch, err := c.Subscribe(ctx)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestController_Send_PayloadRoundTrip(t *testing.T) {
 	})
 
 	c := restbridge.NewController(rcp.ZoneFrontLeft, ts.URL)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Payload: want}
 	resp, err := c.Send(context.Background(), cmd)
@@ -145,7 +145,7 @@ func TestController_Send_ZoneMismatch(t *testing.T) {
 	ts, _ := startTestServer(t, rcp.ZoneFrontLeft, nil)
 
 	c := restbridge.NewController(rcp.ZoneFrontLeft, ts.URL)
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneRearLeft, Type: rcp.CmdSet}
 	_, err := c.Send(context.Background(), cmd)

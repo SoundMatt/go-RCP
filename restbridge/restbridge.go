@@ -87,8 +87,8 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req SendRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON body: "+err.Error(), http.StatusBadRequest)
+	if decErr := json.NewDecoder(r.Body).Decode(&req); decErr != nil {
+		http.Error(w, "invalid JSON body: "+decErr.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -257,6 +257,9 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 
 	resp, err := c.client.Do(req)
 	if err != nil {
+		if resp != nil {
+			resp.Body.Close() //nolint:errcheck
+		}
 		return nil, fmt.Errorf("rcp/restbridge: Subscribe: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
