@@ -1655,6 +1655,70 @@
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-001",
+      "title": "Update delivers image in chunks via CmdUpdate commands",
+      "text": "firmware.Updater.Update shall split the image into ChunkSize-byte slices and send each as a CmdUpdate command with a ChunkPayload encoding the offset, total size, and CRC-32.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-002",
+      "title": "Chunks cover the full image with correct offsets",
+      "text": "The sequence of ChunkPayload.Offset values shall be 0, ChunkSize, 2*ChunkSize, \\u2026 covering every byte of the image without gaps or overlaps. The last chunk may be shorter than ChunkSize.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-003",
+      "title": "CRC-32 is embedded in every chunk payload",
+      "text": "Every CmdUpdate payload shall carry the CRC-32/IEEE checksum of the complete image in ChunkPayload.CRC32 so the zone controller can detect corruption after the final chunk.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-004",
+      "title": "Zone controller rejection returns ErrZoneRejected",
+      "text": "If any Send call during chunk delivery returns StatusError, Update shall return ErrZoneRejected immediately without sending further chunks.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-005",
+      "title": "Post-install CRC verification detects silent corruption",
+      "text": "After delivering all chunks, Update shall send a verify CmdUpdate (offset == total size) and return ErrCRCMismatch if the zone controller returns StatusError.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-006",
+      "title": "Empty or oversized images are rejected before delivery",
+      "text": "Update shall return ErrImageEmpty for a zero-length image and ErrImageTooLarge for an image exceeding MaxImageSize without sending any commands.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-007",
+      "title": "Concurrent updates on the same Updater are rejected",
+      "text": "Only one Update call may be in progress on an Updater at a time. A second concurrent call shall return an error immediately without initiating delivery.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-008",
+      "title": "ChunkPayload marshals and unmarshals losslessly; DefaultConfig is valid",
+      "text": "ChunkPayload.Marshal followed by UnmarshalChunkPayload shall reproduce the original TotalSize, Offset, CRC32, and Data fields exactly. DefaultConfig shall return ChunkSize > 0 and a valid Priority.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
