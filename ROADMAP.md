@@ -55,7 +55,7 @@ The project focuses on:
 | **Topology** | v0.24.0 | Multi-HPC federation | Multi-HPC active coordination over shared zone bus | ✅
 | **Tooling** | v0.25.0 | Observability | OpenTelemetry traces and Prometheus metrics adapter | ✅
 | **Tooling** | v0.26.0 | Admin API | HTTP admin interface for runtime registry inspection and control | ✅
-| **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics |
+| **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics | ✅
 | **Tooling** | v0.28.0 | Config | YAML/JSON zone registry configuration |
 | **Tooling** | v0.29.0 | Code generation | Zone manifest → typed Go controller stubs and fusa-annotated requirements |
 | **Tooling** | v0.30.0 | Dynamic data | Runtime schema registry and typed payload codec for schema-less command payloads |
@@ -336,7 +336,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - `GET /metrics` — Prometheus scrape endpoint
 - Bearer auth enforced on all write endpoints (depends on v0.19.0 Authorization)
 
-### 27. Record & Replay (v0.27.0)
+### 27. Record & Replay (v0.27.0) ✅
 
 - `record/` package — records all `Command`, `Response`, and `Status` streams to a structured binary log on disk
 - Ring-buffer mode for always-on black-box recording with configurable retention window
