@@ -58,7 +58,7 @@ The project focuses on:
 | **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics | ✅
 | **Tooling** | v0.28.0 | Config | YAML/JSON zone registry configuration | ✅
 | **Tooling** | v0.29.0 | Code generation | Zone manifest → typed Go controller stubs and fusa-annotated requirements | ✅
-| **Tooling** | v0.30.0 | Dynamic data | Runtime schema registry and typed payload codec for schema-less command payloads |
+| **Tooling** | v0.30.0 | Dynamic data | Runtime schema registry and typed payload codec for schema-less command payloads | ✅
 | **Remote access** | v0.31.0 | gRPC bridge | gRPC transport for cloud-connected zone controllers and remote diagnostics |
 | **Remote access** | v0.32.0 | REST bridge | HTTP/SSE bridge for browser tooling and cloud integration |
 | **Protocol bridges** | v0.33.0 | SOME/IP bridge | Bridge RCP commands to SOME/IP service methods |
@@ -96,7 +96,7 @@ The project focuses on:
 
 - 79 atomic SEOOC requirements across 10 groups (REQ-ZONE, REQ-PRI, REQ-CMD, REQ-STATUS, REQ-ERR, REQ-CMDSTRUCT, REQ-RESP, REQ-STAT, REQ-CTRL, REQ-REG)
 - 45 ASIL-B + 34 ASIL-A requirements; zero coverage gaps
-- Full go-FuSa v0.30.0 trace and check compliance
+- Full go-FuSa v0.30.0 trace and check compliance ✅
 
 ---
 ### Phase 2 — Safety Groundwork
@@ -356,7 +356,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - Generated stubs implement the `Controller` interface; the generator emits matching `_test.go` skeletons and `.fusa-reqs.json` entries
 - Eliminates hand-written boilerplate when adding a new zone type; keeps requirements, code, and tests in sync from declaration
 
-### 30. Dynamic Data (v0.30.0)
+### 30. Dynamic Data (v0.30.0) ✅
 
 - Runtime payload schema registry: named types (e.g. `"braking.BrakeCommand"`) registered with a Go struct and a codec at startup
 - `DynamicPayload` carries a schema name alongside raw bytes; `Decode[T](p DynamicPayload) (T, error)` reconstructs the typed value without compile-time knowledge of all payload types

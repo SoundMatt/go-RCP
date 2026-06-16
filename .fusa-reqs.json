@@ -2295,6 +2295,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-001",
+      "title": "Schema registration",
+      "text": "Registry.Register shall store a Schema by name and return ErrAlreadyRegistered if a schema with that name already exists.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-002",
+      "title": "Schema lookup miss",
+      "text": "Registry.Lookup shall return ErrSchemaNotFound when no schema with the requested name is registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-003",
+      "title": "Schema retrieval",
+      "text": "Registry.Lookup shall return the Schema previously stored by Register for the same name.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-004",
+      "title": "Payload encoding",
+      "text": "Encode shall serialise a Payload to JSON bytes when all field values match the declared FieldKind and no unknown fields are present.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-005",
+      "title": "Payload decoding",
+      "text": "Decode shall deserialise JSON bytes into a Payload map whose keys and values correspond to the original encoded data.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-006",
+      "title": "Field type enforcement",
+      "text": "Encode shall return ErrFieldTypeMismatch when a Payload value's Go type is incompatible with the Field's declared FieldKind.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-007",
+      "title": "Unknown field rejection",
+      "text": "Encode shall return ErrUnknownField when the Payload contains a key not declared in the Schema.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DYN-008",
+      "title": "Typed send delegation",
+      "text": "TypedController.SendTyped shall encode the Payload using the named registered Schema and delegate to the inner rcp.Controller.Send with the encoded bytes as Command.Payload.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
