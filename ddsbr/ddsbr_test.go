@@ -64,7 +64,7 @@ func TestTopic_Write_Broadcast(t *testing.T) {
 	for _, r := range []*ddsbr.DataReader{r1, r2} {
 		select {
 		case got := <-r.Read():
-			if got.(string) != "hello" {
+			if s, ok := got.(string); !ok || s != "hello" {
 				t.Errorf("got %v, want hello", got)
 			}
 		case <-time.After(time.Second):
@@ -84,7 +84,7 @@ func TestDataWriter_DataReader_RoundTrip(t *testing.T) {
 	w.Write(42)
 	select {
 	case v := <-r.Read():
-		if v.(int) != 42 {
+		if vi, ok := v.(int); !ok || vi != 42 {
 			t.Errorf("got %v, want 42", v)
 		}
 	case <-time.After(time.Second):
