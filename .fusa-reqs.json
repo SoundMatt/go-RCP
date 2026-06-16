@@ -1591,6 +1591,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-001",
+      "title": "Allow entry permits exact principal/zone/cmd triple",
+      "text": "authz.Policy.Evaluate shall return true for a (principal, zone, cmdType) triple that matches an Allow entry before any Deny entry in the ordered list.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-002",
+      "title": "Unmatched commands are denied by default",
+      "text": "If no policy entry matches the (principal, zone, cmdType) triple, authz.Policy.Evaluate shall return false (default deny). An explicit Deny entry shall also return false.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-003",
+      "title": "Wildcard fields match any value in that dimension",
+      "text": "An empty Principal shall match any caller. ZoneUnknown shall match any zone. CmdTypeAny (0xFFFF) shall match any CommandType. Wildcards enable broad permit/deny entries without enumerating every value.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-004",
+      "title": "Per-call principal override via context",
+      "text": "authz.WithPrincipal shall embed a principal string in the context. authz.Controller.Send shall prefer the context principal over the static principal supplied at construction.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-005",
+      "title": "Policy entries may be replaced atomically",
+      "text": "authz.Policy.SetEntries shall replace all entries in a single critical section so that concurrent Send calls see either the old set or the new set, never a partial mix.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-006",
+      "title": "Policy evaluation is safe under concurrent access",
+      "text": "authz.Policy shall use a readers-writer lock so that concurrent Evaluate calls do not race with concurrent Allow/Deny/SetEntries calls.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-007",
+      "title": "Zone and Subscribe delegate to the inner controller",
+      "text": "authz.Controller.Zone and authz.Controller.Subscribe shall delegate directly to the wrapped inner controller without applying policy checks.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AZ-008",
+      "title": "Close is idempotent; Send after Close returns ErrClosed",
+      "text": "Calling authz.Controller.Close more than once shall be safe and return nil. Any Send call after the first Close shall return rcp.ErrClosed without forwarding to the inner controller.",
+      "standard": "iso21434",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
