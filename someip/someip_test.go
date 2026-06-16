@@ -44,13 +44,13 @@ func TestHeaderRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -78,13 +78,13 @@ func TestServer_Dispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -114,13 +114,13 @@ func TestServer_Response(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -145,13 +145,13 @@ func TestController_Send(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -177,13 +177,13 @@ func TestController_Send_ZoneMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	cmd := &rcp.Command{Zone: rcp.ZoneRearLeft, Type: rcp.CmdSet}
 	_, err = c.Send(context.Background(), cmd)
@@ -201,7 +201,7 @@ func TestController_CloseIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
@@ -224,7 +224,7 @@ func TestController_Send_AfterClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
 	if err != nil {
