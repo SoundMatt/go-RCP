@@ -1031,6 +1031,54 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-001",
+      "title": "Default PCPMap maps priorities to correct IEEE 802.1p values",
+      "text": "DefaultPCPMap shall return PCP=2 for PriorityNormal, PCP=5 for PriorityHigh, and PCP=7 for PriorityCritical, per IEEE 802.1Q-2022 Table I-1.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-002",
+      "title": "Controller.PCPFor returns the configured PCP for each priority",
+      "text": "tsn.Controller.PCPFor shall return the PCP value from the TSNConfig.PCPMap corresponding to the given rcp.Priority value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-003",
+      "title": "TSN Controller.Send delivers PriorityNormal commands successfully",
+      "text": "tsn.Controller.Send with PriorityNormal shall receive a StatusOK Response from a ZoneServer over loopback UDP.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-004",
+      "title": "TSN Controller.Send delivers PriorityCritical commands successfully",
+      "text": "tsn.Controller.Send with PriorityCritical shall receive a StatusOK Response, verifying that critical-priority commands are not dropped or demoted.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-005",
+      "title": "TSN Controller.Send returns ErrZoneMismatch for wrong zone",
+      "text": "tsn.Controller.Send shall return ErrZoneMismatch when cmd.Zone does not match the controller's zone, consistent with REQ-CTRL-025.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-006",
+      "title": "TSNConfig VLAN and CycleNs are preserved and accessible",
+      "text": "TSNConfig.VLAN and TSNConfig.CycleNs set during NewController shall be readable via Controller.Config() with the same values.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
