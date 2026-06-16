@@ -101,14 +101,13 @@ func sendHandler(srv any, ctx context.Context, dec func(any) error, interceptor 
 	if err := dec(req); err != nil {
 		return nil, err
 	}
+	bs := srv.(BridgeServer) //nolint:errcheck
 	if interceptor == nil {
-		resp, err := srv.(BridgeServer).Send(ctx, req)
-		return resp, err
+		return bs.Send(ctx, req)
 	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/rcp.Bridge/Send"}
 	handler := func(ctx context.Context, req any) (any, error) {
-		resp, err := srv.(BridgeServer).Send(ctx, req.(*SendRequest))
-		return resp, err
+		return bs.Send(ctx, req.(*SendRequest)) //nolint:errcheck
 	}
 	return interceptor(ctx, req, info, handler)
 }
@@ -118,8 +117,7 @@ func subscribeHandler(srv any, stream grpc.ServerStream) error {
 	if err := stream.RecvMsg(req); err != nil {
 		return err
 	}
-	err := srv.(BridgeServer).Subscribe(req, stream)
-	return err
+	return srv.(BridgeServer).Subscribe(req, stream) //nolint:errcheck
 }
 
 // ─── Server ───────────────────────────────────────────────────────────────────
