@@ -2167,6 +2167,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-001",
+      "title": "Load parses YAML config file",
+      "text": "The config package shall parse a v1 YAML zone registry config file and return a validated File struct.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-002",
+      "title": "Load parses JSON config file",
+      "text": "The config package shall parse a v1 JSON zone registry config file and return a validated File struct.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-003",
+      "title": "Decode detects format from extension",
+      "text": "Decode shall use .yaml/.yml for YAML and .json for JSON; other extensions shall return an error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-004",
+      "title": "ErrInvalidVersion on unsupported version",
+      "text": "Load shall return a wrapped ErrInvalidVersion when the version field is not 1.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-005",
+      "title": "ErrDuplicateZone on repeated zone ID",
+      "text": "Load shall return a wrapped ErrDuplicateZone when the same zone ID appears more than once in the zones list.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-006",
+      "title": "Watch calls onChange on initial load",
+      "text": "Watch shall call onChange synchronously with the parsed config before returning.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-007",
+      "title": "Watcher.Reload hot-reloads config",
+      "text": "Watcher.Reload shall re-parse the config file and call onChange with the new config.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CFG-008",
+      "title": "Watcher.Stop terminates background goroutine",
+      "text": "Watcher.Stop shall terminate the background goroutine without leak.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

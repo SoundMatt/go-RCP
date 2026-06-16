@@ -56,7 +56,7 @@ The project focuses on:
 | **Tooling** | v0.25.0 | Observability | OpenTelemetry traces and Prometheus metrics adapter | ✅
 | **Tooling** | v0.26.0 | Admin API | HTTP admin interface for runtime registry inspection and control | ✅
 | **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics | ✅
-| **Tooling** | v0.28.0 | Config | YAML/JSON zone registry configuration |
+| **Tooling** | v0.28.0 | Config | YAML/JSON zone registry configuration | ✅
 | **Tooling** | v0.29.0 | Code generation | Zone manifest → typed Go controller stubs and fusa-annotated requirements |
 | **Tooling** | v0.30.0 | Dynamic data | Runtime schema registry and typed payload codec for schema-less command payloads |
 | **Remote access** | v0.31.0 | gRPC bridge | gRPC transport for cloud-connected zone controllers and remote diagnostics |
@@ -344,7 +344,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - `rcptool record` and `rcptool replay` subcommands
 - Log format is append-only and checksummed — suitable as FuSa incident forensics evidence
 
-### 28. Config (v0.28.0)
+### 28. Config (v0.28.0) ✅
 
 - YAML/JSON zone registry configuration (zone ID, transport, address, certificates)
 - Hot-reload of zone addresses without restart via `fsnotify`
