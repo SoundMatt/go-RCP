@@ -1275,7 +1275,7 @@
     {
       "id": "REQ-E2E-001",
       "title": "Wrap prepends 4-byte sequence number and 2-byte CRC-16 header",
-      "text": "e2e.Wrap shall prepend a 6-byte E2E header — bytes [0:4] seqNum uint32 big-endian, bytes [4:6] CRC-16/CCITT-FALSE uint16 big-endian — to the original payload and return the combined frame.",
+      "text": "e2e.Wrap shall prepend a 6-byte E2E header \u2014 bytes [0:4] seqNum uint32 big-endian, bytes [4:6] CRC-16/CCITT-FALSE uint16 big-endian \u2014 to the original payload and return the combined frame.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1460,6 +1460,70 @@
       "id": "REQ-RL-008",
       "title": "Bucket starts full; DefaultConfig returns ASIL-B recommended values",
       "text": "A newly created ratelimit.Controller shall start with tokens equal to Config.Burst (bucket full). DefaultConfig() shall return a Config with positive Rate, positive Burst, and ExemptCritical=true.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-001",
+      "title": "Send returns StatusOK after simulated latency when not faulted",
+      "text": "sim.Controller.Send shall sleep for BaseLatency (plus up to Jitter on LatencyJitter model) then return a Response with StatusOK when no fault is active. If ctx expires during latency, Send shall return rcp.ErrTimeout.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-002",
+      "title": "Fault() causes Send to return StatusError",
+      "text": "After sim.Controller.Fault(err) is called, subsequent Send calls that complete their simulated latency shall return a Response with StatusError rather than StatusOK, simulating a failed zone controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-003",
+      "title": "Recover() clears the fault and restores StatusOK",
+      "text": "sim.Controller.Recover() shall clear any active fault and clear the watchdog-missed flag. Subsequent Send calls shall return StatusOK again.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-004",
+      "title": "WatchdogMissed() returns true after WatchdogTimeout elapses without a kick",
+      "text": "When Config.WatchdogTimeout > 0, sim.Controller.WatchdogMissed() shall return true if no CmdWatchdog command has been received within WatchdogTimeout of construction or the last kick.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-005",
+      "title": "CmdWatchdog resets the watchdog timer and clears WatchdogMissed",
+      "text": "Sending a command with Type=CmdWatchdog shall reset the watchdog deadline timer and set WatchdogMissed() to false, allowing the next WatchdogTimeout window to begin fresh.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-006",
+      "title": "Status is published to subscribers at approximately Config.StatusInterval",
+      "text": "When Config.StatusInterval > 0, sim.Controller shall publish a *rcp.Status to every active subscriber at approximately every StatusInterval. Subscribers shall receive at least one Status per two StatusInterval periods under normal operating conditions.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-007",
+      "title": "Subscriber channel closes on Close() or context cancellation",
+      "text": "A channel returned by sim.Controller.Subscribe shall be closed when Controller.Close() is called or the subscriber's context is cancelled. Subscribe shall return rcp.ErrClosed if called after Close().",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-008",
+      "title": "Close() is idempotent; DefaultConfig returns ASIL-B recommended values",
+      "text": "sim.Controller.Close() shall be safe to call multiple times and shall return nil on all calls. DefaultConfig(zone) shall return a Config with positive BaseLatency, StatusInterval, and WatchdogTimeout.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
