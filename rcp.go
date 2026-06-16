@@ -113,6 +113,8 @@ const (
 	CmdGet      CommandType = 2 // query current state
 	CmdReset    CommandType = 3 // reset zone controller
 	CmdWatchdog CommandType = 4 // watchdog kick
+	CmdSleep    CommandType = 5 // request zone controller to enter low-power sleep
+	CmdWake     CommandType = 6 // request zone controller to exit sleep and resume active operation
 )
 
 // ResponseStatus reports the outcome of a command execution.
