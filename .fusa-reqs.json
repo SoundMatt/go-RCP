@@ -2871,6 +2871,54 @@
       "text": "Client.Close closes the connection and is idempotent.",
       "asil": "B",
       "package": "doipbr"
+    },
+    {
+      "id": "REQ-CAPI-001",
+      "text": "NewController returns a valid positive int32 handle for a new mock rcp.Controller.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-002",
+      "text": "RegisterController registers an externally-created rcp.Controller and returns a unique handle.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-003",
+      "text": "Send dispatches a command to the controller identified by handle and returns StatusOK on success.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-004",
+      "text": "Send returns ErrCodeInvalidHandle for handles that are not registered.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-005",
+      "text": "Subscribe opens a subscription on the controller and returns a positive subscription handle.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-006",
+      "text": "PollStatus returns ErrCodeNoData when no status event is immediately available.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-007",
+      "text": "PollStatus returns ErrCodeOK and a Status event after the controller publishes a status update.",
+      "asil": "B",
+      "package": "capi"
+    },
+    {
+      "id": "REQ-CAPI-008",
+      "text": "Close deregisters the handle so subsequent Send calls return ErrCodeInvalidHandle.",
+      "asil": "B",
+      "package": "capi"
     }
   ]
 }
