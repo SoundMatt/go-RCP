@@ -2359,6 +2359,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-001",
+      "title": "gRPC server registration",
+      "text": "RegisterServer shall register the Bridge gRPC service on a grpc.Server so remote clients can invoke Send and Subscribe RPCs.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-002",
+      "title": "Send RPC delivery",
+      "text": "Controller.Send shall transmit a Command over gRPC and return the Response from the remote zone controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-003",
+      "title": "Zone mismatch rejection",
+      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-004",
+      "title": "Payload round-trip",
+      "text": "Server.Send shall forward Command.Payload to the inner rcp.Controller unmodified and return the Response.Payload unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-005",
+      "title": "Subscribe streaming",
+      "text": "Controller.Subscribe shall open a gRPC server-streaming RPC and deliver Status events received from the remote zone controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-006",
+      "title": "Idempotent close",
+      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-007",
+      "title": "Closed send error",
+      "text": "Controller.Send shall return ErrClosed after Controller.Close has been called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GRPC-008",
+      "title": "Inner error propagation",
+      "text": "Server.Send shall propagate the rcp.ResponseStatus from the inner controller in the SendResponse.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
