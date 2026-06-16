@@ -57,7 +57,7 @@ The project focuses on:
 | **Tooling** | v0.26.0 | Admin API | HTTP admin interface for runtime registry inspection and control | ✅
 | **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics | ✅
 | **Tooling** | v0.28.0 | Config | YAML/JSON zone registry configuration | ✅
-| **Tooling** | v0.29.0 | Code generation | Zone manifest → typed Go controller stubs and fusa-annotated requirements |
+| **Tooling** | v0.29.0 | Code generation | Zone manifest → typed Go controller stubs and fusa-annotated requirements | ✅
 | **Tooling** | v0.30.0 | Dynamic data | Runtime schema registry and typed payload codec for schema-less command payloads |
 | **Remote access** | v0.31.0 | gRPC bridge | gRPC transport for cloud-connected zone controllers and remote diagnostics |
 | **Remote access** | v0.32.0 | REST bridge | HTTP/SSE bridge for browser tooling and cloud integration |
@@ -349,7 +349,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - YAML/JSON zone registry configuration (zone ID, transport, address, certificates)
 - Hot-reload of zone addresses without restart via `fsnotify`
 
-### 29. Code Generation (v0.29.0)
+### 29. Code Generation (v0.29.0) ✅
 
 - Zone manifest schema (YAML/JSON): declares zone IDs, supported command types, payload schemas, and ASIL levels
 - `rcptool gen <manifest.yaml>` generates typed Go controller stubs with `//fusa:req` annotations pre-populated
@@ -361,7 +361,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - Runtime payload schema registry: named types (e.g. `"braking.BrakeCommand"`) registered with a Go struct and a codec at startup
 - `DynamicPayload` carries a schema name alongside raw bytes; `Decode[T](p DynamicPayload) (T, error)` reconstructs the typed value without compile-time knowledge of all payload types
 - Admin API and `rcptool monitor` display decoded payload fields when a matching schema is registered; fall back to hex for unregistered types
-- Code generation (v0.29.0) emits `RegisterSchema` calls for each declared payload type, wiring the two features together
+- Code generation (v0.29.0) emits `RegisterSchema` calls for each declared payload type, wiring the two features together ✅
 - Useful for cloud tools and dashboards that connect after deployment and need to interpret payloads without a recompile
 
 ---
