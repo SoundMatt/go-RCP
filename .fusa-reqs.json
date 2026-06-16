@@ -1911,6 +1911,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-001",
+      "title": "Register claims exclusive zone ownership for an HPC",
+      "text": "federation.Registry.Register shall associate zone with ctrl and return nil. If no other controller owns the zone, the registration succeeds.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-002",
+      "title": "Lookup returns the owning controller for a registered zone",
+      "text": "federation.Registry.Lookup shall return the controller registered for zone. If no controller owns the zone, it shall return ErrNotOwned.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-003",
+      "title": "Registering an already-owned zone returns ErrAlreadyOwned",
+      "text": "If zone is already registered to any controller, a subsequent Register call shall return ErrAlreadyOwned without modifying ownership.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-004",
+      "title": "Release removes zone ownership; releasing an unowned zone returns ErrNotOwned",
+      "text": "federation.Registry.Release shall remove the zone from the registry. If the zone has no owner, Release shall return ErrNotOwned.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-005",
+      "title": "Zones and Owner report the current registry state",
+      "text": "Zones shall return the set of all registered zones. Owner shall return the controller for a given zone, or nil if unowned.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-006",
+      "title": "TransferOwnership atomically reassigns a zone between HPCs",
+      "text": "TransferOwnership shall atomically replace the owner of zone from the from controller to the to controller. If from does not own the zone, it shall return ErrNotOwned.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-007",
+      "title": "All Registry operations are race-free under concurrent access",
+      "text": "Register, Release, Lookup, Owner, Zones, and TransferOwnership shall use a readers-writer lock ensuring no data race under concurrent read and write operations.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FED-008",
+      "title": "Multiple HPCs may own disjoint zone subsets in the same Registry",
+      "text": "A federation.Registry shall support any number of HPC-controller pairs each owning a disjoint set of zones. Cross-HPC Lookup succeeds transparently.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

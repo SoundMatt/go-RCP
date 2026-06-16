@@ -52,7 +52,7 @@ The project focuses on:
 | **Topology** | v0.21.0 | Zone groups | Atomic multi-zone command broadcast with typed zone group sets ✅ |
 | **Topology** | v0.22.0 | Zone proxy | Transparent zone proxy for multi-hop zonal topologies ✅ |
 | **Topology** | v0.23.0 | Redundancy | Hot-standby Registry and HPC failover for ASIL-B fault tolerance ✅ |
-| **Topology** | v0.24.0 | Multi-HPC federation | Multi-HPC active coordination over shared zone bus |
+| **Topology** | v0.24.0 | Multi-HPC federation | Multi-HPC active coordination over shared zone bus | ✅
 | **Tooling** | v0.25.0 | Observability | OpenTelemetry traces and Prometheus metrics adapter |
 | **Tooling** | v0.26.0 | Admin API | HTTP admin interface for runtime registry inspection and control |
 | **Tooling** | v0.27.0 | Record & replay | Record command/response/status streams to disk; replay for regression and forensics |
@@ -309,7 +309,7 @@ Expands `.fusa-hara.json` from 3 hazards to comprehensive coverage. New hazards 
 - State synchronisation: in-flight commands at failover are retried against the new primary with deduplication via `Command.ID`
 - New requirements: REQ-RED-001..REQ-RED-00N (ASIL-B)
 
-### 24. Multi-HPC Federation (v0.24.0)
+### 24. Multi-HPC Federation (v0.24.0) ✅
 
 - Multiple active HPCs each owning disjoint zone subsets on the same zone bus
 - `FederatedRegistry` coordinates zone ownership: each HPC registers a lease on the zones it owns; a lease server arbitrates conflicts
