@@ -139,7 +139,7 @@ func NewServer(ctrl rcp.Controller, addr *net.UDPAddr, serviceID uint16) (*Serve
 }
 
 // Addr returns the local UDP address the server is listening on.
-func (s *Server) Addr() *net.UDPAddr { return s.conn.LocalAddr().(*net.UDPAddr) }
+func (s *Server) Addr() *net.UDPAddr { return s.conn.LocalAddr().(*net.UDPAddr) } //nolint:errcheck
 
 // Close shuts down the server.
 func (s *Server) Close() error {
