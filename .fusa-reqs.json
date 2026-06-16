@@ -2919,6 +2919,54 @@
       "text": "Close deregisters the handle so subsequent Send calls return ErrCodeInvalidHandle.",
       "asil": "B",
       "package": "capi"
+    },
+    {
+      "id": "REQ-FORM-001",
+      "text": "StateSequence generates exactly n states starting from the initial state.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-002",
+      "text": "StateSequence applies the Generator at each step, producing correct intermediate states.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-003",
+      "text": "Always returns true when the predicate holds in every state of the trace.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-004",
+      "text": "Always returns false when the predicate fails in at least one state.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-005",
+      "text": "Eventually returns true when the predicate holds in at least one state of the trace.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-006",
+      "text": "Eventually returns false when the predicate holds in no state of the trace.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-007",
+      "text": "Until holds when predicate p holds continuously until predicate q becomes true.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-008",
+      "text": "Checker.Check returns ViolationError naming the first falsified invariant.",
+      "asil": "B",
+      "package": "formal"
     }
   ]
 }
