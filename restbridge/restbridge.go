@@ -249,7 +249,7 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.client.Do(req) //nolint:bodyclose — body is owned by the goroutine below
+	resp, err := c.client.Do(req) //nolint:bodyclose // body transferred to SSE goroutine
 	if err != nil {
 		if resp != nil {
 			resp.Body.Close() //nolint:errcheck
