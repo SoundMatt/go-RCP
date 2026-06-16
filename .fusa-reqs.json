@@ -1783,6 +1783,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-001",
+      "title": "Proxy forwards commands to upstream transparently",
+      "text": "proxy.Controller.Send shall forward the command to the upstream rcp.Controller and return the upstream response and error unchanged when no transform is set or the transform returns the command unmodified.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-002",
+      "title": "TransformFunc may rewrite the command before forwarding",
+      "text": "If a TransformFunc is set, proxy.Controller.Send shall call it with the original command before forwarding. The returned command (which may differ from the input) is sent to the upstream controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-003",
+      "title": "TransformFunc error aborts the Send without reaching upstream",
+      "text": "If TransformFunc returns a non-nil error, Send shall return that error immediately and not forward the command to the upstream controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-004",
+      "title": "Zone delegates to the upstream controller",
+      "text": "proxy.Controller.Zone shall return the upstream controller's Zone() without modification.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-005",
+      "title": "Subscribe delegates to the upstream controller",
+      "text": "proxy.Controller.Subscribe shall delegate to the upstream controller and return its channel and error unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-006",
+      "title": "Close is idempotent; Send after Close returns ErrClosed",
+      "text": "Calling proxy.Controller.Close more than once is safe and returns nil. Any Send call after the first Close shall return rcp.ErrClosed without forwarding to upstream.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-007",
+      "title": "Concurrent Sends are race-free",
+      "text": "Multiple goroutines may call Send simultaneously on the same proxy.Controller. The proxy's closed flag is accessed via atomic operations; the transform is called concurrently without internal locking.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PX-008",
+      "title": "Proxy is composable: a proxy may wrap another proxy",
+      "text": "proxy.Controller implements rcp.Controller so it may be used as the upstream argument to a second proxy.NewController call, enabling multi-hop transformation chains.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
