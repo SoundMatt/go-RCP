@@ -3015,6 +3015,54 @@
       "text": "GoalRegistry.Unsatisfied returns an empty slice when all goals are satisfied.",
       "asil": "B",
       "package": "iso21434"
+    },
+    {
+      "id": "REQ-CERT-001",
+      "text": "Registry.Add registers a requirement so that All returns it.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-002",
+      "text": "Registry.SetMet marks a registered requirement as met, reflected in Analyze.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-003",
+      "text": "Registry.SetMet returns an error when the requirement ID is not registered.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-004",
+      "text": "Analyze returns Total=0 and ComplianceRatio=0 for an empty registry.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-005",
+      "text": "Analyze with empty targetASIL includes requirements of all ASIL levels.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-006",
+      "text": "Analyze with a specific targetASIL excludes requirements of other levels.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-007",
+      "text": "GapReport.ComplianceRatio equals MetCount divided by Total.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-008",
+      "text": "StandardASILDGaps returns exactly 8 predefined ASIL-D gap requirements.",
+      "asil": "B",
+      "package": "certgap"
     }
   ]
 }
