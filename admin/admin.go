@@ -63,10 +63,9 @@ type Server struct {
 	registry rcp.Registry
 	bearer   string // required token for write endpoints; empty = no auth
 
-	mu      sync.RWMutex
-	zones   map[rcp.Zone]*zoneState
-	subs    map[chan Event]struct{}
-	closed  atomic.Bool
+	mu    sync.RWMutex
+	zones map[rcp.Zone]*zoneState
+	subs  map[chan Event]struct{}
 }
 
 // Config configures the admin server.
