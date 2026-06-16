@@ -37,7 +37,7 @@ The project focuses on:
 | **Transport stack** | v0.6.0 | mDNS discovery | Zero-configuration zone controller discovery via mDNS/DNS-SD ✅ |
 | **Transport stack** | v0.7.0 | TLS transport | Mutual TLS channel for zone-controller communication ✅ |
 | **Transport stack** | v0.8.0 | Shared memory | Zero-copy intra-host command delivery via shared memory ✅ |
-| **Transport stack** | v0.9.0 | Loaned samples | LoaningController interface extending zero-copy to all transports |
+| **Transport stack** | v0.9.0 | Loaned samples | LoaningController interface extending zero-copy to all transports ✅ |
 | **Transport stack** | v0.10.0 | TSN transport | IEEE 802.1Qbv-aware UDP transport for hard real-time Ethernet delivery |
 | **Safety mechanisms** | v0.11.0 | Watchdog & heartbeat | CmdWatchdog scheduling, zone health state machine, liveness API |
 | **Safety mechanisms** | v0.12.0 | Deadline monitoring | Zone-to-HPC liveness: alert when Status stops arriving within deadline |
