@@ -2423,6 +2423,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-001",
+      "title": "Domain topic registration",
+      "text": "Domain.NewTopic shall create and register a named Topic; subsequent NewTopic calls with the same name shall return the existing Topic.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-002",
+      "title": "DataWriter broadcast delivery",
+      "text": "Topic.Write shall deliver the sample to all subscribed DataReaders without blocking the caller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-003",
+      "title": "DataReader sample receipt",
+      "text": "DataReader.Read shall yield a channel that receives samples written to the topic after the DataReader was created.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-004",
+      "title": "Bridge status publication",
+      "text": "Bridge shall subscribe to the inner rcp.Controller's status channel and publish each rcp.Status sample to the DataWriter.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-005",
+      "title": "Bridge command dispatch",
+      "text": "Bridge shall read *rcp.Command samples from the DataReader and invoke rcp.Controller.Send for each one.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-006",
+      "title": "Bridge close goroutines",
+      "text": "Bridge.Close shall stop the status publisher and command dispatcher goroutines and wait for them to exit.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-007",
+      "title": "Bridge idempotent close",
+      "text": "Bridge.Close shall be idempotent; repeated calls after the first shall return without error or panic.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-DDS-008",
+      "title": "Topic not found error",
+      "text": "Domain.Lookup shall return ErrTopicNotFound when no topic with the requested name has been registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
