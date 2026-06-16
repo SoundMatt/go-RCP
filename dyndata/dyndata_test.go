@@ -135,7 +135,7 @@ func TestTypedController_SendTyped(t *testing.T) {
 		t.Fatal(err)
 	}
 	tc := dyndata.NewTypedController(inner, reg)
-	defer tc.Close()
+	defer func() { _ = tc.Close() }()
 
 	cmd := &rcp.Command{
 		Zone:     rcp.ZoneFrontLeft,
@@ -157,7 +157,7 @@ func TestTypedController_SendTyped_SchemaNotFound(t *testing.T) {
 	defer inner.Close()
 
 	tc := dyndata.NewTypedController(inner, dyndata.NewRegistry())
-	defer tc.Close()
+	defer func() { _ = tc.Close() }()
 
 	_, err := tc.SendTyped(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft}, "missing", nil)
 	if !errors.Is(err, dyndata.ErrSchemaNotFound) {

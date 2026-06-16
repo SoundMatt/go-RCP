@@ -35,7 +35,7 @@ func newServer(t *testing.T, bearer string) (*admin.Server, *mock.Registry) {
 
 func TestGetZones_ReturnsAllZones(t *testing.T) {
 	srv, _ := newServer(t, "")
-	req := httptest.NewRequest(http.MethodGet, "/zones", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/zones", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
@@ -53,7 +53,7 @@ func TestGetZones_ReturnsAllZones(t *testing.T) {
 
 func TestGetZones_MethodNotAllowed(t *testing.T) {
 	srv, _ := newServer(t, "")
-	req := httptest.NewRequest(http.MethodPost, "/zones", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/zones", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
@@ -63,7 +63,7 @@ func TestGetZones_MethodNotAllowed(t *testing.T) {
 
 func TestGetZone_KnownZone(t *testing.T) {
 	srv, _ := newServer(t, "")
-	req := httptest.NewRequest(http.MethodGet, "/zones/front-left", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/zones/front-left", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
@@ -81,7 +81,7 @@ func TestGetZone_KnownZone(t *testing.T) {
 
 func TestGetZone_UnknownZone(t *testing.T) {
 	srv, _ := newServer(t, "")
-	req := httptest.NewRequest(http.MethodGet, "/zones/bogus", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/zones/bogus", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -92,7 +92,7 @@ func TestGetZone_UnknownZone(t *testing.T) {
 func TestSend_NoAuth(t *testing.T) {
 	srv, _ := newServer(t, "")
 	body := `{"type":1,"priority":0}`
-	req := httptest.NewRequest(http.MethodPost, "/zones/front-left/send", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/zones/front-left/send", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
@@ -112,7 +112,7 @@ func TestSend_NoAuth(t *testing.T) {
 func TestSend_BearerRequired(t *testing.T) {
 	srv, _ := newServer(t, "secret")
 	body := `{"type":1}`
-	req := httptest.NewRequest(http.MethodPost, "/zones/front-left/send", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/zones/front-left/send", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -123,7 +123,7 @@ func TestSend_BearerRequired(t *testing.T) {
 func TestSend_BearerAccepted(t *testing.T) {
 	srv, _ := newServer(t, "secret")
 	body := `{"type":1}`
-	req := httptest.NewRequest(http.MethodPost, "/zones/front-left/send", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/zones/front-left/send", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer secret")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
@@ -134,7 +134,7 @@ func TestSend_BearerAccepted(t *testing.T) {
 
 func TestSend_BadBody(t *testing.T) {
 	srv, _ := newServer(t, "")
-	req := httptest.NewRequest(http.MethodPost, "/zones/front-left/send", bytes.NewReader([]byte("not-json")))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/zones/front-left/send", bytes.NewReader([]byte("not-json")))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
@@ -145,7 +145,7 @@ func TestSend_BadBody(t *testing.T) {
 func TestSend_UnknownZone(t *testing.T) {
 	srv, _ := newServer(t, "")
 	body := `{"type":1}`
-	req := httptest.NewRequest(http.MethodPost, "/zones/bogus/send", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/zones/bogus/send", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -157,7 +157,7 @@ func TestMetrics_ContainsZone(t *testing.T) {
 	srv, _ := newServer(t, "")
 	srv.RecordSend(rcp.ZoneFrontLeft, true, nil, false)
 
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/metrics", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
@@ -177,7 +177,7 @@ func TestEvents_SSE(t *testing.T) {
 
 	lines := make(chan string, 8)
 	rw := &sseResponseWriter{header: make(http.Header), lines: lines}
-	req := httptest.NewRequest(http.MethodGet, "/events", nil).WithContext(ctx)
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/events", nil)
 
 	done := make(chan struct{})
 	go func() {

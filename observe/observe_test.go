@@ -243,7 +243,7 @@ func TestClose_RejectsSend(t *testing.T) {
 	_, tr := newSpanRecorder()
 	m := mock.NewController(rcp.ZoneFrontLeft, nil)
 	c := observe.New(m, observe.Config{Tracer: tr})
-	c.Close()
+	_ = c.Close()
 
 	_, err := sendCmd(t, c, rcp.ZoneFrontLeft)
 	if !errors.Is(err, rcp.ErrClosed) {
@@ -255,7 +255,7 @@ func TestClose_RejectsSubscribe(t *testing.T) {
 	_, tr := newSpanRecorder()
 	m := mock.NewController(rcp.ZoneFrontLeft, nil)
 	c := observe.New(m, observe.Config{Tracer: tr})
-	c.Close()
+	_ = c.Close()
 
 	_, err := c.Subscribe(context.Background())
 	if !errors.Is(err, rcp.ErrClosed) {

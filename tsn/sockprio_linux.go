@@ -17,7 +17,7 @@ func setSocketPriority(c *rcpudp.Controller, pcp uint8) {
 	if err != nil {
 		return
 	}
-	rc.Control(func(fd uintptr) {
+	_ = rc.Control(func(fd uintptr) {
 		// SO_PRIORITY accepts 0–6 on Linux (7 is reserved for root).
 		// Clamp to 6 to avoid EPERM on non-root processes.
 		prio := int(pcp)

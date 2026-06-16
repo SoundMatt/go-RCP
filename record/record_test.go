@@ -223,7 +223,7 @@ func TestClose_RejectsSend(t *testing.T) {
 	rec := record.New(0)
 	m := mock.NewController(rcp.ZoneFrontLeft, nil)
 	c := record.NewController(m, rec)
-	c.Close()
+	_ = c.Close()
 
 	_, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
 	if !errors.Is(err, rcp.ErrClosed) {

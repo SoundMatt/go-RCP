@@ -63,10 +63,9 @@ type Server struct {
 	registry rcp.Registry
 	bearer   string // required token for write endpoints; empty = no auth
 
-	mu      sync.RWMutex
-	zones   map[rcp.Zone]*zoneState
-	subs    map[chan Event]struct{}
-	closed  atomic.Bool
+	mu    sync.RWMutex
+	zones map[rcp.Zone]*zoneState
+	subs  map[chan Event]struct{}
 }
 
 // Config configures the admin server.
@@ -263,7 +262,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		case e := <-ch:
 			data, _ := json.Marshal(e)
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			fmt.Fprintf(w, "data: %s\n\n", data) //nolint:errcheck
 			flusher.Flush()
 		}
 	}
@@ -285,10 +284,10 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		if z.healthy {
 			healthy = 1
 		}
-		fmt.Fprintf(w, "rcp_zone_healthy{zone=%q} %d\n", zone.String(), healthy)
-		fmt.Fprintf(w, "rcp_zone_cmd_total{zone=%q} %d\n", zone.String(), z.cmdCount.Load())
-		fmt.Fprintf(w, "rcp_zone_error_total{zone=%q} %d\n", zone.String(), z.errCount.Load())
-		fmt.Fprintf(w, "rcp_zone_deadline_miss_total{zone=%q} %d\n", zone.String(), z.deadMiss.Load())
+		fmt.Fprintf(w, "rcp_zone_healthy{zone=%q} %d\n", zone.String(), healthy)          //nolint:errcheck
+		fmt.Fprintf(w, "rcp_zone_cmd_total{zone=%q} %d\n", zone.String(), z.cmdCount.Load()) //nolint:errcheck
+		fmt.Fprintf(w, "rcp_zone_error_total{zone=%q} %d\n", zone.String(), z.errCount.Load()) //nolint:errcheck
+		fmt.Fprintf(w, "rcp_zone_deadline_miss_total{zone=%q} %d\n", zone.String(), z.deadMiss.Load()) //nolint:errcheck
 	}
 }
 
