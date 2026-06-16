@@ -2967,6 +2967,54 @@
       "text": "Checker.Check returns ViolationError naming the first falsified invariant.",
       "asil": "B",
       "package": "formal"
+    },
+    {
+      "id": "REQ-I214-001",
+      "text": "ComputeRisk returns the correct risk value as the product of impact and attack feasibility ratings.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-002",
+      "text": "ComputeRisk classifies risk values as Low (\u22642), Medium (\u22646), High (\u226412), or Critical (>12).",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-003",
+      "text": "ComputeRisk returns ErrInvalidRating when the impact rating is outside the 1\u20134 range.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-004",
+      "text": "ComputeRisk returns ErrInvalidRating when the feasibility rating is outside the 1\u20134 range.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-005",
+      "text": "ThreatScenario.RiskValue delegates to ComputeRisk using its own Impact and Feasibility fields.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-006",
+      "text": "TARA.HighRiskThreats returns only ThreatScenarios rated High or Critical.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-007",
+      "text": "GoalRegistry.Unsatisfied returns only CybersecurityGoals with Satisfied=false.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-008",
+      "text": "GoalRegistry.Unsatisfied returns an empty slice when all goals are satisfied.",
+      "asil": "B",
+      "package": "iso21434"
     }
   ]
 }
