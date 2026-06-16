@@ -35,7 +35,7 @@ func newServer(t *testing.T, bearer string) (*admin.Server, *mock.Registry) {
 
 func TestGetZones_ReturnsAllZones(t *testing.T) {
 	srv, _ := newServer(t, "")
-	req := httptest.NewRequest(http.MethodGet, "/zones", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/zones", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
