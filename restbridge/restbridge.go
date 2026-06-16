@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	rcp "github.com/SoundMatt/go-RCP"
@@ -58,9 +57,6 @@ type SendResponse struct {
 type Server struct {
 	ctrl rcp.Controller
 	mux  *http.ServeMux
-
-	mu   sync.Mutex
-	subs map[chan []byte]struct{}
 }
 
 // NewServer returns a Server wrapping ctrl.
@@ -68,7 +64,6 @@ func NewServer(ctrl rcp.Controller) *Server {
 	s := &Server{
 		ctrl: ctrl,
 		mux:  http.NewServeMux(),
-		subs: make(map[chan []byte]struct{}),
 	}
 	s.mux.HandleFunc("POST /v1/zones/{zone}/send", s.handleSend)
 	s.mux.HandleFunc("GET /v1/zones/{zone}/events", s.handleEvents)
@@ -145,7 +140,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			b, _ := json.Marshal(st)
-			fmt.Fprintf(w, "data: %s\n\n", b)
+			fmt.Fprintf(w, "data: %s\n\n", b) //nolint:errcheck
 			f.Flush()
 		case <-r.Context().Done():
 			return
@@ -178,7 +173,6 @@ type Controller struct {
 	zone    rcp.Zone
 	baseURL string
 	client  *http.Client
-	nextID  atomic.Uint32
 	closed  atomic.Bool
 }
 
@@ -255,7 +249,7 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(req) //nolint:bodyclose — body is owned by the goroutine below
 	if err != nil {
 		if resp != nil {
 			resp.Body.Close() //nolint:errcheck
