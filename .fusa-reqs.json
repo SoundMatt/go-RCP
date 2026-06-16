@@ -679,6 +679,102 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-001",
+      "title": "UDP transport encodes and decodes Command frames correctly",
+      "text": "The UDP transport shall encode a Command into a 16-byte header plus payload and decode an identical Command at the receiver. All fields (Zone, Type, Priority, ID, Payload) shall round-trip without loss.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-002",
+      "title": "UDP Controller routes Response to correct pending Send",
+      "text": "The UDP Controller.readLoop shall match incoming Response frames to outstanding Send calls by CommandID and deliver them. Unmatched responses shall be silently discarded.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-003",
+      "title": "UDP transport encodes and decodes Response payload correctly",
+      "text": "The UDP transport shall encode a Response payload into the wire frame and the receiving Controller shall decode an identical payload. Payload bytes shall survive the round-trip unmodified.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-004",
+      "title": "UDP Controller rejects zone-mismatched Send",
+      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not match the Controller's zone, consistent with REQ-CTRL-025.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-005",
+      "title": "UDP Controller.Send returns ErrTimeout on context expiry",
+      "text": "Controller.Send shall return a non-nil error wrapping ErrTimeout when the provided context is cancelled or its deadline expires before a response is received.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-006",
+      "title": "UDP Controller.Send returns ErrClosed after Close",
+      "text": "Controller.Send shall return a non-nil error wrapping ErrClosed when called after Controller.Close has been called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-007",
+      "title": "UDP Subscribe receives Status published by ZoneServer",
+      "text": "A Controller that has called Subscribe shall receive Status frames on the returned channel when the ZoneServer calls Publish. The Status Zone field shall match the controller's zone.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-008",
+      "title": "UDP ZoneServer fans out Status to all subscribers",
+      "text": "When multiple Controllers have subscribed, a single ZoneServer.Publish call shall deliver one Status frame to every subscriber.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-009",
+      "title": "UDP Subscribe channel closes on context cancellation",
+      "text": "The Status channel returned by Subscribe shall be closed when the subscriber's context is cancelled, allowing callers to range over it safely.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-010",
+      "title": "UDP Registry.Dial resolves address and registers controller",
+      "text": "Registry.Dial shall resolve the server address, dial a Controller, and register it so that Registry.Lookup returns the same controller for the given zone.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-011",
+      "title": "UDP Registry.Dial returns ErrAlreadyExists on duplicate zone",
+      "text": "A second Registry.Dial call for the same zone shall return a non-nil error wrapping ErrAlreadyExists and shall not replace the existing registration.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-012",
+      "title": "UDP Registry.Lookup returns ErrNotFound for unregistered zone",
+      "text": "Registry.Lookup for a zone that has not been registered shall return a non-nil error wrapping ErrNotFound.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
