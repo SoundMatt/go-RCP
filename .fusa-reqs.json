@@ -631,6 +631,54 @@
       "standard": "iso26262",
       "level": "ASIL-A",
       "asil": "ASIL-A"
+    },
+    {
+      "id": "REQ-ERR-011",
+      "title": "ErrZoneMismatch is a distinct non-nil sentinel error",
+      "text": "ErrZoneMismatch shall be a non-nil sentinel error that is distinct from all other sentinel errors (ErrClosed, ErrNotFound, ErrAlreadyExists, ErrTimeout, ErrBusy) so that callers can detect zone-misrouting without parsing error strings.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-025",
+      "title": "Controller.Send rejects commands whose zone does not match the controller zone",
+      "text": "Controller.Send shall return a non-nil error wrapping ErrZoneMismatch when cmd.Zone does not equal the zone declared by the controller. A misrouted command must never be silently processed (safety goal SG-002).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-026",
+      "title": "Controller.Send copies Command.Payload before passing to the handler",
+      "text": "Controller.Send shall copy Command.Payload into a new slice before invoking the handler. Subsequent modification of the original slice by the caller shall not affect the payload seen by the handler or any stored reference.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CTRL-027",
+      "title": "Controller.Publish copies the payload before embedding in Status",
+      "text": "Controller.Publish shall copy the payload argument into a new slice before embedding it in the Status value delivered to subscribers. Subsequent modification of the original slice by the caller shall not affect the payload seen by any subscriber.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REG-013",
+      "title": "Registry.Lookup returns ErrClosed when called on a closed registry",
+      "text": "Registry.Lookup called after Registry.Close shall return a non-nil error wrapping ErrClosed, not ErrNotFound. A caller polling on ErrNotFound must not loop indefinitely after the registry is closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SAFETY-001",
+      "title": "Command latency bounded under GC pressure",
+      "text": "The go-RCP mock controller shall deliver commands via Send with a maximum observed latency less than half the watchdog period (5 ms at 100 Hz) when measured under sustained 64 MiB/s GC allocation pressure. Evidence shall be recorded in safety/COMMAND_LATENCY.md.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

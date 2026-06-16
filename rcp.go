@@ -31,6 +31,7 @@
 //fusa:req REQ-ERR-008
 //fusa:req REQ-ERR-009
 //fusa:req REQ-ERR-010
+//fusa:req REQ-ERR-011
 //fusa:req REQ-CMDSTRUCT-001
 //fusa:req REQ-CMDSTRUCT-002
 //fusa:req REQ-RESP-001
@@ -56,11 +57,12 @@ import (
 
 // Sentinel errors returned by all rcp implementations.
 var (
-	ErrClosed       = errors.New("rcp: controller closed")
-	ErrNotFound     = errors.New("rcp: zone not found")
+	ErrClosed        = errors.New("rcp: controller closed")
+	ErrNotFound      = errors.New("rcp: zone not found")
 	ErrAlreadyExists = errors.New("rcp: zone already registered")
-	ErrTimeout      = errors.New("rcp: command timeout")
-	ErrBusy         = errors.New("rcp: zone controller busy")
+	ErrTimeout       = errors.New("rcp: command timeout")
+	ErrBusy          = errors.New("rcp: zone controller busy")
+	ErrZoneMismatch  = errors.New("rcp: zone mismatch")
 )
 
 // Zone identifies a physical zone in the vehicle.
@@ -173,6 +175,7 @@ type Controller interface {
 	// Send dispatches a command and waits for the response.
 	// Returns ErrClosed if the controller has been closed.
 	// Returns ErrTimeout if ctx expires before a response arrives.
+	// Returns ErrZoneMismatch if cmd.Zone does not equal the controller's zone.
 	Send(ctx context.Context, cmd *Command) (*Response, error)
 
 	// Subscribe returns a channel of periodic Status updates.

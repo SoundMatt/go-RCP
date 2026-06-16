@@ -47,6 +47,11 @@ package mock
 //fusa:req REQ-STAT-003
 //fusa:req REQ-STAT-004
 //fusa:req REQ-STAT-005
+//fusa:req REQ-ERR-011
+//fusa:req REQ-CTRL-025
+//fusa:req REQ-CTRL-026
+//fusa:req REQ-CTRL-027
+//fusa:req REQ-REG-013
 
 import (
 	"context"
@@ -98,9 +103,17 @@ func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response,
 		return nil, fmt.Errorf("mock controller zone %s: %w", c.zone, rcp.ErrTimeout)
 	default:
 	}
-
+	if cmd.Zone != c.zone {
+		return nil, fmt.Errorf("mock controller zone %s: %w", c.zone, rcp.ErrZoneMismatch)
+	}
+	// Copy payload so caller mutation after Send cannot affect the handler.
+	safe := *cmd
+	if len(cmd.Payload) > 0 {
+		safe.Payload = make([]byte, len(cmd.Payload))
+		copy(safe.Payload, cmd.Payload)
+	}
 	if c.handler != nil {
-		return c.handler(cmd), nil
+		return c.handler(&safe), nil
 	}
 	return &rcp.Response{
 		CommandID: cmd.ID,
@@ -138,11 +151,17 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 // Publish pushes a Status update to all active subscribers.
 func (c *Controller) Publish(payload []byte) {
 	seq := atomic.AddUint32(&c.seq, 1)
+	// Copy payload so caller mutation after Publish cannot affect delivered Status values.
+	var p []byte
+	if len(payload) > 0 {
+		p = make([]byte, len(payload))
+		copy(p, payload)
+	}
 	st := &rcp.Status{
 		Zone:    c.zone,
 		Seq:     seq,
 		Healthy: !c.closed.Load(),
-		Payload: payload,
+		Payload: p,
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -225,6 +244,9 @@ func (r *Registry) Deregister(zone rcp.Zone) error {
 func (r *Registry) Lookup(zone rcp.Zone) (rcp.Controller, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.closed {
+		return nil, fmt.Errorf("mock registry: %w", rcp.ErrClosed)
+	}
 	ctrl, ok := r.ctrls[zone]
 	if !ok {
 		return nil, fmt.Errorf("mock registry zone %s: %w", zone, rcp.ErrNotFound)

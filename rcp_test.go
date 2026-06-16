@@ -33,6 +33,7 @@ package rcp_test
 //fusa:test REQ-ERR-008
 //fusa:test REQ-ERR-009
 //fusa:test REQ-ERR-010
+//fusa:test REQ-ERR-011
 //fusa:test REQ-CMDSTRUCT-001
 //fusa:test REQ-CMDSTRUCT-002
 //fusa:test REQ-RESP-003
@@ -214,6 +215,7 @@ func TestErrors_NonNil(t *testing.T) {
 		{"ErrAlreadyExists", rcp.ErrAlreadyExists},
 		{"ErrTimeout", rcp.ErrTimeout},
 		{"ErrBusy", rcp.ErrBusy},
+		{"ErrZoneMismatch", rcp.ErrZoneMismatch},
 	}
 	for _, tc := range errs {
 		if tc.err == nil {
@@ -232,6 +234,7 @@ func TestErrors_AllDistinct(t *testing.T) {
 		{"ErrAlreadyExists", rcp.ErrAlreadyExists},
 		{"ErrTimeout", rcp.ErrTimeout},
 		{"ErrBusy", rcp.ErrBusy},
+		{"ErrZoneMismatch", rcp.ErrZoneMismatch},
 	}
 	for i := range sentinels {
 		for j := range sentinels {
@@ -258,6 +261,7 @@ func TestErrors_IsDetectableWhenWrapped(t *testing.T) {
 		{"ErrNotFound", rcp.ErrNotFound},
 		{"ErrAlreadyExists", rcp.ErrAlreadyExists},
 		{"ErrTimeout", rcp.ErrTimeout},
+		{"ErrZoneMismatch", rcp.ErrZoneMismatch},
 	}
 	for _, tc := range cases {
 		wrapped := wrap(tc.sentinel)

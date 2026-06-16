@@ -42,6 +42,11 @@ package mock_test
 //fusa:test REQ-STAT-002
 //fusa:test REQ-STAT-003
 //fusa:test REQ-STAT-004
+//fusa:test REQ-ERR-011
+//fusa:test REQ-CTRL-025
+//fusa:test REQ-CTRL-026
+//fusa:test REQ-CTRL-027
+//fusa:test REQ-REG-013
 
 import (
 	"bytes"
@@ -493,7 +498,7 @@ func TestController_Send_CmdNoop(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	defer ctrl.Close()
 
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Type: rcp.CmdNoop})
+	resp, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
 	if err != nil {
 		t.Fatalf("CmdNoop send: %v", err)
 	}
@@ -510,6 +515,7 @@ func TestController_Send_CmdWatchdog(t *testing.T) {
 
 	resp, err := ctrl.Send(context.Background(), &rcp.Command{
 		ID:       1,
+		Zone:     rcp.ZoneFrontLeft,
 		Type:     rcp.CmdWatchdog,
 		Priority: rcp.PriorityCritical,
 	})
@@ -527,7 +533,7 @@ func TestController_Send_CmdReset(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	defer ctrl.Close()
 
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Type: rcp.CmdReset})
+	resp, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdReset})
 	if err != nil {
 		t.Fatalf("CmdReset send: %v", err)
 	}
@@ -548,7 +554,7 @@ func TestController_Handler_ResponseReturnedVerbatim(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneRearLeft, func(_ *rcp.Command) *rcp.Response { return want })
 	defer ctrl.Close()
 
-	got, err := ctrl.Send(context.Background(), &rcp.Command{ID: 77})
+	got, err := ctrl.Send(context.Background(), &rcp.Command{ID: 77, Zone: rcp.ZoneRearLeft})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -577,7 +583,7 @@ func TestController_Send_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func(id uint32) {
 			defer wg.Done()
-			_, _ = ctrl.Send(context.Background(), &rcp.Command{ID: id})
+			_, _ = ctrl.Send(context.Background(), &rcp.Command{ID: id, Zone: rcp.ZoneCentral})
 		}(uint32(i))
 	}
 	wg.Wait()
@@ -710,7 +716,7 @@ func TestController_Send_NilPayload_NoPanic(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	defer ctrl.Close()
 
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Payload: nil})
+	resp, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Zone: rcp.ZoneFrontLeft, Payload: nil})
 	if err != nil {
 		t.Fatalf("send nil payload: %v", err)
 	}
@@ -880,5 +886,89 @@ func TestMock_ErrorWrapping_ErrTimeout(t *testing.T) {
 	_, err := ctrl.Send(ctx, &rcp.Command{})
 	if !errors.Is(err, rcp.ErrTimeout) {
 		t.Errorf("cancelled context Send: errors.Is(err, ErrTimeout) = false, got %v", err)
+	}
+}
+
+// ── REQ-CTRL-025: Send rejects zone-mismatched commands ──────────────────────
+
+func TestController_Send_ZoneMismatch(t *testing.T) {
+	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
+	defer ctrl.Close()
+
+	_, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Zone: rcp.ZoneRearRight, Type: rcp.CmdSet})
+	if err == nil {
+		t.Fatal("expected error for zone-mismatched command, got nil")
+	}
+	if !errors.Is(err, rcp.ErrZoneMismatch) {
+		t.Errorf("zone mismatch Send: errors.Is(err, ErrZoneMismatch) = false, got %v", err)
+	}
+}
+
+func TestMock_ErrorWrapping_ErrZoneMismatch(t *testing.T) {
+	ctrl := mock.NewController(rcp.ZoneCentral, nil)
+	defer ctrl.Close()
+
+	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontRight})
+	if !errors.Is(err, rcp.ErrZoneMismatch) {
+		t.Errorf("zone mismatch Send: errors.Is(err, ErrZoneMismatch) = false, got %v", err)
+	}
+}
+
+// ── REQ-CTRL-026: Send copies payload to prevent caller aliasing ─────────────
+
+func TestController_Send_PayloadIsolation(t *testing.T) {
+	var captured []byte
+	ctrl := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
+		captured = cmd.Payload
+		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
+	})
+	defer ctrl.Close()
+
+	payload := []byte("original")
+	_, err := ctrl.Send(context.Background(), &rcp.Command{ID: 1, Zone: rcp.ZoneFrontLeft, Payload: payload})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	// Mutate the caller's slice after Send; the handler's copy must be unaffected.
+	payload[0] = 'X'
+	if len(captured) > 0 && captured[0] == 'X' {
+		t.Error("REQ-CTRL-026: handler received a direct reference to caller payload — copy missing")
+	}
+}
+
+// ── REQ-CTRL-027: Publish copies payload to prevent caller aliasing ───────────
+
+func TestController_Publish_PayloadIsolation(t *testing.T) {
+	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
+	defer ctrl.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	ch, _ := ctrl.Subscribe(ctx)
+	payload := []byte("data")
+	ctrl.Publish(payload)
+
+	select {
+	case st := <-ch:
+		// Mutate the caller's slice; the delivered Status.Payload must be unaffected.
+		payload[0] = 'Z'
+		if len(st.Payload) > 0 && st.Payload[0] == 'Z' {
+			t.Error("REQ-CTRL-027: Status.Payload is a direct reference to caller payload — copy missing")
+		}
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for published status")
+	}
+}
+
+// ── REQ-REG-013: Lookup on closed registry returns ErrClosed ─────────────────
+
+func TestRegistry_Lookup_AfterClose_ErrClosed(t *testing.T) {
+	reg := mock.NewRegistry()
+	_ = reg.Close()
+
+	_, err := reg.Lookup(rcp.ZoneFrontLeft)
+	if !errors.Is(err, rcp.ErrClosed) {
+		t.Errorf("Lookup after close: errors.Is(err, ErrClosed) = false, got %v", err)
 	}
 }
