@@ -1335,6 +1335,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-001",
+      "title": "PriorityCritical commands are dispatched before PriorityHigh and PriorityNormal",
+      "text": "prioqueue.Controller shall dispatch a PriorityCritical command before any queued PriorityHigh or PriorityNormal commands when the inner controller is free to accept the next Send.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-002",
+      "title": "Commands at equal priority are dispatched FIFO",
+      "text": "prioqueue.Controller shall dispatch commands at equal priority in the order they were enqueued, providing deterministic ordering within a priority level.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-003",
+      "title": "Priority queue Send returns the inner controller's Response",
+      "text": "prioqueue.Controller.Send shall return the same Response and error produced by the inner controller's Send, transparently passing through command results to the caller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-004",
+      "title": "Send returns rcp.ErrTimeout when caller's context expires",
+      "text": "prioqueue.Controller.Send shall return an error wrapping rcp.ErrTimeout when the caller's context is cancelled or times out before the inner controller returns a response.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-005",
+      "title": "Zone() and Subscribe() delegate to the inner controller",
+      "text": "prioqueue.Controller.Zone() shall return the inner controller's zone. prioqueue.Controller.Subscribe() shall delegate to and return the inner controller's Subscribe result.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-006",
+      "title": "Close() stops dispatch and rejects subsequent Send calls",
+      "text": "prioqueue.Controller.Close() shall stop the dispatch goroutine, close the inner controller, and cause subsequent Send calls to return rcp.ErrClosed. Close() shall be idempotent.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-007",
+      "title": "Priority queue is safe for concurrent use",
+      "text": "prioqueue.Controller shall be safe for concurrent use by multiple goroutines each calling Send simultaneously, without data races or deadlocks.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PQ-008",
+      "title": "All three priority levels are dispatched successfully",
+      "text": "prioqueue.Controller shall successfully dispatch and return responses for commands at PriorityNormal, PriorityHigh, and PriorityCritical levels.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
