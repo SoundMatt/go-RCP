@@ -2551,6 +2551,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-001",
+      "title": "CAN frame encoding",
+      "text": "Frame.Encode shall produce a 13-byte wire representation with CANID (4 bytes big-endian), DLC (1 byte), and data (8 bytes).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-002",
+      "title": "CAN frame decoding",
+      "text": "Decode shall parse a 13-byte buffer into a Frame and return ErrMalformedFrame when the buffer is shorter than 13 bytes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-003",
+      "title": "Bus broadcast delivery",
+      "text": "Bus.Send shall deliver a CAN frame to all active subscribers without blocking the sender.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-004",
+      "title": "Server frame dispatch",
+      "text": "Server shall subscribe to the Bus and forward incoming REQUEST frames to the inner rcp.Controller with the frame ID mapped to rcp.CommandType.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-005",
+      "title": "Server response frame",
+      "text": "Server shall publish a RESPONSE frame (request ID | 0x400) onto the Bus after the inner controller responds.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-006",
+      "title": "Controller frame send",
+      "text": "Controller.Send shall publish a CAN REQUEST frame and correlate the matching RESPONSE frame by ID to produce an rcp.Response.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-007",
+      "title": "Idempotent close",
+      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAN-008",
+      "title": "Closed send error",
+      "text": "Controller.Send shall return ErrClosed after Controller.Close has been called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
