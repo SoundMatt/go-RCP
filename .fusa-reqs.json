@@ -2823,6 +2823,54 @@
       "text": "Server.Close prevents further Handle calls and is idempotent.",
       "asil": "B",
       "package": "udsbr"
+    },
+    {
+      "id": "REQ-DOIP-001",
+      "text": "BuildHeader produces an 8-byte DoIP header with the correct protocol version and payload type.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-002",
+      "text": "ParseHeader reads and validates the DoIP header from an io.Reader.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-003",
+      "text": "ParseHeader returns ErrInvalidHeader for headers with incorrect version bytes.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-004",
+      "text": "Server.Serve accepts TCP connections and processes DiagMessage PDUs.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-005",
+      "text": "Client.Send transmits a diagnostic message and returns the UDS response payload.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-006",
+      "text": "Server returns a DiagMessageNack for unsupported payload types.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-007",
+      "text": "Server.Close stops the listener and is idempotent.",
+      "asil": "B",
+      "package": "doipbr"
+    },
+    {
+      "id": "REQ-DOIP-008",
+      "text": "Client.Close closes the connection and is idempotent.",
+      "asil": "B",
+      "package": "doipbr"
     }
   ]
 }
