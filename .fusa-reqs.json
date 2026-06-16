@@ -2487,6 +2487,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-001",
+      "title": "SOME/IP header encoding",
+      "text": "encodeFrame shall produce a 16-byte SOME/IP header with service ID, method ID, length, client ID, session ID, protocol/interface version, message type, and return code in big-endian byte order.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-002",
+      "title": "SOME/IP header decoding",
+      "text": "decodeFrame shall parse a 16-byte SOME/IP header and return ErrMalformedFrame when the datagram is shorter than 16 bytes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-003",
+      "title": "Server request dispatch",
+      "text": "Server shall accept UDP SOME/IP REQUEST datagrams and dispatch the embedded command to the inner rcp.Controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-004",
+      "title": "Server RESPONSE reply",
+      "text": "Server shall reply to each REQUEST with a SOME/IP RESPONSE datagram encoding the inner controller's ResponseStatus in the ReturnCode field.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-005",
+      "title": "Controller send encoding",
+      "text": "Controller.Send shall encode the rcp.Command as a SOME/IP REQUEST datagram, correlate the RESPONSE by session ID, and decode the result into an rcp.Response.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-006",
+      "title": "Zone mismatch rejection",
+      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone without sending a datagram.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-007",
+      "title": "Idempotent close",
+      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIPC-008",
+      "title": "Closed send error",
+      "text": "Controller.Send shall return ErrClosed without sending a datagram after Controller.Close has been called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
