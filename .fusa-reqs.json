@@ -1207,6 +1207,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-001",
+      "title": "CmdSleep and CmdWake are distinct command types",
+      "text": "rcp.CmdSleep and rcp.CmdWake shall be defined as distinct CommandType constants, differing from each other and from all other command types including CmdNoop, CmdWatchdog, and CmdReset.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-002",
+      "title": "Sleep sends CmdSleep and transitions zone to Sleeping",
+      "text": "powerstate.Manager.Sleep shall send a CmdSleep command to the zone controller. On success (StatusOK), the zone shall transition from Active to Sleeping and a PowerEvent{Sleeping} shall be emitted. Calling Sleep on a non-Active zone shall return an error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-003",
+      "title": "Wake sends CmdWake and transitions zone to Active",
+      "text": "powerstate.Manager.Wake shall send a CmdWake command to the zone controller. On success, the zone shall transition from Sleeping or BusOff to Active and a PowerEvent{Active} shall be emitted. Calling Wake on an already-Active zone shall return an error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-004",
+      "title": "Command failure transitions zone to BusOff",
+      "text": "When Sleep or Wake returns a Send error, powerstate.Manager shall immediately transition the zone to PowerStateBusOff and emit PowerEvent{BusOff}. Manager.State for an unregistered zone shall also return PowerStateBusOff.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-005",
+      "title": "BusOff recovery retries CmdWake at RecoveryInterval",
+      "text": "powerstate.Manager shall periodically retry CmdWake for every BusOff zone at Config.RecoveryInterval until the command succeeds or the Manager is closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-006",
+      "title": "Recovery success transitions BusOff to Active",
+      "text": "When the recovery CmdWake to a BusOff zone returns success, powerstate.Manager shall transition that zone to PowerStateActive and emit PowerEvent{Active}.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-007",
+      "title": "Subscriber channel closes on Manager.Close() or context cancellation",
+      "text": "A channel returned by powerstate.Manager.Subscribe shall be closed when Manager.Close() is called or the subscriber's context is cancelled. Subscribe shall return an error if the Manager is already closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWR-008",
+      "title": "Manager.Close() is idempotent",
+      "text": "powerstate.Manager.Close() shall be safe to call multiple times and shall return nil on all calls.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

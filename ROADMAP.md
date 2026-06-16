@@ -41,7 +41,7 @@ The project focuses on:
 | **Transport stack** | v0.10.0 | TSN transport | IEEE 802.1Qbv-aware UDP transport for hard real-time Ethernet delivery ✅ |
 | **Safety mechanisms** | v0.11.0 | Watchdog & heartbeat | CmdWatchdog scheduling, zone health state machine, liveness API ✅ |
 | **Safety mechanisms** | v0.12.0 | Deadline monitoring | Zone-to-HPC liveness: alert when Status stops arriving within deadline ✅ |
-| **Safety mechanisms** | v0.13.0 | Power state | CmdSleep/CmdWake, zone power state machine, bus-off recovery |
+| **Safety mechanisms** | v0.13.0 | Power state | CmdSleep/CmdWake, zone power state machine, bus-off recovery ✅ |
 | **Safety mechanisms** | v0.14.0 | E2E protection | Sequence counter, CRC-16, replay guard on command frames |
 | **Safety mechanisms** | v0.15.0 | Priority queuing | Per-zone priority queue honouring PriorityCritical/High/Normal |
 | **Safety mechanisms** | v0.16.0 | Rate limiting | Per-zone token-bucket admission control against command flooding |
