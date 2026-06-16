@@ -88,7 +88,7 @@ func TestServer_Dispatch(t *testing.T) {
 
 	bus := canbr.NewBus()
 	srv := canbr.NewServer(inner, bus)
-	defer func() { _ = srv.Close() }()
+	defer srv.Close()
 
 	c := canbr.NewController(rcp.ZoneFrontLeft, bus)
 	defer func() { _ = c.Close() }()
@@ -119,7 +119,7 @@ func TestServer_Response(t *testing.T) {
 
 	bus := canbr.NewBus()
 	srv := canbr.NewServer(inner, bus)
-	defer func() { _ = srv.Close() }()
+	defer srv.Close()
 
 	c := canbr.NewController(rcp.ZoneFrontLeft, bus)
 	defer func() { _ = c.Close() }()
@@ -145,7 +145,7 @@ func TestController_Send(t *testing.T) {
 
 	bus := canbr.NewBus()
 	srv := canbr.NewServer(inner, bus)
-	defer func() { _ = srv.Close() }()
+	defer srv.Close()
 
 	c := canbr.NewController(rcp.ZoneFrontLeft, bus)
 	defer func() { _ = c.Close() }()
