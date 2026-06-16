@@ -34,7 +34,7 @@ The project focuses on:
 | **Safety groundwork** | v0.3.0 | Hardening | Mock correctness fixes, benchmarks, safety timing evidence ✅ |
 | **Safety groundwork** | v0.4.0 | HARA expansion | Comprehensive hazard analysis — delayed delivery, corruption, impersonation, flooding, HPC crash ✅ |
 | **Transport stack** | v0.5.0 | UDP transport | Pure-Go UDP command/response transport with zone discovery ✅ |
-| **Transport stack** | v0.6.0 | mDNS discovery | Zero-configuration zone controller discovery via mDNS/DNS-SD |
+| **Transport stack** | v0.6.0 | mDNS discovery | Zero-configuration zone controller discovery via mDNS/DNS-SD ✅ |
 | **Transport stack** | v0.7.0 | TLS transport | Mutual TLS channel for zone-controller communication |
 | **Transport stack** | v0.8.0 | Shared memory | Zero-copy intra-host command delivery via shared memory |
 | **Transport stack** | v0.9.0 | Loaned samples | LoaningController interface extending zero-copy to all transports |

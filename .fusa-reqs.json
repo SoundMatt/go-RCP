@@ -775,6 +775,70 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-001",
+      "title": "mDNS Transport delivers packets reliably on loopback",
+      "text": "The mDNS Transport abstraction shall deliver any packet written by one endpoint to the other endpoint without loss or corruption on loopback interfaces used in testing.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-002",
+      "title": "Announcer.Announce emits a well-formed DNS-SD advertisement packet",
+      "text": "Announcer.Announce shall write a DNS response packet containing at least one PTR record for _rcp._udp.local. onto the transport. The packet shall be at least 12 bytes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-003",
+      "title": "Browser discovers a zone controller announced on the same bus",
+      "text": "A Browser.Query call shall invoke the Handler callback with the correct Zone value when an Announcer on the same transport calls Announce.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-004",
+      "title": "Browser reports correct IP:port for discovered zone controller",
+      "text": "The addr string passed to the Handler shall equal the IP:port originally provided to NewAnnouncer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-005",
+      "title": "Browser stops reading when context is cancelled",
+      "text": "Browser.Query shall return when the provided context is cancelled, without closing the underlying Transport.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-006",
+      "title": "Browser ignores non-response DNS packets",
+      "text": "Browser.Query shall not invoke the Handler for packets that are DNS queries (QR bit = 0), avoiding false discovery from loopback query echoes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-007",
+      "title": "Browser discovers multiple zone controllers from separate announcements",
+      "text": "When N distinct Announcers send announcements onto the same transport, Browser.Query shall invoke the Handler N times with distinct Zone values.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-008",
+      "title": "Announcer.Close is idempotent",
+      "text": "Calling Announcer.Close more than once shall not return an error on the second or subsequent calls.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
