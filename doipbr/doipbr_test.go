@@ -6,6 +6,7 @@
 //fusa:test REQ-DOIP-006
 //fusa:test REQ-DOIP-007
 //fusa:test REQ-DOIP-008
+//fusa:test REQ-DOIP-009
 
 package doipbr_test
 
@@ -32,7 +33,7 @@ func startServer(t *testing.T, handler func(*rcp.Command) *rcp.Response) (*doipb
 		t.Fatalf("Listen: %v", err)
 	}
 	srv := doipbr.NewServer(uds, ln)
-	go srv.Serve()
+	srv.ServeBackground()
 	return srv, func() {
 		_ = srv.Close()
 		_ = inner.Close()

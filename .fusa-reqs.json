@@ -3319,6 +3319,14 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
+    },
+    {
+      "id": "REQ-DOIP-009",
+      "title": "ServeBackground tracks Serve in WaitGroup before launching goroutine",
+      "text": "ServeBackground() shall call wg.Add(1) synchronously before starting the Serve goroutine so that Close().wg.Wait() correctly blocks until Serve exits, avoiding data races on the WaitGroup.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
     }
   ]
 }

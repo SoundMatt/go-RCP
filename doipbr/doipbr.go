@@ -6,6 +6,7 @@
 //fusa:req REQ-DOIP-006
 //fusa:req REQ-DOIP-007
 //fusa:req REQ-DOIP-008
+//fusa:req REQ-DOIP-009
 
 // Package doipbr provides a DoIP (Diagnostics over IP, ISO 13400) bridge
 // for go-RCP.
@@ -102,10 +103,10 @@ func NewServer(udsServer *udsbr.Server, ln net.Listener) *Server {
 // Addr returns the listener's network address.
 func (s *Server) Addr() net.Addr { return s.ln.Addr() }
 
-// Serve starts accepting TCP connections. It returns when Close is called.
+// Serve accepts TCP connections synchronously until the listener is closed.
+// To run in a goroutine, prefer ServeBackground so wg.Add(1) happens before
+// the goroutine starts and Close correctly waits for Serve to exit.
 func (s *Server) Serve() {
-	s.wg.Add(1)
-	defer s.wg.Done()
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
@@ -117,6 +118,17 @@ func (s *Server) Serve() {
 			s.handleConn(conn)
 		}()
 	}
+}
+
+// ServeBackground starts Serve in a new goroutine, calling wg.Add(1) before
+// the goroutine is created so that Close().wg.Wait() correctly blocks until
+// Serve exits.
+func (s *Server) ServeBackground() {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.Serve()
+	}()
 }
 
 // Close stops the server and closes the listener. Idempotent.
