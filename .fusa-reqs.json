@@ -3375,6 +3375,30 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
+    },
+    {
+      "id": "REQ-CONF-001",
+      "title": "Status.ToMessage matches RELAY golden vector",
+      "text": "Status.ToMessage() shall produce a relay.Message matching the published RELAY golden vector spec/vectors/rcp-status.json: protocol=RCP, id=\"FrontLeft\", seq=3, meta[rcp.healthy]=\"true\", payload base64 \"AQ==\", zero Version.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-CONF-002",
+      "title": "RELAY canonical schemas reachable",
+      "text": "go-RCP shall build against a RELAY module exposing the \u00a715 canonical-type JSON schemas (rcp-command, rcp-status) via relay.Schema(), confirming adoption of spec v0.3 artifacts.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-CONF-003",
+      "title": "SpecVersion sourced from RELAY module",
+      "text": "The exported SpecVersion shall equal relay.SpecVersion (not hardcoded) and be non-empty, per spec \u00a717.12/\u00a719.4.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
     }
   ]
 }
