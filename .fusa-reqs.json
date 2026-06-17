@@ -3122,8 +3122,8 @@
     },
     {
       "id": "REQ-ERR-019",
-      "title": "ErrAlreadyExists wraps ErrClosed via errors.Is chain",
-      "text": "errors.Is(rcp.ErrAlreadyExists, rcp.ErrClosed) shall return true per RELAY spec \u00a75.4.",
+      "title": "ErrAlreadyExists is standalone (not a relay sentinel)",
+      "text": "ErrAlreadyExists shall be a standalone sentinel that does not wrap any relay sentinel, per RELAY spec \u00a75.4. errors.Is(rcp.ErrAlreadyExists, rcp.ErrClosed) and errors.Is(rcp.ErrAlreadyExists, relay.ErrClosed) shall both return false; a uniqueness violation is not a relay sentinel condition.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"

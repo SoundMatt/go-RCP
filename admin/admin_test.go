@@ -74,8 +74,8 @@ func TestGetZone_KnownZone(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&info); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if info.Zone != "front-left" {
-		t.Errorf("zone = %q, want front-left", info.Zone)
+	if info.Zone != "FrontLeft" {
+		t.Errorf("zone = %q, want FrontLeft", info.Zone)
 	}
 }
 
@@ -165,8 +165,8 @@ func TestMetrics_ContainsZone(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, "front-left") {
-		t.Errorf("metrics body missing front-left zone: %s", body)
+	if !strings.Contains(body, "FrontLeft") {
+		t.Errorf("metrics body missing FrontLeft zone: %s", body)
 	}
 }
 

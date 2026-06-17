@@ -303,16 +303,27 @@ func TestErrors_WrapRelayChain(t *testing.T) {
 		{rcp.ErrTimeout, relay.ErrTimeout, "ErrTimeout→relay.ErrTimeout"},
 		{rcp.ErrPayloadTooLarge, relay.ErrPayloadTooLarge, "ErrPayloadTooLarge→relay.ErrPayloadTooLarge"},
 		{rcp.ErrNotFound, rcp.ErrNotConnected, "ErrNotFound→ErrNotConnected"},
-		{rcp.ErrAlreadyExists, rcp.ErrClosed, "ErrAlreadyExists→ErrClosed"},
 		{rcp.ErrBusy, rcp.ErrTimeout, "ErrBusy→ErrTimeout"},
 		{rcp.ErrZoneMismatch, rcp.ErrNotConnected, "ErrZoneMismatch→ErrNotConnected"},
 		{rcp.ErrNotFound, relay.ErrNotConnected, "ErrNotFound→relay.ErrNotConnected (transitive)"},
-		{rcp.ErrAlreadyExists, relay.ErrClosed, "ErrAlreadyExists→relay.ErrClosed (transitive)"},
 	}
 	for _, tc := range cases {
 		if !errors.Is(tc.child, tc.parent) {
 			t.Errorf("errors.Is(%s) = false, want true", tc.name)
 		}
+	}
+}
+
+// TestErrAlreadyExists_Standalone verifies ErrAlreadyExists wraps no relay
+// sentinel, per RELAY spec §5.4 (uniqueness violation is not a relay condition).
+//
+//fusa:test REQ-ERR-019
+func TestErrAlreadyExists_Standalone(t *testing.T) {
+	if errors.Is(rcp.ErrAlreadyExists, rcp.ErrClosed) {
+		t.Error("ErrAlreadyExists must not wrap rcp.ErrClosed")
+	}
+	if errors.Is(rcp.ErrAlreadyExists, relay.ErrClosed) {
+		t.Error("ErrAlreadyExists must not wrap relay.ErrClosed")
 	}
 }
 
