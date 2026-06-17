@@ -3399,6 +3399,14 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
+    },
+    {
+      "id": "REQ-SIM-009",
+      "title": "Concurrent publish and subscriber close never panic",
+      "text": "The simulator shall not panic with send-on-closed-channel when statusLoop publish races with Close() or subscriber context cancellation. Subscriber send and close shall be mutually exclusive so a Status is never sent on a closed channel.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
     }
   ]
 }

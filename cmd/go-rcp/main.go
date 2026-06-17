@@ -34,7 +34,7 @@ import (
 
 const (
 	toolName    = "go-rcp"
-	toolVersion = "0.46.0"
+	toolVersion = "0.48.0"
 	protocol    = "RCP"
 	protocolInt = 5
 )
