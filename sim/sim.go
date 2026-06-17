@@ -17,6 +17,7 @@ package sim
 //fusa:req REQ-SIM-006
 //fusa:req REQ-SIM-007
 //fusa:req REQ-SIM-008
+//fusa:req REQ-SIM-009
 
 import (
 	"context"
@@ -60,11 +61,35 @@ func DefaultConfig(zone rcp.Zone) Config {
 }
 
 type subscriber struct {
-	ch   chan *rcp.Status
-	once sync.Once
+	ch     chan *rcp.Status
+	mu     sync.Mutex
+	closed bool
 }
 
-func (s *subscriber) close() { s.once.Do(func() { close(s.ch) }) }
+// close closes the subscriber channel exactly once. Idempotent.
+func (s *subscriber) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.closed {
+		s.closed = true
+		close(s.ch)
+	}
+}
+
+// trySend delivers st without blocking. It is a no-op if the subscriber has
+// been closed or its buffer is full. Holding mu makes the send mutually
+// exclusive with close, so it can never send on a closed channel.
+func (s *subscriber) trySend(st *rcp.Status) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	select {
+	case s.ch <- st:
+	default:
+	}
+}
 
 // Controller is a timing-realistic zone controller simulator.
 type Controller struct {
@@ -206,10 +231,7 @@ func (c *Controller) publish() {
 	subs := append([]*subscriber{}, c.subs...)
 	c.mu.Unlock()
 	for _, s := range subs {
-		select {
-		case s.ch <- &rcp.Status{Zone: c.cfg.Zone}:
-		default:
-		}
+		s.trySend(&rcp.Status{Zone: c.cfg.Zone})
 	}
 }
 

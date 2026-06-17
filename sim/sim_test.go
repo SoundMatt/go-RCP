@@ -6,6 +6,7 @@
 //fusa:test REQ-SIM-006
 //fusa:test REQ-SIM-007
 //fusa:test REQ-SIM-008
+//fusa:test REQ-SIM-009
 
 package sim_test
 
@@ -334,5 +335,43 @@ func TestSim_Concurrent(t *testing.T) {
 			_, _ = ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
 		}()
 	}
+	wg.Wait()
+}
+
+// TestSim_PublishCloseRace stresses the publish/close path: many subscribers
+// with a fast StatusInterval are created and torn down (via context cancel)
+// while statusLoop publishes, then Close() races the same channels. Before the
+// fix this panicked with "send on closed channel" (REQ-SIM-009). Run with -race.
+func TestSim_PublishCloseRace(t *testing.T) {
+	cfg := sim.Config{
+		Zone:           rcp.ZoneFrontLeft,
+		LatencyModel:   sim.LatencyConstant,
+		StatusInterval: 200 * time.Microsecond,
+	}
+	ctrl := sim.NewController(cfg)
+
+	var wg sync.WaitGroup
+	const n = 50
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithCancel(context.Background())
+			ch, err := ctrl.Subscribe(ctx)
+			if err != nil {
+				cancel()
+				return
+			}
+			// Drain briefly so the buffer fills and publish keeps sending.
+			go func() {
+				for range ch { //nolint:revive // intentional drain
+				}
+			}()
+			time.Sleep(time.Millisecond)
+			cancel() // closes this subscriber concurrently with publish
+		}()
+	}
+	time.Sleep(2 * time.Millisecond)
+	_ = ctrl.Close() // races publish + subscriber closes
 	wg.Wait()
 }
