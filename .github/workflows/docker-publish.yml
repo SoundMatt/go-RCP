@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [rcptool, controller, zone]
+        target: [go-rcp, controller, zone]
 
     steps:
       - uses: actions/checkout@v5

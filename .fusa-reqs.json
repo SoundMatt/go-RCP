@@ -3063,6 +3063,262 @@
       "text": "StandardASILDGaps returns exactly 8 predefined ASIL-D gap requirements.",
       "asil": "B",
       "package": "certgap"
+    },
+    {
+      "id": "REQ-ERR-012",
+      "title": "ErrNotConnected is a non-nil mandatory RELAY sentinel",
+      "text": "ErrNotConnected shall be a non-nil error such that errors.Is(ErrNotConnected, relay.ErrNotConnected) returns true. It is returned before a connection is established or after a transport drop.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-013",
+      "title": "ErrPayloadTooLarge is a non-nil mandatory RELAY sentinel",
+      "text": "ErrPayloadTooLarge shall be a non-nil error such that errors.Is(ErrPayloadTooLarge, relay.ErrPayloadTooLarge) returns true. It is returned when a payload exceeds the protocol maximum.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-014",
+      "title": "ErrClosed wraps relay.ErrClosed via errors.Is chain",
+      "text": "errors.Is(rcp.ErrClosed, relay.ErrClosed) shall return true so callers can use RELAY-level sentinel detection.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-015",
+      "title": "ErrNotConnected wraps relay.ErrNotConnected via errors.Is chain",
+      "text": "errors.Is(rcp.ErrNotConnected, relay.ErrNotConnected) shall return true so callers can use RELAY-level sentinel detection.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-016",
+      "title": "ErrTimeout wraps relay.ErrTimeout via errors.Is chain",
+      "text": "errors.Is(rcp.ErrTimeout, relay.ErrTimeout) shall return true so callers can use RELAY-level sentinel detection.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-017",
+      "title": "ErrPayloadTooLarge wraps relay.ErrPayloadTooLarge via errors.Is chain",
+      "text": "errors.Is(rcp.ErrPayloadTooLarge, relay.ErrPayloadTooLarge) shall return true so callers can use RELAY-level sentinel detection.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-018",
+      "title": "ErrNotFound wraps ErrNotConnected via errors.Is chain",
+      "text": "errors.Is(rcp.ErrNotFound, rcp.ErrNotConnected) shall return true per RELAY spec \u00a75.4.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-019",
+      "title": "ErrAlreadyExists wraps ErrClosed via errors.Is chain",
+      "text": "errors.Is(rcp.ErrAlreadyExists, rcp.ErrClosed) shall return true per RELAY spec \u00a75.4.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-020",
+      "title": "ErrBusy wraps ErrTimeout via errors.Is chain",
+      "text": "errors.Is(rcp.ErrBusy, rcp.ErrTimeout) shall return true per RELAY spec \u00a75.4.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ERR-021",
+      "title": "ErrZoneMismatch wraps ErrNotConnected via errors.Is chain",
+      "text": "errors.Is(rcp.ErrZoneMismatch, rcp.ErrNotConnected) shall return true per RELAY spec \u00a75.4.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-SPEC-001",
+      "title": "SpecVersion exports the RELAY specification version",
+      "text": "The package-level constant SpecVersion shall equal relay.SpecVersion, declaring the RELAY spec version this package implements per spec \u00a717.12.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-001",
+      "title": "ZoneFromString parses zone name to Zone constant",
+      "text": "ZoneFromString shall return the Zone constant matching the input string produced by Zone.String(), enabling round-trip zone identity.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-002",
+      "title": "ZoneFromString returns ErrNotFound for unknown zone string",
+      "text": "ZoneFromString shall return (ZoneUnknown, ErrNotFound) when the input does not match any known zone name.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-003",
+      "title": "Status.ToMessage sets Protocol to relay.RCP",
+      "text": "Status.ToMessage() shall return a relay.Message with Protocol = relay.RCP per RELAY spec \u00a715.7.5.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-004",
+      "title": "Status.ToMessage maps Zone.String() to ID field",
+      "text": "Status.ToMessage() shall set relay.Message.ID to the string returned by Status.Zone.String().",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-005",
+      "title": "Status.ToMessage preserves Payload and Seq",
+      "text": "Status.ToMessage() shall copy Status.Payload to relay.Message.Payload and Status.Seq (as uint64) to relay.Message.Seq.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-006",
+      "title": "Status.ToMessage sets rcp.healthy meta field",
+      "text": "Status.ToMessage() shall set Meta[\"rcp.healthy\"] to \"true\" or \"false\" reflecting Status.Healthy.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-007",
+      "title": "CommandFromMessage parses zone from relay.Message.ID",
+      "text": "CommandFromMessage shall use ZoneFromString(m.ID) to set Command.Zone and return ErrNotFound for unrecognised zone strings.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-008",
+      "title": "CommandFromMessage parses rcp.priority from Meta",
+      "text": "CommandFromMessage shall map Meta[\"rcp.priority\"] to the corresponding Priority constant (normal/high/critical).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-009",
+      "title": "CommandFromMessage parses rcp.cmd_type from Meta",
+      "text": "CommandFromMessage shall map Meta[\"rcp.cmd_type\"] to the corresponding CommandType constant (noop/set/get/reset/watchdog/sleep/wake).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-MSG-010",
+      "title": "ResponseToMessage maps Response fields to relay.Message",
+      "text": "ResponseToMessage shall set Protocol=relay.RCP, ID=Response.Zone.String(), Payload=Response.Payload, and Meta[\"rcp.status\"] to the ResponseStatus decimal string.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-001",
+      "title": "Adapt wraps Controller as relay.Caller without blocking",
+      "text": "Adapt(c Controller) relay.Caller shall return immediately, wrapping c in an adapter satisfying relay.Caller. It shall not establish a connection or block.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-002",
+      "title": "adapter.Protocol returns relay.RCP",
+      "text": "The adapter returned by Adapt shall return relay.RCP from its Protocol() method.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-003",
+      "title": "adapter.Send converts relay.Message to Command and dispatches",
+      "text": "adapter.Send shall call CommandFromMessage to convert the relay.Message to a *Command, dispatch it via Controller.Send, and discard the Response.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-004",
+      "title": "adapter.Call returns relay.Message from Response",
+      "text": "adapter.Call shall call CommandFromMessage, dispatch via Controller.Send, and convert the *Response to relay.Message via ResponseToMessage.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-005",
+      "title": "adapter.Subscribe starts goroutine converting Status to relay.Message",
+      "text": "adapter.Subscribe shall call Controller.Subscribe(context.Background()), start a goroutine that converts each *Status to relay.Message via ToMessage(), and return the relay.Message channel.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-006",
+      "title": "adapter.Subscribe applies SubscriberConfig channel depth",
+      "text": "The channel buffered by adapter.Subscribe shall have depth equal to SubscriberConfig.ChanDepth(64).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-007",
+      "title": "adapter.Subscribe applies BackPressurePolicy",
+      "text": "The goroutine in adapter.Subscribe shall apply the BackPressurePolicy from SubscriberConfig: DropNewest drops arriving messages when full; DropOldest drains one then enqueues; Block waits.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-ADAPT-008",
+      "title": "adapter.Close delegates to Controller.Close",
+      "text": "adapter.Close() shall call and return the result of Controller.Close().",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-CLI-001",
+      "title": "go-rcp version --format json emits VersionDocument",
+      "text": "The go-rcp binary version command with --format json shall emit a JSON object conforming to RELAY spec \u00a712.1 with tool, protocol, protocol_int, version, spec_version, language, and runtime fields.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-CLI-002",
+      "title": "go-rcp capabilities emits CapabilitiesDocument",
+      "text": "The go-rcp binary capabilities command shall emit a JSON object conforming to RELAY spec \u00a712.2 including kind, tool, protocol, commands, transports, features, interfaces, optional_interfaces, and adapt fields.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-CLI-003",
+      "title": "go-rcp status --format json emits StatusDocument",
+      "text": "The go-rcp binary status command with --format json shall emit a JSON object conforming to RELAY spec \u00a712.3 with protocol, tool, version, healthy, connected, endpoint, and details fields.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
     }
   ]
 }
