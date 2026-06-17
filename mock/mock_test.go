@@ -304,12 +304,12 @@ func TestZone_String(t *testing.T) {
 		zone rcp.Zone
 		want string
 	}{
-		{rcp.ZoneFrontLeft, "front-left"},
-		{rcp.ZoneFrontRight, "front-right"},
-		{rcp.ZoneRearLeft, "rear-left"},
-		{rcp.ZoneRearRight, "rear-right"},
-		{rcp.ZoneCentral, "central"},
-		{rcp.ZoneUnknown, "unknown"},
+		{rcp.ZoneFrontLeft, "FrontLeft"},
+		{rcp.ZoneFrontRight, "FrontRight"},
+		{rcp.ZoneRearLeft, "RearLeft"},
+		{rcp.ZoneRearRight, "RearRight"},
+		{rcp.ZoneCentral, "Central"},
+		{rcp.ZoneUnknown, "Unknown"},
 	}
 	for _, tc := range cases {
 		if got := tc.zone.String(); got != tc.want {

@@ -52,6 +52,7 @@ package rcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	relay "github.com/SoundMatt/RELAY"
@@ -103,8 +104,10 @@ var (
 //fusa:req REQ-ERR-020
 //fusa:req REQ-ERR-021
 var (
-	ErrNotFound      = &wrapErr{"rcp: zone not found", ErrNotConnected}
-	ErrAlreadyExists = &wrapErr{"rcp: zone already registered", ErrClosed}
+	ErrNotFound = &wrapErr{"rcp: zone not found", ErrNotConnected}
+	// ErrAlreadyExists is standalone per RELAY spec §5.4 — a uniqueness
+	// violation is not a relay sentinel condition, so it wraps nothing.
+	ErrAlreadyExists = errors.New("rcp: zone already registered")
 	ErrBusy          = &wrapErr{"rcp: zone controller busy", ErrTimeout}
 	ErrZoneMismatch  = &wrapErr{"rcp: zone mismatch", ErrNotConnected}
 )
@@ -121,21 +124,22 @@ const (
 	ZoneCentral    Zone = 5
 )
 
-// String returns a human-readable zone name.
+// String returns the canonical zone name used as the relay.Message ID
+// (RELAY spec §15.7.5): PascalCase, e.g. "FrontLeft".
 func (z Zone) String() string {
 	switch z {
 	case ZoneFrontLeft:
-		return "front-left"
+		return "FrontLeft"
 	case ZoneFrontRight:
-		return "front-right"
+		return "FrontRight"
 	case ZoneRearLeft:
-		return "rear-left"
+		return "RearLeft"
 	case ZoneRearRight:
-		return "rear-right"
+		return "RearRight"
 	case ZoneCentral:
-		return "central"
+		return "Central"
 	default:
-		return "unknown"
+		return "Unknown"
 	}
 }
 
@@ -213,22 +217,24 @@ type Status struct {
 	Payload []byte `json:"payload,omitempty"`
 }
 
-// ZoneFromString returns the Zone constant matching the name returned by Zone.String().
+// ZoneFromString returns the Zone constant for a zone name. It accepts the
+// canonical PascalCase form returned by Zone.String() (e.g. "FrontLeft") as
+// well as the legacy kebab-case form (e.g. "front-left") for CLI ergonomics.
 // Returns (ZoneUnknown, ErrNotFound) for unrecognised strings.
 //
 //fusa:req REQ-MSG-001
 //fusa:req REQ-MSG-002
 func ZoneFromString(s string) (Zone, error) {
 	switch s {
-	case "front-left":
+	case "FrontLeft", "front-left":
 		return ZoneFrontLeft, nil
-	case "front-right":
+	case "FrontRight", "front-right":
 		return ZoneFrontRight, nil
-	case "rear-left":
+	case "RearLeft", "rear-left":
 		return ZoneRearLeft, nil
-	case "rear-right":
+	case "RearRight", "rear-right":
 		return ZoneRearRight, nil
-	case "central":
+	case "Central", "central":
 		return ZoneCentral, nil
 	default:
 		return ZoneUnknown, fmt.Errorf("rcp: unknown zone %q: %w", s, ErrNotFound)
