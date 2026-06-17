@@ -34,7 +34,7 @@ import (
 
 const (
 	toolName    = "go-rcp"
-	toolVersion = "0.44.0"
+	toolVersion = "0.46.0"
 	protocol    = "RCP"
 	protocolInt = 5
 )
@@ -145,7 +145,7 @@ func cmdCapabilities() {
 		Transports:         []string{"virtual", "grpc", "rest", "tcp", "uds"},
 		Features:           []string{"loaning"},
 		Interfaces:         []string{"Controller", "Registry"},
-		OptionalInterfaces: []string{"LoaningController"},
+		OptionalInterfaces: []string{"LoaningController", "HealthProvider", "MetricsProvider", "Drainer"},
 		Adapt:              true,
 	}
 	enc := json.NewEncoder(os.Stdout)
