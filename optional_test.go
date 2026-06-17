@@ -25,6 +25,33 @@ func msgFor(zone rcp.Zone, cmdType string) relay.Message {
 	}
 }
 
+func asHealth(t *testing.T, n relay.Caller) relay.HealthProvider {
+	t.Helper()
+	hp, ok := n.(relay.HealthProvider)
+	if !ok {
+		t.Fatal("adapter is not a relay.HealthProvider")
+	}
+	return hp
+}
+
+func asMetrics(t *testing.T, n relay.Caller) relay.MetricsProvider {
+	t.Helper()
+	mp, ok := n.(relay.MetricsProvider)
+	if !ok {
+		t.Fatal("adapter is not a relay.MetricsProvider")
+	}
+	return mp
+}
+
+func asDrainer(t *testing.T, n relay.Caller) relay.Drainer {
+	t.Helper()
+	d, ok := n.(relay.Drainer)
+	if !ok {
+		t.Fatal("adapter is not a relay.Drainer")
+	}
+	return d
+}
+
 // ── HealthProvider ──────────────────────────────────────────────────────────
 
 func TestAdapter_ImplementsOptionalInterfaces(t *testing.T) {
@@ -45,8 +72,8 @@ func TestAdapter_ImplementsOptionalInterfaces(t *testing.T) {
 func TestAdapter_Health_OKWhenFresh(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	defer ctrl.Close() //nolint:errcheck
-	hp := rcp.Adapt(ctrl).(relay.HealthProvider)
-	if got := hp.Health().Status; got != relay.HealthOK {
+	node := rcp.Adapt(ctrl)
+	if got := asHealth(t, node).Health().Status; got != relay.HealthOK {
 		t.Errorf("Health().Status = %v, want HealthOK", got)
 	}
 }
@@ -57,8 +84,7 @@ func TestAdapter_Health_DegradedAfterError(t *testing.T) {
 	node := rcp.Adapt(ctrl)
 	// Unknown zone ID forces a CommandFromMessage error.
 	_ = node.Send(context.Background(), relay.Message{Protocol: relay.RCP, ID: "nowhere"})
-	hp := node.(relay.HealthProvider)
-	if got := hp.Health().Status; got != relay.HealthDegraded {
+	if got := asHealth(t, node).Health().Status; got != relay.HealthDegraded {
 		t.Errorf("Health().Status = %v, want HealthDegraded", got)
 	}
 }
@@ -67,8 +93,7 @@ func TestAdapter_Health_DownAfterClose(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	node := rcp.Adapt(ctrl)
 	_ = node.Close()
-	hp := node.(relay.HealthProvider)
-	if got := hp.Health().Status; got != relay.HealthDown {
+	if got := asHealth(t, node).Health().Status; got != relay.HealthDown {
 		t.Errorf("Health().Status = %v, want HealthDown", got)
 	}
 }
@@ -79,10 +104,10 @@ func TestAdapter_Metrics_CountsCall(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	defer ctrl.Close() //nolint:errcheck
 	node := rcp.Adapt(ctrl)
-	if _, err := node.(relay.Caller).Call(context.Background(), msgFor(rcp.ZoneFrontLeft, "get")); err != nil {
+	if _, err := node.Call(context.Background(), msgFor(rcp.ZoneFrontLeft, "get")); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	m := node.(relay.MetricsProvider).Metrics()
+	m := asMetrics(t, node).Metrics()
 	if m.WriteCount != 1 {
 		t.Errorf("WriteCount = %d, want 1", m.WriteCount)
 	}
@@ -96,7 +121,7 @@ func TestAdapter_Metrics_CountsError(t *testing.T) {
 	defer ctrl.Close() //nolint:errcheck
 	node := rcp.Adapt(ctrl)
 	_ = node.Send(context.Background(), relay.Message{Protocol: relay.RCP, ID: "nowhere"})
-	if m := node.(relay.MetricsProvider).Metrics(); m.ErrorCount != 1 {
+	if m := asMetrics(t, node).Metrics(); m.ErrorCount != 1 {
 		t.Errorf("ErrorCount = %d, want 1", m.ErrorCount)
 	}
 }
@@ -106,12 +131,11 @@ func TestAdapter_Metrics_CountsError(t *testing.T) {
 func TestAdapter_CloseWithDrain_NoInFlight(t *testing.T) {
 	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
 	node := rcp.Adapt(ctrl)
-	d := node.(relay.Drainer)
-	if err := d.CloseWithDrain(context.Background()); err != nil {
+	if err := asDrainer(t, node).CloseWithDrain(context.Background()); err != nil {
 		t.Errorf("CloseWithDrain: %v", err)
 	}
 	// Health must report down after drain-close.
-	if got := node.(relay.HealthProvider).Health().Status; got != relay.HealthDown {
+	if got := asHealth(t, node).Health().Status; got != relay.HealthDown {
 		t.Errorf("post-drain Health = %v, want HealthDown", got)
 	}
 }
@@ -122,7 +146,7 @@ func TestAdapter_CloseWithDrain_RespectsContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	// No in-flight work, so this returns nil promptly regardless of timeout.
-	if err := node.(relay.Drainer).CloseWithDrain(ctx); err != nil {
+	if err := asDrainer(t, node).CloseWithDrain(ctx); err != nil {
 		t.Errorf("CloseWithDrain: %v", err)
 	}
 }
