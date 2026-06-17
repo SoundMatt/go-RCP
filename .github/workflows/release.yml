@@ -14,10 +14,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Check out the tagged commit so the regenerated evidence matches the release.
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: main
 
       - uses: actions/setup-go@v6
         with:
@@ -60,27 +58,39 @@ jobs:
       - name: Bundle audit pack
         run: gofusa audit-pack
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit regenerated artifacts
+      - name: Publish safety artifacts to the GitHub Release
+        # The artifacts are generated build outputs (ignored by .gitignore), so
+        # they are attached to the release rather than committed to the repo.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ github.ref_name }}"
-          git add fmea.csv fmea.json \
-                  safety-case.json safety-case.md safety-case.mermaid \
-                  sbom.json provenance.json artifact-manifest.json \
-                  iec61508-gap-report.json iso26262-gap-report.json iec62443-gap-report.json \
-                  iso21434-gap-report.json \
-                  tara.json tara.md \
-                  coverage-report.json \
-                  audit-pack.zip
-          if git diff --cached --quiet; then
-            echo "No artifact changes for $TAG — nothing to commit."
+          CANDIDATES=(
+            fmea.csv fmea.json
+            safety-case.json safety-case.md safety-case.mermaid
+            sbom.json provenance.json artifact-manifest.json
+            iec61508-gap-report.json iso26262-gap-report.json iec62443-gap-report.json
+            iso21434-gap-report.json
+            tara.json tara.md
+            coverage-report.json
+            audit-pack.zip
+          )
+          FILES=()
+          for f in "${CANDIDATES[@]}"; do
+            if [ -f "$f" ]; then
+              FILES+=("$f")
+            else
+              echo "::warning::expected artifact $f was not generated"
+            fi
+          done
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No safety artifacts were generated for $TAG" >&2
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
           else
-            git commit \
-              -m "chore: regenerate safety artifacts for $TAG [skip ci]" \
-              -m "Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
-            git push origin HEAD:refs/heads/main
+            gh release create "$TAG" "${FILES[@]}" \
+              --title "$TAG" \
+              --notes "Safety evidence artifacts regenerated for $TAG (dFMEA, safety case, SBOM, provenance, compliance gap reports, TARA, structural coverage, audit pack)."
           fi
