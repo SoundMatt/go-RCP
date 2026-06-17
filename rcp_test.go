@@ -34,15 +34,29 @@ package rcp_test
 //fusa:test REQ-ERR-009
 //fusa:test REQ-ERR-010
 //fusa:test REQ-ERR-011
+//fusa:test REQ-ERR-012
+//fusa:test REQ-ERR-013
+//fusa:test REQ-ERR-014
+//fusa:test REQ-ERR-015
+//fusa:test REQ-ERR-016
+//fusa:test REQ-ERR-017
+//fusa:test REQ-ERR-018
+//fusa:test REQ-ERR-019
+//fusa:test REQ-ERR-020
+//fusa:test REQ-ERR-021
 //fusa:test REQ-CMDSTRUCT-001
 //fusa:test REQ-CMDSTRUCT-002
 //fusa:test REQ-RESP-003
 //fusa:test REQ-STAT-005
+//fusa:test REQ-SPEC-001
+//fusa:test REQ-MSG-001
+//fusa:test REQ-MSG-002
 
 import (
 	"errors"
 	"testing"
 
+	relay "github.com/SoundMatt/RELAY"
 	rcp "github.com/SoundMatt/go-RCP"
 )
 
@@ -211,9 +225,11 @@ func TestErrors_NonNil(t *testing.T) {
 		err  error
 	}{
 		{"ErrClosed", rcp.ErrClosed},
+		{"ErrNotConnected", rcp.ErrNotConnected},
+		{"ErrTimeout", rcp.ErrTimeout},
+		{"ErrPayloadTooLarge", rcp.ErrPayloadTooLarge},
 		{"ErrNotFound", rcp.ErrNotFound},
 		{"ErrAlreadyExists", rcp.ErrAlreadyExists},
-		{"ErrTimeout", rcp.ErrTimeout},
 		{"ErrBusy", rcp.ErrBusy},
 		{"ErrZoneMismatch", rcp.ErrZoneMismatch},
 	}
@@ -224,15 +240,40 @@ func TestErrors_NonNil(t *testing.T) {
 	}
 }
 
-func TestErrors_AllDistinct(t *testing.T) {
+// TestMandatoryErrors_AllDistinct verifies the four mandatory RELAY sentinels
+// are pairwise distinct (none wraps another).
+func TestMandatoryErrors_AllDistinct(t *testing.T) {
 	sentinels := []struct {
 		name string
 		err  error
 	}{
 		{"ErrClosed", rcp.ErrClosed},
+		{"ErrNotConnected", rcp.ErrNotConnected},
+		{"ErrTimeout", rcp.ErrTimeout},
+		{"ErrPayloadTooLarge", rcp.ErrPayloadTooLarge},
+	}
+	for i := range sentinels {
+		for j := range sentinels {
+			if i == j {
+				continue
+			}
+			if errors.Is(sentinels[i].err, sentinels[j].err) {
+				t.Errorf("%s matches %s via errors.Is — mandatory sentinels must be distinct",
+					sentinels[i].name, sentinels[j].name)
+			}
+		}
+	}
+}
+
+// TestProtocolErrors_AllDistinct verifies the four protocol-specific sentinels
+// are pairwise distinct from each other (even though each wraps a mandatory sentinel).
+func TestProtocolErrors_AllDistinct(t *testing.T) {
+	sentinels := []struct {
+		name string
+		err  error
+	}{
 		{"ErrNotFound", rcp.ErrNotFound},
 		{"ErrAlreadyExists", rcp.ErrAlreadyExists},
-		{"ErrTimeout", rcp.ErrTimeout},
 		{"ErrBusy", rcp.ErrBusy},
 		{"ErrZoneMismatch", rcp.ErrZoneMismatch},
 	}
@@ -242,9 +283,35 @@ func TestErrors_AllDistinct(t *testing.T) {
 				continue
 			}
 			if errors.Is(sentinels[i].err, sentinels[j].err) {
-				t.Errorf("%s matches %s via errors.Is — sentinels must be distinct",
+				t.Errorf("%s matches %s via errors.Is — protocol sentinels must be distinct",
 					sentinels[i].name, sentinels[j].name)
 			}
+		}
+	}
+}
+
+// TestErrors_WrapRelayChain verifies that each rcp sentinel reaches its RELAY
+// counterpart via errors.Is, and protocol sentinels reach their mandatory parent.
+func TestErrors_WrapRelayChain(t *testing.T) {
+	cases := []struct {
+		child  error
+		parent error
+		name   string
+	}{
+		{rcp.ErrClosed, relay.ErrClosed, "ErrClosed→relay.ErrClosed"},
+		{rcp.ErrNotConnected, relay.ErrNotConnected, "ErrNotConnected→relay.ErrNotConnected"},
+		{rcp.ErrTimeout, relay.ErrTimeout, "ErrTimeout→relay.ErrTimeout"},
+		{rcp.ErrPayloadTooLarge, relay.ErrPayloadTooLarge, "ErrPayloadTooLarge→relay.ErrPayloadTooLarge"},
+		{rcp.ErrNotFound, rcp.ErrNotConnected, "ErrNotFound→ErrNotConnected"},
+		{rcp.ErrAlreadyExists, rcp.ErrClosed, "ErrAlreadyExists→ErrClosed"},
+		{rcp.ErrBusy, rcp.ErrTimeout, "ErrBusy→ErrTimeout"},
+		{rcp.ErrZoneMismatch, rcp.ErrNotConnected, "ErrZoneMismatch→ErrNotConnected"},
+		{rcp.ErrNotFound, relay.ErrNotConnected, "ErrNotFound→relay.ErrNotConnected (transitive)"},
+		{rcp.ErrAlreadyExists, relay.ErrClosed, "ErrAlreadyExists→relay.ErrClosed (transitive)"},
+	}
+	for _, tc := range cases {
+		if !errors.Is(tc.child, tc.parent) {
+			t.Errorf("errors.Is(%s) = false, want true", tc.name)
 		}
 	}
 }
@@ -258,9 +325,12 @@ func TestErrors_IsDetectableWhenWrapped(t *testing.T) {
 		sentinel error
 	}{
 		{"ErrClosed", rcp.ErrClosed},
+		{"ErrNotConnected", rcp.ErrNotConnected},
+		{"ErrTimeout", rcp.ErrTimeout},
+		{"ErrPayloadTooLarge", rcp.ErrPayloadTooLarge},
 		{"ErrNotFound", rcp.ErrNotFound},
 		{"ErrAlreadyExists", rcp.ErrAlreadyExists},
-		{"ErrTimeout", rcp.ErrTimeout},
+		{"ErrBusy", rcp.ErrBusy},
 		{"ErrZoneMismatch", rcp.ErrZoneMismatch},
 	}
 	for _, tc := range cases {
@@ -268,6 +338,43 @@ func TestErrors_IsDetectableWhenWrapped(t *testing.T) {
 		if !errors.Is(wrapped, tc.sentinel) {
 			t.Errorf("errors.Is(wrap(%s)) = false, want true", tc.name)
 		}
+	}
+}
+
+// ── SpecVersion ───────────────────────────────────────────────────────────────
+
+func TestSpecVersion_MatchesRELAY(t *testing.T) {
+	if rcp.SpecVersion != relay.SpecVersion {
+		t.Errorf("SpecVersion = %q, want relay.SpecVersion %q", rcp.SpecVersion, relay.SpecVersion)
+	}
+}
+
+// ── ZoneFromString ────────────────────────────────────────────────────────────
+
+func TestZoneFromString_RoundTrip(t *testing.T) {
+	zones := []rcp.Zone{
+		rcp.ZoneFrontLeft,
+		rcp.ZoneFrontRight,
+		rcp.ZoneRearLeft,
+		rcp.ZoneRearRight,
+		rcp.ZoneCentral,
+	}
+	for _, z := range zones {
+		got, err := rcp.ZoneFromString(z.String())
+		if err != nil {
+			t.Errorf("ZoneFromString(%q) error: %v", z.String(), err)
+			continue
+		}
+		if got != z {
+			t.Errorf("ZoneFromString(%q) = %v, want %v", z.String(), got, z)
+		}
+	}
+}
+
+func TestZoneFromString_Unknown_ReturnsErrNotFound(t *testing.T) {
+	_, err := rcp.ZoneFromString("nowhere")
+	if !errors.Is(err, rcp.ErrNotFound) {
+		t.Errorf("ZoneFromString(unknown) error = %v, want wrapping ErrNotFound", err)
 	}
 }
 

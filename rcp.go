@@ -52,17 +52,61 @@ package rcp
 
 import (
 	"context"
-	"errors"
+	"fmt"
+
+	relay "github.com/SoundMatt/RELAY"
 )
 
-// Sentinel errors returned by all rcp implementations.
+// SpecVersion is the RELAY specification version this package implements.
+//
+//fusa:req REQ-SPEC-001
+const SpecVersion = relay.SpecVersion
+
+// wrapErr holds a clean error message while maintaining an Unwrap chain
+// so errors.Is traversal reaches RELAY sentinels.
+type wrapErr struct {
+	msg    string
+	parent error
+}
+
+func (e *wrapErr) Error() string { return e.msg }
+func (e *wrapErr) Unwrap() error { return e.parent }
+
+// Mandatory RELAY sentinels (spec §5.1). Each wraps the corresponding
+// relay package sentinel so errors.Is(err, relay.ErrXxx) returns true.
+//
+//fusa:req REQ-ERR-001
+//fusa:req REQ-ERR-012
+//fusa:req REQ-ERR-013
+//fusa:req REQ-ERR-014
+//fusa:req REQ-ERR-015
+//fusa:req REQ-ERR-016
+//fusa:req REQ-ERR-017
 var (
-	ErrClosed        = errors.New("rcp: controller closed")
-	ErrNotFound      = errors.New("rcp: zone not found")
-	ErrAlreadyExists = errors.New("rcp: zone already registered")
-	ErrTimeout       = errors.New("rcp: command timeout")
-	ErrBusy          = errors.New("rcp: zone controller busy")
-	ErrZoneMismatch  = errors.New("rcp: zone mismatch")
+	ErrClosed          = &wrapErr{"rcp: controller closed", relay.ErrClosed}
+	ErrNotConnected    = &wrapErr{"rcp: not connected", relay.ErrNotConnected}
+	ErrTimeout         = &wrapErr{"rcp: command timeout", relay.ErrTimeout}
+	ErrPayloadTooLarge = &wrapErr{"rcp: payload too large", relay.ErrPayloadTooLarge}
+)
+
+// Protocol-specific sentinels (spec §5.4). Each wraps the appropriate
+// mandatory sentinel so errors.Is traversal works at both levels.
+//
+//fusa:req REQ-ERR-002
+//fusa:req REQ-ERR-003
+//fusa:req REQ-ERR-004
+//fusa:req REQ-ERR-005
+//fusa:req REQ-ERR-006
+//fusa:req REQ-ERR-007
+//fusa:req REQ-ERR-018
+//fusa:req REQ-ERR-019
+//fusa:req REQ-ERR-020
+//fusa:req REQ-ERR-021
+var (
+	ErrNotFound      = &wrapErr{"rcp: zone not found", ErrNotConnected}
+	ErrAlreadyExists = &wrapErr{"rcp: zone already registered", ErrClosed}
+	ErrBusy          = &wrapErr{"rcp: zone controller busy", ErrTimeout}
+	ErrZoneMismatch  = &wrapErr{"rcp: zone mismatch", ErrNotConnected}
 )
 
 // Zone identifies a physical zone in the vehicle.
@@ -146,27 +190,49 @@ func (s ResponseStatus) String() string {
 
 // Command is a control message dispatched to a zone controller.
 type Command struct {
-	ID       uint32
-	Zone     Zone
-	Type     CommandType
-	Priority Priority
-	Payload  []byte
+	ID       uint32      `json:"id"`
+	Zone     Zone        `json:"zone"`
+	Type     CommandType `json:"type"`
+	Priority Priority    `json:"priority"`
+	Payload  []byte      `json:"payload,omitempty"`
 }
 
 // Response is the acknowledgement returned by a zone controller.
 type Response struct {
-	CommandID uint32
-	Zone      Zone
-	Status    ResponseStatus
-	Payload   []byte
+	CommandID uint32         `json:"command_id"`
+	Zone      Zone           `json:"zone"`
+	Status    ResponseStatus `json:"status"`
+	Payload   []byte         `json:"payload,omitempty"`
 }
 
 // Status is a periodic telemetry update published by a zone controller.
 type Status struct {
-	Zone    Zone
-	Seq     uint32
-	Healthy bool
-	Payload []byte
+	Zone    Zone   `json:"zone"`
+	Seq     uint32 `json:"seq"`
+	Healthy bool   `json:"healthy"`
+	Payload []byte `json:"payload,omitempty"`
+}
+
+// ZoneFromString returns the Zone constant matching the name returned by Zone.String().
+// Returns (ZoneUnknown, ErrNotFound) for unrecognised strings.
+//
+//fusa:req REQ-MSG-001
+//fusa:req REQ-MSG-002
+func ZoneFromString(s string) (Zone, error) {
+	switch s {
+	case "front-left":
+		return ZoneFrontLeft, nil
+	case "front-right":
+		return ZoneFrontRight, nil
+	case "rear-left":
+		return ZoneRearLeft, nil
+	case "rear-right":
+		return ZoneRearRight, nil
+	case "central":
+		return ZoneCentral, nil
+	default:
+		return ZoneUnknown, fmt.Errorf("rcp: unknown zone %q: %w", s, ErrNotFound)
+	}
 }
 
 // Controller is the interface to a single zone controller endpoint.
