@@ -3327,6 +3327,54 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
+    },
+    {
+      "id": "REQ-OPT-001",
+      "title": "Adapter implements relay.HealthProvider",
+      "text": "The Adapt() result shall implement relay.HealthProvider, returning relay.Health from Health().",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-OPT-002",
+      "title": "Health reflects closed and error state",
+      "text": "Health() shall return HealthDown when the adapter is closed, HealthDegraded when errors have been recorded while open, and HealthOK otherwise.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-OPT-003",
+      "title": "Adapter implements relay.MetricsProvider",
+      "text": "The Adapt() result shall implement relay.MetricsProvider, returning relay.Metrics from Metrics().",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-OPT-004",
+      "title": "Metrics count writes, deliveries, drops, bytes and errors",
+      "text": "Metrics() shall report WriteCount, DeliverCount, DropCount, BytesWritten, BytesDelivered and ErrorCount accumulated across Send, Call and Subscribe.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-OPT-005",
+      "title": "Adapter implements relay.Drainer",
+      "text": "The Adapt() result shall implement relay.Drainer via CloseWithDrain(ctx).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
+    },
+    {
+      "id": "REQ-OPT-006",
+      "title": "CloseWithDrain waits for in-flight dispatches",
+      "text": "CloseWithDrain shall block until in-flight Send/Call dispatches complete, then close; if ctx expires first it shall close immediately and return ctx.Err().",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "B"
     }
   ]
 }

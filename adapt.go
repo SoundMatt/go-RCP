@@ -20,6 +20,7 @@ package rcp
 import (
 	"context"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	relay "github.com/SoundMatt/RELAY"
@@ -28,6 +29,10 @@ import (
 // Adapt wraps c as a relay.Caller so application code can use it
 // protocol-agnostically. It is non-blocking and does not connect.
 //
+// The returned value also implements the optional relay interfaces
+// HealthProvider, MetricsProvider, and Drainer (spec §9); application code
+// may type-assert for them.
+//
 //fusa:req REQ-ADAPT-001
 func Adapt(c Controller) relay.Caller {
 	return &rcpAdapter{ctrl: c}
@@ -35,6 +40,19 @@ func Adapt(c Controller) relay.Caller {
 
 type rcpAdapter struct {
 	ctrl Controller
+
+	// Counters feeding MetricsProvider.Metrics() (spec §9).
+	writeCount     atomic.Uint64
+	deliverCount   atomic.Uint64
+	dropCount      atomic.Uint64
+	bytesWritten   atomic.Uint64
+	bytesDelivered atomic.Uint64
+	errorCount     atomic.Uint64
+
+	// inFlight tracks Send/Call dispatches in progress, drained by
+	// CloseWithDrain. closed feeds HealthProvider.Health().
+	inFlight atomic.Int64
+	closed   atomic.Bool
 }
 
 // Protocol returns relay.RCP.
@@ -48,9 +66,16 @@ func (a *rcpAdapter) Protocol() relay.Protocol { return relay.RCP }
 func (a *rcpAdapter) Send(ctx context.Context, msg relay.Message) error {
 	cmd, err := CommandFromMessage(msg)
 	if err != nil {
+		a.errorCount.Add(1)
 		return err
 	}
-	_, err = a.ctrl.Send(ctx, cmd)
+	a.inFlight.Add(1)
+	defer a.inFlight.Add(-1)
+	a.writeCount.Add(1)
+	a.bytesWritten.Add(uint64(len(cmd.Payload)))
+	if _, err = a.ctrl.Send(ctx, cmd); err != nil {
+		a.errorCount.Add(1)
+	}
 	return err
 }
 
@@ -61,12 +86,20 @@ func (a *rcpAdapter) Send(ctx context.Context, msg relay.Message) error {
 func (a *rcpAdapter) Call(ctx context.Context, req relay.Message) (relay.Message, error) {
 	cmd, err := CommandFromMessage(req)
 	if err != nil {
+		a.errorCount.Add(1)
 		return relay.Message{}, err
 	}
+	a.inFlight.Add(1)
+	defer a.inFlight.Add(-1)
+	a.writeCount.Add(1)
+	a.bytesWritten.Add(uint64(len(cmd.Payload)))
 	resp, err := a.ctrl.Send(ctx, cmd)
 	if err != nil {
+		a.errorCount.Add(1)
 		return relay.Message{}, err
 	}
+	a.deliverCount.Add(1)
+	a.bytesDelivered.Add(uint64(len(resp.Payload)))
 	return ResponseToMessage(resp), nil
 }
 
@@ -92,17 +125,27 @@ func (a *rcpAdapter) Subscribe(opts ...relay.SubscriberOption) (<-chan relay.Mes
 			case relay.DropNewest:
 				select {
 				case ch <- msg:
+					a.deliverCount.Add(1)
+					a.bytesDelivered.Add(uint64(len(msg.Payload)))
 				default:
+					a.dropCount.Add(1)
 				}
 			case relay.DropOldest:
 				select {
 				case ch <- msg:
+					a.deliverCount.Add(1)
+					a.bytesDelivered.Add(uint64(len(msg.Payload)))
 				default:
 					<-ch
+					a.dropCount.Add(1)
 					ch <- msg
+					a.deliverCount.Add(1)
+					a.bytesDelivered.Add(uint64(len(msg.Payload)))
 				}
 			case relay.Block:
 				ch <- msg
+				a.deliverCount.Add(1)
+				a.bytesDelivered.Add(uint64(len(msg.Payload)))
 			}
 		}
 	}()
@@ -112,7 +155,10 @@ func (a *rcpAdapter) Subscribe(opts ...relay.SubscriberOption) (<-chan relay.Mes
 // Close closes the underlying Controller.
 //
 //fusa:req REQ-ADAPT-008
-func (a *rcpAdapter) Close() error { return a.ctrl.Close() }
+func (a *rcpAdapter) Close() error {
+	a.closed.Store(true)
+	return a.ctrl.Close()
+}
 
 // ToMessage converts s to a relay.Message per RELAY spec §15.7.5.
 //
