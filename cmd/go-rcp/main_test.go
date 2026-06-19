@@ -10,9 +10,24 @@ import (
 	"testing"
 	"time"
 
+	relay "github.com/SoundMatt/RELAY"
 	rcp "github.com/SoundMatt/go-RCP"
 	"github.com/SoundMatt/go-RCP/mock"
 )
+
+func ndjson(t *testing.T, msgs ...relay.Message) string {
+	t.Helper()
+	var b strings.Builder
+	for _, m := range msgs {
+		line, err := json.Marshal(m)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		b.Write(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
 
 // TestConvert_GoldenVector pins convert's output to the RELAY golden vector
 // spec/vectors/rcp-status.json: the Status value must produce the exact
@@ -273,5 +288,76 @@ func TestCmdMonitor_ReturnsOnContextCancel(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("cmdMonitor did not return after context cancellation")
+	}
+}
+
+// ── §11.2 streaming send sink (crossbar spoke) ────────────────────────────────
+
+func TestSendStream_PublishesMessages(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	in := ndjson(t,
+		relay.Message{Protocol: relay.RCP, ID: "FrontLeft", Meta: map[string]string{"rcp.cmd_type": "get"}},
+		relay.Message{Protocol: relay.RCP, ID: "Central", Meta: map[string]string{"rcp.cmd_type": "set"}},
+	)
+	var w, errw bytes.Buffer
+	if code := cmdSendStream(reg, strings.NewReader(in), &w, &errw); code != 0 {
+		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, errw.String())
+	}
+	if !strings.Contains(w.String(), "published 2") {
+		t.Errorf("stdout = %q, want it to report 2 published", w.String())
+	}
+	if errw.Len() != 0 {
+		t.Errorf("unexpected stderr: %s", errw.String())
+	}
+}
+
+func TestSendStream_SkipsBadAndUndeliverableLines(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	// malformed JSON, an unknown zone, a blank line, then one good message.
+	in := "not json\n" +
+		`{"protocol":5,"id":"Nowhere"}` + "\n" +
+		"\n" +
+		ndjson(t, relay.Message{Protocol: relay.RCP, ID: "RearLeft", Meta: map[string]string{"rcp.cmd_type": "get"}})
+	var w, errw bytes.Buffer
+	if code := cmdSendStream(reg, strings.NewReader(in), &w, &errw); code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if !strings.Contains(w.String(), "published 1") {
+		t.Errorf("stdout = %q, want 1 published", w.String())
+	}
+	if !strings.Contains(errw.String(), "malformed") || !strings.Contains(errw.String(), "Nowhere") {
+		t.Errorf("stderr = %q, want malformed + unknown-zone warnings", errw.String())
+	}
+}
+
+func TestSendStream_EmptyInput(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	var w, errw bytes.Buffer
+	if code := cmdSendStream(reg, strings.NewReader(""), &w, &errw); code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if !strings.Contains(w.String(), "published 0") {
+		t.Errorf("stdout = %q, want 0 published", w.String())
+	}
+}
+
+// TestConvertSendRoundTrip exercises the crossbar identity path: convert emits a
+// relay.Message that the send sink can re-publish.
+func TestConvertSendRoundTrip(t *testing.T) {
+	var conv bytes.Buffer
+	if code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"zone":1,"seq":3,"healthy":true}`), &conv, &bytes.Buffer{}); code != 0 {
+		t.Fatalf("convert exit = %d", code)
+	}
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	var w, errw bytes.Buffer
+	if code := cmdSendStream(reg, bytes.NewReader(conv.Bytes()), &w, &errw); code != 0 {
+		t.Fatalf("send sink exit = %d (stderr: %s)", code, errw.String())
+	}
+	if !strings.Contains(w.String(), "published 1") {
+		t.Errorf("stdout = %q, want 1 published from convert output", w.String())
 	}
 }

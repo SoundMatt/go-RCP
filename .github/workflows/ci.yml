@@ -160,7 +160,7 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install relay CLI
-        run: go install github.com/SoundMatt/RELAY/cmd/relay@v1.6.2
+        run: go install github.com/SoundMatt/RELAY/cmd/relay@v1.8.1
       - name: Build CLI
         run: go build -o /tmp/go-rcp ./cmd/go-rcp
       - name: relay conform --strict
