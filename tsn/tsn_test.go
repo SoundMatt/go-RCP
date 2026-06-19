@@ -14,8 +14,8 @@ import (
 	"time"
 
 	rcp "github.com/SoundMatt/go-RCP"
-	rcpudp "github.com/SoundMatt/go-RCP/udp"
 	rcptsn "github.com/SoundMatt/go-RCP/tsn"
+	rcpudp "github.com/SoundMatt/go-RCP/udp"
 )
 
 func newTSNPair(t *testing.T, zone rcp.Zone) (*rcpudp.ZoneServer, *rcptsn.Controller) {

@@ -3,6 +3,8 @@
 *.test
 *.prof
 /bin/
+/go-rcp
+/rcptool
 
 # Coverage
 coverage*.html

@@ -33,7 +33,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -59,15 +58,15 @@ func main() {
 
 	switch os.Args[1] {
 	case "version":
-		cmdVersion(flagFormat(os.Args[2:]))
+		cmdVersion(flagFormat(os.Args[2:]), os.Stdout)
 	case "capabilities":
-		cmdCapabilities()
+		cmdCapabilities(os.Stdout)
 	case "status":
-		cmdStatus(flagFormat(os.Args[2:]))
+		cmdStatus(flagFormat(os.Args[2:]), os.Stdout)
 	case "discover":
 		reg := mock.NewRegistry()
 		defer reg.Close() //nolint:errcheck
-		cmdDiscover(reg)
+		cmdDiscover(reg, os.Stdout)
 	case "send":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: go-rcp send <zone>")
@@ -75,11 +74,13 @@ func main() {
 		}
 		reg := mock.NewRegistry()
 		defer reg.Close() //nolint:errcheck
-		cmdSend(reg, os.Args[2])
+		os.Exit(cmdSend(reg, os.Args[2], os.Stdout, os.Stderr))
 	case "monitor":
 		reg := mock.NewRegistry()
 		defer reg.Close() //nolint:errcheck
-		cmdMonitor(reg)
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		cmdMonitor(ctx, reg, os.Stdout)
 	case "convert":
 		os.Exit(cmdConvert(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	default:
@@ -104,7 +105,7 @@ func flagFormat(args []string) string {
 
 // ── RELAY mandatory commands (spec §11.1) ─────────────────────────────────────
 
-func cmdVersion(format string) {
+func cmdVersion(format string, w io.Writer) {
 	type versionDoc struct {
 		Tool        string `json:"tool"`
 		Protocol    string `json:"protocol"`
@@ -124,16 +125,16 @@ func cmdVersion(format string) {
 		Runtime:     runtime.Version(),
 	}
 	if format == "json" {
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(doc)
 		return
 	}
-	fmt.Printf("%s %s (protocol %s, RELAY spec %s, %s)\n",
+	_, _ = fmt.Fprintf(w, "%s %s (protocol %s, RELAY spec %s, %s)\n",
 		doc.Tool, doc.Version, doc.Protocol, doc.SpecVersion, doc.Runtime)
 }
 
-func cmdCapabilities() {
+func cmdCapabilities(w io.Writer) {
 	type capDoc struct {
 		Kind               string   `json:"kind"`
 		Tool               string   `json:"tool"`
@@ -162,12 +163,12 @@ func cmdCapabilities() {
 		OptionalInterfaces: []string{"LoaningController", "HealthProvider", "MetricsProvider", "Drainer"},
 		Adapt:              true,
 	}
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(doc)
 }
 
-func cmdStatus(format string) {
+func cmdStatus(format string, w io.Writer) {
 	type statusDoc struct {
 		Protocol  string         `json:"protocol"`
 		Tool      string         `json:"tool"`
@@ -187,7 +188,7 @@ func cmdStatus(format string) {
 		Details:   map[string]any{},
 	}
 	if format == "json" {
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(doc)
 		return
@@ -196,26 +197,29 @@ func cmdStatus(format string) {
 	if doc.Healthy {
 		healthy = "healthy"
 	}
-	fmt.Printf("%s %s — %s\n", doc.Tool, doc.Version, healthy)
+	_, _ = fmt.Fprintf(w, "%s %s — %s\n", doc.Tool, doc.Version, healthy)
 }
 
 // ── RCP commands ──────────────────────────────────────────────────────────────
 
-func cmdDiscover(reg *mock.Registry) {
+func cmdDiscover(reg *mock.Registry, w io.Writer) {
 	for _, ctrl := range reg.Controllers() {
-		fmt.Printf("zone %-12s  controller=%T\n", ctrl.Zone(), ctrl)
+		_, _ = fmt.Fprintf(w, "zone %-12s  controller=%T\n", ctrl.Zone(), ctrl)
 	}
 }
 
-func cmdSend(reg *mock.Registry, zoneName string) {
+// cmdSend sends a CmdGet to zoneName and prints the response as JSON. It returns
+// the process exit code: 0 on success, 1 on an unknown zone or send failure.
+func cmdSend(reg *mock.Registry, zoneName string, w, errw io.Writer) int {
 	zone, err := rcp.ZoneFromString(zoneName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unknown zone %q: %v\n", zoneName, err)
-		os.Exit(1)
+		_, _ = fmt.Fprintf(errw, "unknown zone %q: %v\n", zoneName, err)
+		return 1
 	}
 	ctrl, err := reg.Lookup(zone)
 	if err != nil {
-		log.Fatalf("zone %q not found: %v", zoneName, err)
+		_, _ = fmt.Fprintf(errw, "zone %q not found: %v\n", zoneName, err)
+		return 1
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -227,7 +231,8 @@ func cmdSend(reg *mock.Registry, zoneName string) {
 		Priority: rcp.PriorityNormal,
 	})
 	if err != nil {
-		log.Fatalf("send: %v", err)
+		_, _ = fmt.Fprintf(errw, "send: %v\n", err)
+		return 1
 	}
 	b, _ := json.MarshalIndent(map[string]any{
 		"command_id": resp.CommandID,
@@ -235,13 +240,11 @@ func cmdSend(reg *mock.Registry, zoneName string) {
 		"status":     resp.Status.String(),
 		"payload":    string(resp.Payload),
 	}, "", "  ")
-	fmt.Println(string(b))
+	_, _ = fmt.Fprintln(w, string(b))
+	return 0
 }
 
-func cmdMonitor(reg *mock.Registry) {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
+func cmdMonitor(ctx context.Context, reg *mock.Registry, w io.Writer) {
 	for _, ctrl := range reg.Controllers() {
 		mc, ok := ctrl.(*mock.Controller)
 		if !ok {
@@ -249,12 +252,12 @@ func cmdMonitor(reg *mock.Registry) {
 		}
 		ch, err := mc.Subscribe(ctx)
 		if err != nil {
-			log.Printf("subscribe zone %s: %v", mc.Zone(), err)
+			_, _ = fmt.Fprintf(w, "subscribe zone %s: %v\n", mc.Zone(), err)
 			continue
 		}
 		go func(z rcp.Zone, ch <-chan *rcp.Status) {
 			for s := range ch {
-				fmt.Printf("[%s] seq=%d healthy=%v payload=%s\n", z, s.Seq, s.Healthy, string(s.Payload))
+				_, _ = fmt.Fprintf(w, "[%s] seq=%d healthy=%v payload=%s\n", z, s.Seq, s.Healthy, string(s.Payload))
 			}
 		}(mc.Zone(), ch)
 
@@ -272,7 +275,7 @@ func cmdMonitor(reg *mock.Registry) {
 		}(mc)
 	}
 
-	fmt.Println("monitoring all zones — press Ctrl+C to stop")
+	_, _ = fmt.Fprintln(w, "monitoring all zones — press Ctrl+C to stop")
 	<-ctx.Done()
 }
 

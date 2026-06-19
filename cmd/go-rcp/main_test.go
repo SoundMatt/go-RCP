@@ -4,9 +4,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
+
+	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/mock"
 )
 
 // TestConvert_GoldenVector pins convert's output to the RELAY golden vector
@@ -95,5 +100,178 @@ func TestConvert_EmptyPayload(t *testing.T) {
 	}
 	if meta, _ := obj["meta"].(map[string]any); meta["rcp.healthy"] != "false" {
 		t.Errorf("meta[rcp.healthy] = %v, want false", meta["rcp.healthy"])
+	}
+}
+
+// ── §11.1 mandatory commands ──────────────────────────────────────────────────
+
+func TestFlagFormat(t *testing.T) {
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--format", "json"}, "json"},
+		{[]string{"--format", "text"}, "text"},
+		{[]string{}, "text"},           // default
+		{[]string{"--format"}, "text"}, // missing value → default
+		{[]string{"other", "--format", "json"}, "json"},
+	}
+	for _, tc := range cases {
+		if got := flagFormat(tc.args); got != tc.want {
+			t.Errorf("flagFormat(%v) = %q, want %q", tc.args, got, tc.want)
+		}
+	}
+}
+
+func TestCmdVersion_JSON(t *testing.T) {
+	var w bytes.Buffer
+	cmdVersion("json", &w)
+	var doc map[string]any
+	if err := json.Unmarshal(w.Bytes(), &doc); err != nil {
+		t.Fatalf("version --format json not valid JSON: %v", err)
+	}
+	if doc["tool"] != toolName {
+		t.Errorf("tool = %v, want %q", doc["tool"], toolName)
+	}
+	if doc["protocol"] != protocol {
+		t.Errorf("protocol = %v, want %q", doc["protocol"], protocol)
+	}
+	if doc["spec_version"] != rcp.SpecVersion {
+		t.Errorf("spec_version = %v, want %q", doc["spec_version"], rcp.SpecVersion)
+	}
+	if doc["language"] != "go" {
+		t.Errorf("language = %v, want go", doc["language"])
+	}
+}
+
+func TestCmdVersion_Text(t *testing.T) {
+	var w bytes.Buffer
+	cmdVersion("text", &w)
+	out := w.String()
+	if !strings.Contains(out, toolName) || !strings.Contains(out, "RELAY spec "+rcp.SpecVersion) {
+		t.Errorf("text version missing expected fields: %q", out)
+	}
+}
+
+func TestCmdCapabilities_JSON(t *testing.T) {
+	var w bytes.Buffer
+	cmdCapabilities(&w)
+	var doc struct {
+		Kind        string   `json:"kind"`
+		Tool        string   `json:"tool"`
+		ProtocolInt int      `json:"protocol_int"`
+		Commands    []string `json:"commands"`
+		SpecVersion string   `json:"spec_version"`
+	}
+	if err := json.Unmarshal(w.Bytes(), &doc); err != nil {
+		t.Fatalf("capabilities not valid JSON: %v", err)
+	}
+	if doc.Kind != "capabilities" {
+		t.Errorf("kind = %q, want capabilities", doc.Kind)
+	}
+	if doc.ProtocolInt != protocolInt {
+		t.Errorf("protocol_int = %d, want %d", doc.ProtocolInt, protocolInt)
+	}
+	if doc.SpecVersion != rcp.SpecVersion {
+		t.Errorf("spec_version = %q, want %q", doc.SpecVersion, rcp.SpecVersion)
+	}
+	// The convert interop driver must be advertised (§11.2).
+	var hasConvert bool
+	for _, c := range doc.Commands {
+		if c == "convert" {
+			hasConvert = true
+		}
+	}
+	if !hasConvert {
+		t.Errorf("capabilities commands %v missing \"convert\"", doc.Commands)
+	}
+}
+
+func TestCmdStatus_JSON(t *testing.T) {
+	var w bytes.Buffer
+	cmdStatus("json", &w)
+	var doc map[string]any
+	if err := json.Unmarshal(w.Bytes(), &doc); err != nil {
+		t.Fatalf("status not valid JSON: %v", err)
+	}
+	if doc["protocol"] != protocol {
+		t.Errorf("protocol = %v, want %q", doc["protocol"], protocol)
+	}
+	if doc["healthy"] != true {
+		t.Errorf("healthy = %v, want true", doc["healthy"])
+	}
+}
+
+func TestCmdStatus_Text(t *testing.T) {
+	var w bytes.Buffer
+	cmdStatus("text", &w)
+	if !strings.Contains(w.String(), "healthy") {
+		t.Errorf("text status = %q, want it to contain \"healthy\"", w.String())
+	}
+}
+
+// ── RCP commands ──────────────────────────────────────────────────────────────
+
+func TestCmdDiscover(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	var w bytes.Buffer
+	cmdDiscover(reg, &w)
+	// mock.NewRegistry pre-populates all five standard zones.
+	if n := strings.Count(w.String(), "zone "); n != 5 {
+		t.Errorf("discover printed %d zone lines, want 5:\n%s", n, w.String())
+	}
+}
+
+func TestCmdSend_Success(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	var w, errw bytes.Buffer
+	if code := cmdSend(reg, "FrontLeft", &w, &errw); code != 0 {
+		t.Fatalf("cmdSend exit = %d, want 0 (stderr: %s)", code, errw.String())
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(w.Bytes(), &doc); err != nil {
+		t.Fatalf("send output not valid JSON: %v", err)
+	}
+	if doc["zone"] != "FrontLeft" {
+		t.Errorf("zone = %v, want FrontLeft", doc["zone"])
+	}
+	if doc["status"] != "OK" {
+		t.Errorf("status = %v, want OK", doc["status"])
+	}
+}
+
+func TestCmdSend_UnknownZone(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	var w, errw bytes.Buffer
+	if code := cmdSend(reg, "nowhere", &w, &errw); code != 1 {
+		t.Errorf("cmdSend(unknown) exit = %d, want 1", code)
+	}
+	if !strings.Contains(errw.String(), "unknown zone") {
+		t.Errorf("stderr = %q, want it to mention unknown zone", errw.String())
+	}
+}
+
+func TestCmdMonitor_ReturnsOnContextCancel(t *testing.T) {
+	reg := mock.NewRegistry()
+	defer reg.Close() //nolint:errcheck
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	var w bytes.Buffer
+	go func() {
+		cmdMonitor(ctx, reg, &w)
+		close(done)
+	}()
+	select {
+	case <-done:
+		if !strings.Contains(w.String(), "monitoring all zones") {
+			t.Errorf("monitor output = %q, want monitoring header", w.String())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cmdMonitor did not return after context cancellation")
 	}
 }
