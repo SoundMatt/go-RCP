@@ -1,6 +1,16 @@
 // Package wire defines the shared RCP binary frame format used by both UDP and TLS transports.
 package wire
 
+//fusa:req REQ-WIRE-001
+//fusa:req REQ-WIRE-002
+//fusa:req REQ-WIRE-003
+//fusa:req REQ-WIRE-004
+//fusa:req REQ-WIRE-005
+//fusa:req REQ-WIRE-006
+//fusa:req REQ-WIRE-007
+//fusa:req REQ-WIRE-008
+//fusa:req REQ-WIRE-009
+
 import (
 	"encoding/binary"
 	"errors"
@@ -65,7 +75,9 @@ func DecodeCommand(b []byte) (*rcp.Command, error) {
 		return nil, err
 	}
 	bodyLen := binary.BigEndian.Uint32(b[12:16])
-	if uint32(len(b)) < uint32(HeaderLen)+bodyLen {
+	// uint64 arithmetic avoids the wraparound that would otherwise let a
+	// crafted bodyLen near math.MaxUint32 pass this guard and panic the slice.
+	if uint64(len(b)) < uint64(HeaderLen)+uint64(bodyLen) {
 		return nil, ErrShortFrame
 	}
 	cmd := &rcp.Command{
@@ -102,7 +114,7 @@ func DecodeResponse(b []byte) (*rcp.Response, error) {
 		return nil, err
 	}
 	bodyLen := binary.BigEndian.Uint32(b[12:16])
-	if uint32(len(b)) < uint32(HeaderLen)+bodyLen {
+	if uint64(len(b)) < uint64(HeaderLen)+uint64(bodyLen) {
 		return nil, ErrShortFrame
 	}
 	resp := &rcp.Response{
@@ -140,7 +152,7 @@ func DecodeStatus(b []byte) (*rcp.Status, error) {
 		return nil, err
 	}
 	bodyLen := binary.BigEndian.Uint32(b[12:16])
-	if uint32(len(b)) < uint32(HeaderLen)+bodyLen {
+	if uint64(len(b)) < uint64(HeaderLen)+uint64(bodyLen) {
 		return nil, ErrShortFrame
 	}
 	st := &rcp.Status{
