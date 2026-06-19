@@ -3417,6 +3417,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-CLI-005",
+      "title": "go-rcp send --format json is a streaming relay.Message NDJSON sink",
+      "text": "The go-rcp binary send command with --format json shall read relay.Message values as NDJSON on stdin (one per line), convert each via CommandFromMessage and publish it to the matching zone controller until EOF, serving as the crossbar egress sink (RELAY spec §11.2). Malformed or undeliverable lines shall be reported to stderr and skipped without aborting; it shall exit 0 on clean EOF and 1 only on a stdin read error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-WIRE-001",
       "title": "Header validation rejects short frames",
       "text": "wire.ValidateHeader shall return ErrShortFrame when the supplied buffer is shorter than HeaderLen (16 bytes), so that no transport reads beyond the buffer bounds when parsing a frame header.",

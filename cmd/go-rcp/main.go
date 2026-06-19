@@ -10,6 +10,7 @@
 //
 //	go-rcp discover                       — list all registered zones
 //	go-rcp send <zone>                    — send CmdSet to a zone
+//	go-rcp send --format json             — streaming relay.Message NDJSON sink (crossbar spoke, §11.2)
 //	go-rcp monitor                        — stream status from all zones
 //
 // RELAY interop driver (spec §11.2):
@@ -24,8 +25,10 @@ package main
 //fusa:req REQ-CLI-002
 //fusa:req REQ-CLI-003
 //fusa:req REQ-CLI-004
+//fusa:req REQ-CLI-005
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -39,13 +42,14 @@ import (
 	"syscall"
 	"time"
 
+	relay "github.com/SoundMatt/RELAY"
 	rcp "github.com/SoundMatt/go-RCP"
 	"github.com/SoundMatt/go-RCP/mock"
 )
 
 const (
 	toolName    = "go-rcp"
-	toolVersion = "0.49.0"
+	toolVersion = "0.50.0"
 	protocol    = "RCP"
 	protocolInt = 5
 )
@@ -68,13 +72,19 @@ func main() {
 		defer reg.Close() //nolint:errcheck
 		cmdDiscover(reg, os.Stdout)
 	case "send":
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: go-rcp send <zone>")
-			os.Exit(2)
-		}
+		args := os.Args[2:]
 		reg := mock.NewRegistry()
 		defer reg.Close() //nolint:errcheck
-		os.Exit(cmdSend(reg, os.Args[2], os.Stdout, os.Stderr))
+		// `send --format json` is the streaming NDJSON sink / crossbar spoke
+		// (§11.2); `send <zone>` is the ad-hoc single-command form.
+		if flagFormat(args) == "json" {
+			os.Exit(cmdSendStream(reg, os.Stdin, os.Stdout, os.Stderr))
+		}
+		if len(args) < 1 {
+			fmt.Fprintln(os.Stderr, "usage: go-rcp send <zone> | send --format json")
+			os.Exit(2)
+		}
+		os.Exit(cmdSend(reg, args[0], os.Stdout, os.Stderr))
 	case "monitor":
 		reg := mock.NewRegistry()
 		defer reg.Close() //nolint:errcheck
@@ -241,6 +251,55 @@ func cmdSend(reg *mock.Registry, zoneName string, w, errw io.Writer) int {
 		"payload":    string(resp.Payload),
 	}, "", "  ")
 	_, _ = fmt.Fprintln(w, string(b))
+	return 0
+}
+
+// cmdSendStream is the streaming JSON sink (RELAY §11.2 / crossbar spoke). It
+// reads relay.Message values as NDJSON on stdin (one per line) and publishes
+// each — via FromMessage → Command → the matching zone controller — until EOF.
+// It is the egress dual of a subscribe NDJSON source. Malformed or
+// undeliverable lines are reported to errw and skipped so a single bad message
+// does not tear down the crossbar route; only a stdin read error is fatal.
+//
+// Exit codes: 0 clean EOF, 1 stdin read error.
+func cmdSendStream(reg *mock.Registry, stdin io.Reader, w, errw io.Writer) int {
+	sc := bufio.NewScanner(stdin)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024) // tolerate large messages
+	sent := 0
+	for sc.Scan() {
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var msg relay.Message
+		if err := json.Unmarshal(line, &msg); err != nil {
+			_, _ = fmt.Fprintf(errw, "send: skipping malformed message: %v\n", err)
+			continue
+		}
+		cmd, err := rcp.CommandFromMessage(msg)
+		if err != nil {
+			_, _ = fmt.Fprintf(errw, "send: skipping message %q: %v\n", msg.ID, err)
+			continue
+		}
+		ctrl, err := reg.Lookup(cmd.Zone)
+		if err != nil {
+			_, _ = fmt.Fprintf(errw, "send: zone %s: %v\n", cmd.Zone, err)
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, err = ctrl.Send(ctx, cmd)
+		cancel()
+		if err != nil {
+			_, _ = fmt.Fprintf(errw, "send: zone %s: %v\n", cmd.Zone, err)
+			continue
+		}
+		sent++
+	}
+	if err := sc.Err(); err != nil {
+		_, _ = fmt.Fprintf(errw, "send: read error: %v\n", err)
+		return 1
+	}
+	_, _ = fmt.Fprintf(w, "published %d message(s)\n", sent)
 	return 0
 }
 
