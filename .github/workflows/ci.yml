@@ -95,7 +95,7 @@ jobs:
           version: v2.12.2
           args: --timeout=5m
 
-  # ── go-FuSa safety checks ─────────────────────────────────────────────────
+  # ── go-FuSa safety checks (RELAY §20 continuous-conformance lifecycle) ─────
   gofusa:
     name: go-FuSa safety check (v0.30.0)
     runs-on: ubuntu-latest
@@ -108,6 +108,10 @@ jobs:
         run: go install github.com/SoundMatt/go-FuSa/cmd/gofusa@v0.30.0
       - name: gofusa check (0 errors required)
         run: gofusa check ./...
+      - name: gofusa vuln (dependency vulnerability scan, §20.1.2)
+        run: gofusa vuln
+      - name: gofusa qualify (tool qualification suite, §20.1.2)
+        run: gofusa qualify
       - name: Verify required safety artifacts are present
         run: |
           missing=0
@@ -136,21 +140,24 @@ jobs:
               d = json.load(open('/tmp/trace.json'))
               untested = [r for r in d.get('requirements', []) if r.get('tested') == False]
               untraced = [r for r in d.get('requirements', []) if r.get('traced') == False]
+              # RELAY §20.1.2 requires 100% traceability: traced AND tested.
               if untested:
-                  print(f"::warning::Untested requirements: {len(untested)}")
+                  print(f"::error::Untested requirements: {len(untested)}")
               if untraced:
                   print(f"::error::Untraced requirements: {len(untraced)}")
+              if untested or untraced:
                   sys.exit(1)
           except Exception:
               pass
           PYEOF
 
-  # ── RELAY conformance gate ────────────────────────────────────────────────
+  # ── RELAY conformance gate (§20 continuous conformance) ───────────────────
   # Validates the go-rcp CLI's version/capabilities/status documents against the
-  # §12 JSON Schemas embedded in the authoritative `relay` binary. The CLI also
-  # exposes the §11.2 `convert` interop driver. Pin the relay version to the spec
-  # version this module targets (go.mod RELAY) so spec bumps are an explicit
-  # upgrade rather than surprise CI breakage.
+  # §12 JSON Schemas embedded in the authoritative `relay` binary (--strict fails
+  # on WARN as well as FAIL), and checks behavioural interchangeability via
+  # `relay interop` — every RCP golden vector must convert EQUIVALENT to the
+  # reference (§20.2). Pin the relay version to the spec version this module
+  # targets (go.mod RELAY) so spec bumps are an explicit upgrade.
   relay-conform:
     name: RELAY conform
     runs-on: ubuntu-latest
@@ -160,8 +167,10 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install relay CLI
-        run: go install github.com/SoundMatt/RELAY/cmd/relay@v1.8.1
+        run: go install github.com/SoundMatt/RELAY/cmd/relay@v1.10.0
       - name: Build CLI
         run: go build -o /tmp/go-rcp ./cmd/go-rcp
       - name: relay conform --strict
         run: relay conform --strict /tmp/go-rcp
+      - name: relay interop (behavioural equivalence, RCP vectors)
+        run: relay interop --protocol RCP --strict /tmp/go-rcp
