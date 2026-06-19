@@ -144,3 +144,24 @@ jobs:
           except Exception:
               pass
           PYEOF
+
+  # ── RELAY conformance gate ────────────────────────────────────────────────
+  # Validates the go-rcp CLI's version/capabilities/status documents against the
+  # §12 JSON Schemas embedded in the authoritative `relay` binary. The CLI also
+  # exposes the §11.2 `convert` interop driver. Pin the relay version to the spec
+  # version this module targets (go.mod RELAY) so spec bumps are an explicit
+  # upgrade rather than surprise CI breakage.
+  relay-conform:
+    name: RELAY conform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+      - name: Install relay CLI
+        run: go install github.com/SoundMatt/RELAY/cmd/relay@v1.6.2
+      - name: Build CLI
+        run: go build -o /tmp/go-rcp ./cmd/go-rcp
+      - name: relay conform --strict
+        run: relay conform --strict /tmp/go-rcp

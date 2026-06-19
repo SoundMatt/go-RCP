@@ -11,16 +11,28 @@
 //	go-rcp discover                       — list all registered zones
 //	go-rcp send <zone>                    — send CmdSet to a zone
 //	go-rcp monitor                        — stream status from all zones
+//
+// RELAY interop driver (spec §11.2):
+//
+//	go-rcp convert --protocol RCP [--format json]
+//	    — read an rcp.Status as JSON on stdin, run it through Status.ToMessage()
+//	      (the §15.7.5 canonical conversion), and write the relay.Message as JSON
+//	      on stdout. Exit 0 converted, 1 invalid input, 2 invalid args.
 package main
 
 //fusa:req REQ-CLI-001
 //fusa:req REQ-CLI-002
 //fusa:req REQ-CLI-003
+//fusa:req REQ-CLI-004
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -34,7 +46,7 @@ import (
 
 const (
 	toolName    = "go-rcp"
-	toolVersion = "0.48.0"
+	toolVersion = "0.49.0"
 	protocol    = "RCP"
 	protocolInt = 5
 )
@@ -68,6 +80,8 @@ func main() {
 		reg := mock.NewRegistry()
 		defer reg.Close() //nolint:errcheck
 		cmdMonitor(reg)
+	case "convert":
+		os.Exit(cmdConvert(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	default:
 		usage()
 		os.Exit(2)
@@ -75,7 +89,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go-rcp <version|capabilities|status|discover|send <zone>|monitor>")
+	fmt.Fprintln(os.Stderr, "usage: go-rcp <version|capabilities|status|discover|send <zone>|monitor|convert>")
 }
 
 // flagFormat returns "text" or "json" from --format flag, defaulting to "text".
@@ -141,7 +155,7 @@ func cmdCapabilities() {
 		ProtocolInt:        protocolInt,
 		Version:            toolVersion,
 		SpecVersion:        rcp.SpecVersion,
-		Commands:           []string{"version", "capabilities", "status", "discover", "send", "monitor"},
+		Commands:           []string{"version", "capabilities", "status", "discover", "send", "monitor", "convert"},
 		Transports:         []string{"virtual", "grpc", "rest", "tcp", "uds"},
 		Features:           []string{"loaning"},
 		Interfaces:         []string{"Controller", "Registry"},
@@ -260,4 +274,83 @@ func cmdMonitor(reg *mock.Registry) {
 
 	fmt.Println("monitoring all zones — press Ctrl+C to stop")
 	<-ctx.Done()
+}
+
+// ── RELAY interop driver (spec §11.2) ─────────────────────────────────────────
+
+// errInvalidInput is the sentinel name written to stderr when convert receives
+// input that fails this implementation's validator (spec §11.2 / §5).
+var errInvalidInput = errors.New("ErrInvalidInput")
+
+// cmdConvert implements `convert --protocol RCP [--format json]` (spec §11.2).
+// It reads one rcp.Status as JSON on stdin, converts it via Status.ToMessage()
+// — the same code path used at runtime on the Subscribe direction (§15.7.5) —
+// and writes the resulting relay.Message as JSON on stdout. The timestamp is
+// zeroed so interop comparisons are deterministic.
+//
+// Exit codes: 0 converted, 1 invalid input, 2 invalid args.
+func cmdConvert(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("convert", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	protocol := fs.String("protocol", "", "canonical protocol (must be RCP)")
+	format := fs.String("format", "json", "output format (json)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *protocol != "RCP" {
+		_, _ = fmt.Fprintln(stderr, "convert: --protocol RCP is required")
+		return 2
+	}
+	if *format != "json" {
+		_, _ = fmt.Fprintln(stderr, "convert: only --format json is supported")
+		return 2
+	}
+
+	raw, err := io.ReadAll(stdin)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, errInvalidInput.Error())
+		return 1
+	}
+	out, err := convertRCPStatus(raw)
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, err.Error()) // sentinel name (§5)
+		return 1
+	}
+	_, _ = fmt.Fprintln(stdout, string(out))
+	return 0
+}
+
+// convertRCPStatus validates raw against the rcp.Status canonical schema
+// (spec/schemas/rcp-status.json) and returns Status.ToMessage() as JSON with a
+// zeroed timestamp. It returns errInvalidInput for any input the validator
+// rejects. Pointer fields distinguish "absent" from a zero value so the schema's
+// required set (zone, seq, healthy) is enforced.
+func convertRCPStatus(raw []byte) ([]byte, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields() // schema additionalProperties: false
+	var in struct {
+		Zone    *int    `json:"zone"`
+		Seq     *uint32 `json:"seq"`
+		Healthy *bool   `json:"healthy"`
+		Payload []byte  `json:"payload"` // base64-decoded by encoding/json
+	}
+	if err := dec.Decode(&in); err != nil {
+		return nil, errInvalidInput
+	}
+	if in.Zone == nil || in.Seq == nil || in.Healthy == nil {
+		return nil, errInvalidInput
+	}
+	if *in.Zone < int(rcp.ZoneUnknown) || *in.Zone > int(rcp.ZoneCentral) {
+		return nil, errInvalidInput
+	}
+
+	s := &rcp.Status{
+		Zone:    rcp.Zone(*in.Zone),
+		Seq:     *in.Seq,
+		Healthy: *in.Healthy,
+		Payload: in.Payload,
+	}
+	msg := s.ToMessage()
+	msg.Timestamp = time.Time{} // deterministic interop output
+	return json.Marshal(msg)
 }
