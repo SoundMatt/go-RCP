@@ -39,10 +39,10 @@ const CmdUpdate rcp.CommandType = 10
 
 // Sentinel errors for the firmware package.
 var (
-	ErrImageEmpty   = errors.New("rcp/firmware: image is empty")
+	ErrImageEmpty    = errors.New("rcp/firmware: image is empty")
 	ErrImageTooLarge = errors.New("rcp/firmware: image exceeds MaxImageSize")
-	ErrCRCMismatch  = errors.New("rcp/firmware: CRC mismatch after delivery")
-	ErrZoneRejected = errors.New("rcp/firmware: zone controller rejected chunk")
+	ErrCRCMismatch   = errors.New("rcp/firmware: CRC mismatch after delivery")
+	ErrZoneRejected  = errors.New("rcp/firmware: zone controller rejected chunk")
 )
 
 // MaxImageSize is the maximum accepted firmware image size (4 MiB).

@@ -40,19 +40,23 @@ func newRecording() *recordingMetrics {
 }
 
 func (r *recordingMetrics) ObserveSendLatency(_ rcp.Zone, ms float64) {
-	r.mu.Lock(); defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.latencies = append(r.latencies, ms)
 }
 func (r *recordingMetrics) IncSendError(_ rcp.Zone) {
-	r.mu.Lock(); defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.errors++
 }
 func (r *recordingMetrics) SetZoneHealth(zone rcp.Zone, healthy bool) {
-	r.mu.Lock(); defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.healths[zone] = healthy
 }
 func (r *recordingMetrics) IncDeadlineMiss(_ rcp.Zone) {
-	r.mu.Lock(); defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.deadlineMiss++
 }
 

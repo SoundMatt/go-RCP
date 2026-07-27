@@ -17,15 +17,17 @@
 // rcp.Controller via the udsbr layer.
 //
 // DoIP message header (ISO 13400-2):
-//   byte 0-1: Protocol version (0x02) and inverse (0xFD)
-//   byte 2-3: Payload type (big-endian uint16)
-//   byte 4-7: Payload length (big-endian uint32)
-//   byte 8+:  Payload
+//
+//	byte 0-1: Protocol version (0x02) and inverse (0xFD)
+//	byte 2-3: Payload type (big-endian uint16)
+//	byte 4-7: Payload length (big-endian uint32)
+//	byte 8+:  Payload
 //
 // Payload types used here:
-//   0x8001 — Diagnostic message (UDS request from client)
-//   0x8002 — Diagnostic message ACK (positive)
-//   0x8003 — Diagnostic message NACK
+//
+//	0x8001 — Diagnostic message (UDS request from client)
+//	0x8002 — Diagnostic message ACK (positive)
+//	0x8003 — Diagnostic message NACK
 package doipbr
 
 import (
@@ -88,10 +90,10 @@ func ParseHeader(r io.Reader) (payloadType uint16, payloadLen uint32, err error)
 // Server listens for DoIP TCP connections and dispatches diagnostic messages
 // to an embedded udsbr.Server.
 type Server struct {
-	uds      *udsbr.Server
-	ln       net.Listener
-	closed   atomic.Bool
-	wg       sync.WaitGroup
+	uds    *udsbr.Server
+	ln     net.Listener
+	closed atomic.Bool
+	wg     sync.WaitGroup
 }
 
 // NewServer creates a Server backed by udsServer and listening on ln.

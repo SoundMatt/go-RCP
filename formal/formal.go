@@ -101,8 +101,8 @@ func StateSequence(initial State, gen Generator, n int) []State {
 
 // Invariant describes a named temporal property over a state trace.
 type Invariant struct {
-	Name    string
-	Check   func([]State) bool
+	Name  string
+	Check func([]State) bool
 }
 
 // ─── Checker ─────────────────────────────────────────────────────────────────

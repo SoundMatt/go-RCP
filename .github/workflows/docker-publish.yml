@@ -27,6 +27,23 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      # Derives SPEC_VERSION from rcp.SpecVersion itself (via the CLI's own
+      # `version --format json` output) rather than hand-copying it, so the
+      # io.relay.spec-version OCI label (spec §13.5) can never drift from the
+      # RELAY spec version this module actually targets.
+      - name: Compute build metadata (spec version, tool version)
+        id: buildmeta
+        run: |
+          go build -o /tmp/go-rcp-buildmeta ./cmd/go-rcp
+          spec_version="$(/tmp/go-rcp-buildmeta version --format json | jq -r .spec_version)"
+          tool_version="$(git describe --tags --always --dirty)"
+          echo "spec_version=${spec_version}" >> "$GITHUB_OUTPUT"
+          echo "tool_version=${tool_version}" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU (multi-arch)
         uses: docker/setup-qemu-action@v3
 
@@ -61,5 +78,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SPEC_VERSION=${{ steps.buildmeta.outputs.spec_version }}
+            TOOL_VERSION=${{ steps.buildmeta.outputs.tool_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

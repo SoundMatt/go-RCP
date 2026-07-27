@@ -41,8 +41,8 @@ const (
 
 // UDS Negative Response Codes.
 const (
-	NRCSubFunctionNotSupported = uint8(0x12)
-	NRCRequestOutOfRange       = uint8(0x31)
+	NRCSubFunctionNotSupported   = uint8(0x12)
+	NRCRequestOutOfRange         = uint8(0x31)
 	NRCGeneralProgrammingFailure = uint8(0x72)
 )
 

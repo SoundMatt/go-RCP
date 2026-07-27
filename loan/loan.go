@@ -25,13 +25,22 @@ type Controller struct {
 	inner  rcp.Controller
 	pool   sync.Pool
 	closed atomic.Bool
+
+	// loaned tracks buffers currently on loan, keyed by the address of their
+	// first byte, so SendLoaned — which the spec-mandated rcp.LoaningController
+	// signature hands only a bare cmd.Payload []byte, with no reference back to
+	// the pool slot — can still look up and recycle the right *[]byte. Guarded
+	// by mu since Loan/SendLoaned/Loan.Return may be called concurrently.
+	mu     sync.Mutex
+	loaned map[*byte]*[]byte
 }
 
 // New wraps inner as a LoaningController.
 func New(inner rcp.Controller) *Controller {
 	return &Controller{
-		inner: inner,
-		pool:  sync.Pool{New: func() any { b := make([]byte, 0, 256); return &b }},
+		inner:  inner,
+		pool:   sync.Pool{New: func() any { b := make([]byte, 0, 256); return &b }},
+		loaned: make(map[*byte]*[]byte),
 	}
 }
 
@@ -81,22 +90,63 @@ func (c *Controller) Loan(size int) (*rcp.Loan, error) {
 		buf[i] = 0
 	}
 
+	// Record the loan under the buffer's identity (its first byte's address)
+	// so SendLoaned can find and recycle it. A zero-length buffer has no
+	// addressable byte and is simply not tracked — Return() still frees it
+	// via the closure below, it just isn't recyclable from SendLoaned.
+	var key *byte
+	if len(buf) > 0 {
+		key = &buf[0]
+		c.mu.Lock()
+		c.loaned[key] = bp
+		c.mu.Unlock()
+	}
+
 	release := func() {
+		c.untrack(key)
 		*bp = buf[:0]
 		c.pool.Put(bp)
 	}
 	return rcp.NewLoan(buf, release), nil
 }
 
+// untrack removes key from the in-flight loan table, if present. No-op for a
+// nil key (zero-length loans, which are never tracked).
+func (c *Controller) untrack(key *byte) {
+	if key == nil {
+		return
+	}
+	c.mu.Lock()
+	delete(c.loaned, key)
+	c.mu.Unlock()
+}
+
 // SendLoaned implements rcp.LoaningController. It sends cmd using cmd.Payload
-// (which must be a buffer obtained via Loan) and returns the buffer to the pool.
-// The caller must not access cmd.Payload after this call.
+// (which must be a buffer obtained via Loan) and returns the buffer to the
+// pool for reuse by a later Loan call. The caller must not access
+// cmd.Payload after this call.
 func (c *Controller) SendLoaned(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
 	if c.closed.Load() {
 		return nil, fmt.Errorf("rcp/loan: zone %s: %w", c.Zone(), rcp.ErrClosed)
 	}
 	// Send delegates to the inner controller. The inner controller copies the payload
-	// (as required by REQ-CTRL-026), so we can safely return the loaned buffer now.
+	// (as required by REQ-CTRL-026), so we can safely return the loaned buffer now,
+	// regardless of the send outcome.
 	resp, err := c.inner.Send(ctx, cmd)
+
+	if len(cmd.Payload) > 0 {
+		key := &cmd.Payload[0]
+		c.mu.Lock()
+		bp, ok := c.loaned[key]
+		if ok {
+			delete(c.loaned, key)
+		}
+		c.mu.Unlock()
+		if ok {
+			*bp = (*bp)[:0]
+			c.pool.Put(bp)
+		}
+	}
+
 	return resp, err
 }

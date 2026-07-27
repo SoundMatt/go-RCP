@@ -160,12 +160,14 @@ func (a *rcpAdapter) Close() error {
 	return a.ctrl.Close()
 }
 
-// ToMessage converts s to a relay.Message per RELAY spec §15.7.5.
+// ToMessage converts s to a relay.Message per RELAY spec §15.7.5, matching
+// the published RELAY golden vector spec/vectors/rcp-status.json.
 //
 //fusa:req REQ-MSG-003
 //fusa:req REQ-MSG-004
 //fusa:req REQ-MSG-005
 //fusa:req REQ-MSG-006
+//fusa:req REQ-CONF-001
 func (s *Status) ToMessage() relay.Message {
 	return relay.Message{
 		Protocol:  relay.RCP,

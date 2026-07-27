@@ -1,6 +1,10 @@
 package main
 
+//fusa:test REQ-CLI-001
+//fusa:test REQ-CLI-002
+//fusa:test REQ-CLI-003
 //fusa:test REQ-CLI-004
+//fusa:test REQ-CLI-005
 
 import (
 	"bytes"

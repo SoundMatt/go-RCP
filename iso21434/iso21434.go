@@ -90,11 +90,11 @@ func ComputeRisk(impact ImpactRating, feasibility FeasibilityRating) (RiskValue,
 
 // ThreatScenario describes one identified threat in the TARA.
 type ThreatScenario struct {
-	ID          string
-	Description string
+	ID             string
+	Description    string
 	DamageScenario string
-	Impact      ImpactRating
-	Feasibility FeasibilityRating
+	Impact         ImpactRating
+	Feasibility    FeasibilityRating
 }
 
 // RiskValue computes the composite risk for this threat scenario.

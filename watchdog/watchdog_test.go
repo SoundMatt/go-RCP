@@ -45,7 +45,7 @@ func (f *failCtrl) Close() error { return nil }
 
 // toggleCtrl switches between success and failure.
 type toggleCtrl struct {
-	zone   rcp.Zone
+	zone    rcp.Zone
 	failing atomic.Bool
 }
 

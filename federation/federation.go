@@ -40,7 +40,7 @@ var ErrNotOwned = errors.New("rcp/federation: zone has no registered owner")
 // Registry is a thread-safe map of zone → owning controller.
 // Multiple HPCs share a single Registry instance.
 type Registry struct {
-	mu    sync.RWMutex
+	mu     sync.RWMutex
 	owners map[rcp.Zone]rcp.Controller
 }
 
