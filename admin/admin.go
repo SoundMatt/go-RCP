@@ -33,12 +33,12 @@ import (
 
 // ZoneInfo is the JSON body returned by GET /zones/{zone}.
 type ZoneInfo struct {
-	Zone      string    `json:"zone"`
-	Healthy   bool      `json:"healthy"`
-	LastSeen  time.Time `json:"last_seen"`
-	CmdRate   float64   `json:"cmd_rate_per_sec"`
-	ErrCount  int64     `json:"error_count"`
-	DeadMiss  int64     `json:"deadline_miss_count"`
+	Zone     string    `json:"zone"`
+	Healthy  bool      `json:"healthy"`
+	LastSeen time.Time `json:"last_seen"`
+	CmdRate  float64   `json:"cmd_rate_per_sec"`
+	ErrCount int64     `json:"error_count"`
+	DeadMiss int64     `json:"deadline_miss_count"`
 }
 
 // Event is a single server-sent event delivered on GET /events.
@@ -284,9 +284,9 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		if z.healthy {
 			healthy = 1
 		}
-		fmt.Fprintf(w, "rcp_zone_healthy{zone=%q} %d\n", zone.String(), healthy)          //nolint:errcheck
-		fmt.Fprintf(w, "rcp_zone_cmd_total{zone=%q} %d\n", zone.String(), z.cmdCount.Load()) //nolint:errcheck
-		fmt.Fprintf(w, "rcp_zone_error_total{zone=%q} %d\n", zone.String(), z.errCount.Load()) //nolint:errcheck
+		fmt.Fprintf(w, "rcp_zone_healthy{zone=%q} %d\n", zone.String(), healthy)                       //nolint:errcheck
+		fmt.Fprintf(w, "rcp_zone_cmd_total{zone=%q} %d\n", zone.String(), z.cmdCount.Load())           //nolint:errcheck
+		fmt.Fprintf(w, "rcp_zone_error_total{zone=%q} %d\n", zone.String(), z.errCount.Load())         //nolint:errcheck
 		fmt.Fprintf(w, "rcp_zone_deadline_miss_total{zone=%q} %d\n", zone.String(), z.deadMiss.Load()) //nolint:errcheck
 	}
 }

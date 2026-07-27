@@ -91,9 +91,9 @@ func TestTARA_HighRiskThreats(t *testing.T) {
 	tara := iso21434.TARA{
 		Component: "go-RCP zone controller",
 		Threats: []iso21434.ThreatScenario{
-			{ID: "T-001", Impact: iso21434.ImpactNegligible, Feasibility: iso21434.FeasibilityLow},    // Low
-			{ID: "T-002", Impact: iso21434.ImpactMajor, Feasibility: iso21434.FeasibilityHigh},         // High
-			{ID: "T-003", Impact: iso21434.ImpactSevere, Feasibility: iso21434.FeasibilityVeryHigh},    // Critical
+			{ID: "T-001", Impact: iso21434.ImpactNegligible, Feasibility: iso21434.FeasibilityLow},  // Low
+			{ID: "T-002", Impact: iso21434.ImpactMajor, Feasibility: iso21434.FeasibilityHigh},      // High
+			{ID: "T-003", Impact: iso21434.ImpactSevere, Feasibility: iso21434.FeasibilityVeryHigh}, // Critical
 		},
 	}
 	highs, err := tara.HighRiskThreats()

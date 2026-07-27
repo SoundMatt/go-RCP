@@ -52,7 +52,7 @@ func (h priorityHeap) Less(i, j int) bool {
 	}
 	return h[i].seq < h[j].seq
 }
-func (h priorityHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h priorityHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h *priorityHeap) Push(x interface{}) {
 	e, ok := x.(*entry)
 	if !ok {

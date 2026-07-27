@@ -8,12 +8,102 @@ RCP connects a high-performance central computer to distributed Ethernet-based z
 [![DCO](https://github.com/SoundMatt/go-RCP/actions/workflows/dco.yml/badge.svg)](https://github.com/SoundMatt/go-RCP/actions/workflows/dco.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/SoundMatt/go-RCP.svg)](https://pkg.go.dev/github.com/SoundMatt/go-RCP)
 
+## CLI
+
+`cmd/go-rcp` is the RELAY-conformant CLI (spec §11.1/§11.2) — this is what CI's
+`relay conform --strict` gate exercises:
+
+```bash
+go install github.com/SoundMatt/go-RCP/cmd/go-rcp@latest
+
+go-rcp version --format json      # tool + spec version (§12.1)
+go-rcp capabilities                # capabilities document (§12.2)
+go-rcp status --format json        # self-assessed health
+go-rcp discover                    # list registered zones
+go-rcp send <zone>                 # send a command; --format json streams an NDJSON sink (§11.2)
+go-rcp monitor                     # stream Status from all zones
+go-rcp convert --protocol RCP      # RELAY interop driver (§11.2)
+```
+
+`cmd/rcptool` is an older, non-conformant CLI kept for backward compatibility;
+prefer `go-rcp` for anything spec-related.
+
 ## Packages
+
+The repo ships ~45 packages beyond the root module. The table below groups
+them by concern; see each package's doc comment (`go doc ./<pkg>`) for
+details.
 
 | Package | Description |
 |---|---|
 | `.` | Core interfaces: `Controller`, `Registry`, `Command`, `Response`, `Status`, `Zone` |
 | `mock` | In-process mock controller and registry — zero dependencies, default for unit tests |
+| `loan` | `LoaningController` wrapper — zero-copy payload loaning via a `sync.Pool` |
+
+### RCP control-plane concerns (spec §13.7.2)
+
+| Package | Description |
+|---|---|
+| `admin` | HTTP admin interface for runtime registry inspection |
+| `authz` | Command-level access control for the RCP stack |
+| `certgap` | ASIL-D gap analysis helpers |
+| `config` | YAML/JSON zone registry configuration loading |
+| `deadline` | Liveness monitoring of zone controller Status streams |
+| `dyndata` | Runtime schema registry and typed payload codec |
+| `e2e` | End-to-end (E2E) protection for command payloads |
+| `faultinject` | Structured fault injection for validating fault handling |
+| `federation` | Coordination of multiple HPCs, each owning a disjoint zone subset |
+| `firmware` | OTA firmware delivery for zone controllers |
+| `formal` | Lightweight formal-verification helpers |
+| `iso21434` | ISO/SAE 21434 cybersecurity engineering artifacts |
+
+### Protocol bridges (spec §13.7.2 `*br` naming + others)
+
+| Package | Description |
+|---|---|
+| `canbr` | CAN bus bridge |
+| `ddsbr` | DDS (Data Distribution Service) bridge |
+| `doipbr` | DoIP (Diagnostics over IP, ISO 13400) bridge |
+| `grpcbridge` | gRPC transport bridge |
+| `linbr` | LIN (Local Interconnect Network) bus simulation/bridge |
+| `mqttbr` | Pure-Go in-process MQTT broker bridge |
+| `restbridge` | HTTP/JSON + SSE bridge |
+| `someip` | SOME/IP bridge |
+| `udsbr` | UDS (Unified Diagnostic Services, ISO 14229) bridge |
+
+### Transports and discovery
+
+| Package | Description |
+|---|---|
+| `mdns` | Zero-configuration zone-controller discovery via mDNS/DNS-SD |
+| `shmem` | Zero-copy intra-host command transport |
+| `tlstransport` | Mutual-TLS TCP transport |
+| `tsn` | IEEE 802.1Qbv-aware (time-sensitive networking) UDP transport |
+| `udp` | Pure-Go UDP transport |
+| `wire` | Shared binary frame format used by the UDP and TLS transports |
+
+### Safety, reliability, and observability
+
+| Package | Description |
+|---|---|
+| `observe` | OpenTelemetry tracing + metrics wrapper for a Controller |
+| `powerstate` | Zone controller power state transitions |
+| `prioqueue` | Per-zone priority queue that serialises dispatch |
+| `ratelimit` | Per-zone token-bucket admission control |
+| `record` | Always-on black-box recording of command/response/status traffic |
+| `redundancy` | Hot-standby Controller pair for ASIL-B fault tolerance |
+| `safety` | Latency and timing evidence for ASIL-B compliance |
+| `sim` | Timing-realistic zone controller simulator |
+| `watchdog` | ASIL-B watchdog and heartbeat mechanism |
+| `zonegroup` | Atomic multi-zone command broadcast |
+
+### Tooling
+
+| Package | Description |
+|---|---|
+| `capi` | C-compatible handle-based API for go-RCP controllers |
+| `codegen` | Generates typed Go controller stubs and go-FuSa requirement scaffolding |
+| `proxy` | Transparent zone proxy for multi-hop zonal topologies |
 
 ## Install
 

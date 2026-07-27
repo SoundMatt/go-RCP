@@ -125,8 +125,8 @@ func TestCommandLatencyProfile(t *testing.T) {
 				// Measure Send latency.
 				t0 := time.Now()
 				_, _ = ctrl.Send(context.Background(), &rcp.Command{
-					Zone: zones[i],
-					Type: rcp.CmdWatchdog,
+					Zone:     zones[i],
+					Type:     rcp.CmdWatchdog,
 					Priority: rcp.PriorityCritical,
 				})
 				sendSamples = append(sendSamples, time.Since(t0).Nanoseconds())

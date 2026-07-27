@@ -35,7 +35,7 @@ type LatencyModel uint8
 
 const (
 	LatencyConstant LatencyModel = iota // fixed BaseLatency on every Send
-	LatencyJitter                        // uniform jitter in [0, Jitter] added to BaseLatency
+	LatencyJitter                       // uniform jitter in [0, Jitter] added to BaseLatency
 )
 
 // Config holds simulator parameters.

@@ -86,9 +86,9 @@ func DefaultConfig() Config {
 
 // zoneState tracks per-zone watchdog state.
 type zoneState struct {
-	health  HealthState
-	misses  int
-	cmdID   atomic.Uint32
+	health HealthState
+	misses int
+	cmdID  atomic.Uint32
 }
 
 type subscriber struct {

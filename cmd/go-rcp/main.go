@@ -49,10 +49,21 @@ import (
 
 const (
 	toolName    = "go-rcp"
-	toolVersion = "0.50.0"
 	protocol    = "RCP"
 	protocolInt = 5
 )
+
+// toolVersion is the value reported by `version --format json` and
+// `capabilities` (spec §12.1/§12.2). It is a var, not a const, so release
+// builds can pin it to the actual git tag via
+//
+//	go build -ldflags "-X main.toolVersion=$(git describe --tags --always)"
+//
+// (done by docker/Dockerfile and .github/workflows/release.yml). A build
+// invoked without that flag — e.g. `go run`, `go install`, a plain `go build`
+// during development — reports "dev" rather than a stale, hand-edited
+// version string that silently drifts from the actual release tag.
+var toolVersion = "dev"
 
 func main() {
 	if len(os.Args) < 2 {

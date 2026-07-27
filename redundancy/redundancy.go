@@ -41,12 +41,12 @@ type FailoverPolicy func(err error) bool
 // Controller is a hot-standby pair.  At any point one member is "active";
 // on a qualifying error the other becomes active.
 type Controller struct {
-	mu       sync.Mutex
-	primary  rcp.Controller
-	standby  rcp.Controller
-	policy   FailoverPolicy
+	mu        sync.Mutex
+	primary   rcp.Controller
+	standby   rcp.Controller
+	policy    FailoverPolicy
 	failovers atomic.Int32
-	closed   atomic.Bool
+	closed    atomic.Bool
 }
 
 // NewController creates a redundant pair.

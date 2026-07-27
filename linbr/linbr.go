@@ -17,10 +17,11 @@
 // arrive via the simulated bus.
 //
 // Frame layout (8 bytes):
-//   byte 0:    Protected ID (6-bit ID + 2-bit parity)
-//   byte 1:    Data length (1–8)
-//   bytes 2–9: Data payload (padded with 0xFF)
-//   byte 10:   Checksum (classic: XOR of data bytes)
+//
+//	byte 0:    Protected ID (6-bit ID + 2-bit parity)
+//	byte 1:    Data length (1–8)
+//	bytes 2–9: Data payload (padded with 0xFF)
+//	byte 10:   Checksum (classic: XOR of data bytes)
 package linbr
 
 import (

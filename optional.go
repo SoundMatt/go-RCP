@@ -9,6 +9,7 @@ package rcp
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -60,7 +61,7 @@ func (a *rcpAdapter) Metrics() relay.Metrics {
 
 // CloseWithDrain waits for in-flight Send/Call dispatches to complete before
 // closing the underlying Controller (spec §9). If ctx expires first it closes
-// immediately and returns ctx.Err().
+// immediately and returns relay.ErrTimeout (per spec §9.2).
 //
 //fusa:req REQ-OPT-005
 //fusa:req REQ-OPT-006
@@ -71,7 +72,7 @@ func (a *rcpAdapter) CloseWithDrain(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			_ = a.Close()
-			return ctx.Err()
+			return fmt.Errorf("rcp: drain timeout: %w", ErrTimeout)
 		case <-ticker.C:
 		}
 	}

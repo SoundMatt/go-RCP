@@ -31,9 +31,9 @@ const (
 
 	dnsClassIN = 1
 
-	flagResponse  = uint16(0x8400) // QR=1, AA=1
-	flagQuery     = uint16(0x0000) // standard query
-	ttlAnnounce   = uint32(120)    // 2-minute TTL for announced records
+	flagResponse = uint16(0x8400) // QR=1, AA=1
+	flagQuery    = uint16(0x0000) // standard query
+	ttlAnnounce  = uint32(120)    // 2-minute TTL for announced records
 )
 
 var errTruncated = errors.New("mdns: truncated DNS message")

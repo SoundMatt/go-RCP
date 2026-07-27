@@ -213,8 +213,10 @@ func TestAdapter_CloseWithDrain_ContextExpiresWhileInFlight(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	err := asDrainer(t, node).CloseWithDrain(ctx)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("CloseWithDrain err = %v, want context.DeadlineExceeded", err)
+	// Per spec §9.2, a drain timeout MUST be reported as relay.ErrTimeout, not
+	// the raw ctx.Err() (context.DeadlineExceeded).
+	if !errors.Is(err, relay.ErrTimeout) {
+		t.Fatalf("CloseWithDrain err = %v, want errors.Is(err, relay.ErrTimeout) == true", err)
 	}
 	close(fc.sendGate) // let the in-flight Call unwind
 }

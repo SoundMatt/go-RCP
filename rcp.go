@@ -59,8 +59,13 @@ import (
 )
 
 // SpecVersion is the RELAY specification version this package implements.
+// Sourcing it from relay.SpecVersion (rather than hardcoding it) also
+// confirms this module builds against a RELAY dependency that publishes the
+// §15 canonical-type JSON schemas reachable via relay.Schema().
 //
 //fusa:req REQ-SPEC-001
+//fusa:req REQ-CONF-002
+//fusa:req REQ-CONF-003
 const SpecVersion = relay.SpecVersion
 
 // wrapErr holds a clean error message while maintaining an Unwrap chain

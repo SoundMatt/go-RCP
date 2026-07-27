@@ -197,6 +197,8 @@ func (c *captureController) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Re
 	*c.capture = cmd
 	return c.inner.Send(ctx, cmd)
 }
-func (c *captureController) Zone() rcp.Zone                                        { return c.inner.Zone() }
-func (c *captureController) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) { return c.inner.Subscribe(ctx) }
-func (c *captureController) Close() error                                           { return c.inner.Close() }
+func (c *captureController) Zone() rcp.Zone { return c.inner.Zone() }
+func (c *captureController) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
+	return c.inner.Subscribe(ctx)
+}
+func (c *captureController) Close() error { return c.inner.Close() }

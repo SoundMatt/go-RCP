@@ -189,9 +189,9 @@ func (c *Controller) Close() error {
 
 // Registry is an in-process RCP registry backed by mock controllers.
 type Registry struct {
-	mu      sync.RWMutex
-	ctrls   map[rcp.Zone]*Controller
-	closed  bool
+	mu     sync.RWMutex
+	ctrls  map[rcp.Zone]*Controller
+	closed bool
 }
 
 // NewRegistry returns a Registry pre-populated with mock controllers for all

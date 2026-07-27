@@ -241,11 +241,11 @@ package {{.Package}}_test
 `))
 
 type implData struct {
-	Package   string
-	TypeName  string
-	ZoneID    uint8
-	FusaReqs  []string
-	Commands  []cmdData
+	Package  string
+	TypeName string
+	ZoneID   uint8
+	FusaReqs []string
+	Commands []cmdData
 }
 
 type cmdData struct {

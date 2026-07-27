@@ -25,9 +25,9 @@ var errPrimary = errors.New("primary failed")
 
 // failOnce is a mock controller that returns errPrimary on the first Send then delegates.
 type failOnce struct {
-	inner   *mock.Controller
-	failed  bool
-	mu      sync.Mutex
+	inner  *mock.Controller
+	failed bool
+	mu     sync.Mutex
 }
 
 func (f *failOnce) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
@@ -40,9 +40,11 @@ func (f *failOnce) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, e
 	f.mu.Unlock()
 	return f.inner.Send(ctx, cmd)
 }
-func (f *failOnce) Zone() rcp.Zone                                        { return f.inner.Zone() }
-func (f *failOnce) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) { return f.inner.Subscribe(ctx) }
-func (f *failOnce) Close() error                                          { return f.inner.Close() }
+func (f *failOnce) Zone() rcp.Zone { return f.inner.Zone() }
+func (f *failOnce) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
+	return f.inner.Subscribe(ctx)
+}
+func (f *failOnce) Close() error { return f.inner.Close() }
 
 // alwaysFail returns errPrimary on every Send.
 type alwaysFail struct{ zone rcp.Zone }
@@ -50,9 +52,12 @@ type alwaysFail struct{ zone rcp.Zone }
 func (a *alwaysFail) Send(_ context.Context, _ *rcp.Command) (*rcp.Response, error) {
 	return nil, errPrimary
 }
-func (a *alwaysFail) Zone() rcp.Zone                                        { return a.zone }
-func (a *alwaysFail) Subscribe(_ context.Context) (<-chan *rcp.Status, error) { ch := make(chan *rcp.Status); return ch, nil }
-func (a *alwaysFail) Close() error                                          { return nil }
+func (a *alwaysFail) Zone() rcp.Zone { return a.zone }
+func (a *alwaysFail) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
+	ch := make(chan *rcp.Status)
+	return ch, nil
+}
+func (a *alwaysFail) Close() error { return nil }
 
 // TestRedundancy_PrimarySucceeds sends via primary when healthy (REQ-RD-001).
 func TestRedundancy_PrimarySucceeds(t *testing.T) {

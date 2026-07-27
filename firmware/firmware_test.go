@@ -58,9 +58,12 @@ func (r *chunkRecorder) Send(_ context.Context, cmd *rcp.Command) (*rcp.Response
 	return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}, nil
 }
 
-func (r *chunkRecorder) Zone() rcp.Zone                                        { return rcp.ZoneFrontLeft }
-func (r *chunkRecorder) Subscribe(_ context.Context) (<-chan *rcp.Status, error) { ch := make(chan *rcp.Status); return ch, nil }
-func (r *chunkRecorder) Close() error                                           { return nil }
+func (r *chunkRecorder) Zone() rcp.Zone { return rcp.ZoneFrontLeft }
+func (r *chunkRecorder) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
+	ch := make(chan *rcp.Status)
+	return ch, nil
+}
+func (r *chunkRecorder) Close() error { return nil }
 
 func (r *chunkRecorder) Assembled() []byte {
 	r.mu.Lock()
@@ -269,6 +272,9 @@ func (b *blockingController) Send(_ context.Context, cmd *rcp.Command) (*rcp.Res
 	return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}, nil
 }
 
-func (b *blockingController) Zone() rcp.Zone                                        { return rcp.ZoneFrontLeft }
-func (b *blockingController) Subscribe(_ context.Context) (<-chan *rcp.Status, error) { ch := make(chan *rcp.Status); return ch, nil }
-func (b *blockingController) Close() error                                           { return nil }
+func (b *blockingController) Zone() rcp.Zone { return rcp.ZoneFrontLeft }
+func (b *blockingController) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
+	ch := make(chan *rcp.Status)
+	return ch, nil
+}
+func (b *blockingController) Close() error { return nil }

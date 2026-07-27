@@ -47,9 +47,9 @@ func DefaultConfig() Config {
 // Controller wraps any rcp.Controller and applies token-bucket rate limiting.
 // The bucket starts full. Send returns rcp.ErrBusy immediately when exhausted.
 type Controller struct {
-	inner  rcp.Controller
-	cfg    Config
-	now    func() time.Time // injectable for testing; defaults to time.Now
+	inner rcp.Controller
+	cfg   Config
+	now   func() time.Time // injectable for testing; defaults to time.Now
 
 	mu     sync.Mutex
 	tokens float64
