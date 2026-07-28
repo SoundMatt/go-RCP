@@ -3863,6 +3863,190 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-001",
+      "title": "Config.Validate enforces pin-count and active-pin-mask bounds",
+      "text": "gpio.Config.Validate shall return ErrPinCountOutOfRange when PinCount is zero or exceeds MaxPins, or when Direction or TriggerEnable sets any bit outside the active-pin mask ((1<<PinCount)-1).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-002",
+      "title": "WriteSemantic.Valid recognizes exactly the eight defined semantics",
+      "text": "gpio.WriteSemantic.Valid shall return true for exactly the eight defined write-semantic values (SemanticReplace through SemanticReconfigure) and false for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-003",
+      "title": "Combining semantics affect only output-direction pins",
+      "text": "gpio.Endpoint.HandleRequest shall apply SemanticReplace/Or/And/AndNot/Xor to only the output-direction pins (Config.Direction bits set), leaving every input-direction pin's value unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-004",
+      "title": "Saturating semantics clamp instead of wrapping",
+      "text": "gpio.Endpoint.HandleRequest shall clamp SemanticSaturatingAdd at the endpoint's active-pin mask and SemanticSaturatingSubtract at zero, rather than wrapping on overflow/underflow.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-005",
+      "title": "Reconfigure replaces Direction and persists the change",
+      "text": "gpio.Endpoint.HandleRequest shall, for SemanticReconfigure, replace Config.Direction with the request operand masked to the endpoint's active pins, persist the change through server.Server.WriteFunctional, and leave the pin value unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-006",
+      "title": "HandleRequest routes Read/Write and rejects neither",
+      "text": "gpio.Endpoint.HandleRequest shall return the endpoint's current pin value for a request with FlagRead set, the resulting pin value for a request with FlagWrite set, and ErrRequestMustReadOrWrite for a request with neither flag set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-007",
+      "title": "HandleRequest rejects the wrong endpoint or an ungranted stream",
+      "text": "gpio.Endpoint.HandleRequest shall return ErrWrongEndpoint when a request's ByteBusID does not match the endpoint's own address, and shall return the underlying server.ErrAccessDenied when the requesting stream has no access grant for the endpoint.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-008",
+      "title": "Triggers queue only for TriggerEnable pins",
+      "text": "gpio.Endpoint shall queue a TriggerEvent only when a pin whose Config.TriggerEnable bit is set changes value, and shall not queue an event for a change confined to non-trigger pins.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-009",
+      "title": "SetInputs only drives input-direction pins",
+      "text": "gpio.Endpoint.SetInputs shall drive only the endpoint's input-direction pins from its mask argument, leaving every output-direction pin's value unchanged, and shall queue trigger events for input-pin changes the same way a write does.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-010",
+      "title": "DrainTriggers returns events FIFO and clears the queue",
+      "text": "gpio.Endpoint.DrainTriggers shall return every queued TriggerEvent in the order it was recorded, clear the queue, and return nil when no events are pending.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-011",
+      "title": "GPIO encoders/decoders round-trip and never panic",
+      "text": "gpio.EncodeConfig/DecodeConfig and gpio.EncodeWriteRequest/DecodeWriteRequest/DecodeValue shall round-trip their respective structures and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-GPIO-012",
+      "title": "GPIO golden vectors pin the frozen wire byte layout",
+      "text": "gpio.EncodeConfig and gpio.EncodeWriteRequest/EncodeValue shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-001",
+      "title": "Channel.Valid recognizes exactly the six defined channels",
+      "text": "spi.Channel.Valid shall return true for exactly Channel0 through Channel5 (MaxChannels) and false for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-002",
+      "title": "SetChannelConfig isolates one channel's configuration",
+      "text": "spi.Endpoint.SetChannelConfig shall persist the given ChannelConfig for exactly the selected channel through server.Server.WriteFunctional, leaving every other channel's configuration in the persisted register map unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-003",
+      "title": "Mode.Valid recognizes exactly the four defined clock modes",
+      "text": "spi.Mode.Valid shall return true for exactly Mode0 through Mode3 and false for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-004",
+      "title": "HandleRequest dispatches by sub-opcode and rejects an unconfigured channel",
+      "text": "spi.Endpoint.HandleRequest shall dispatch a transfer request to the chip-select channel named by its sub-opcode byte, and shall return ErrChannelNotConfigured when that channel's ChannelConfig.Enabled is false.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-005",
+      "title": "HandleRequest requires Write, the right endpoint, and access",
+      "text": "spi.Endpoint.HandleRequest shall return ErrRequestMustWrite when a request does not set FlagWrite, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-006",
+      "title": "A configured Transport performs the transfer, defaulting to loopback",
+      "text": "spi.Endpoint.HandleRequest shall perform a channel's transfer through its configured Transport when one is set via SetTransport, and shall default to a loopback echo of the transmitted bytes when none is set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-007",
+      "title": "Every transfer queues a transfer-complete trigger with its byte count",
+      "text": "spi.Endpoint shall queue a TriggerTransferComplete event carrying the number of bytes received for every completed transfer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-008",
+      "title": "Chip-select-edge triggers bracket each transfer in order",
+      "text": "spi.Endpoint shall queue a TriggerChipSelectEdge asserted event immediately before, and a deasserted event immediately after, each transfer's byte exchange, and spi.Endpoint.DrainTriggers shall return all queued events in that recorded order.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-009",
+      "title": "Config.Validate rejects an implausible channel and round-trips all slots",
+      "text": "spi.Config.Validate shall return ErrZeroClock or ErrInvalidMode for any enabled channel with a zero clock rate or an unrecognized Mode, and spi.EncodeConfig/DecodeConfig shall round-trip all MaxChannels channel slots including disabled ones.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-010",
+      "title": "SPI decoders never panic on malformed input",
+      "text": "spi.DecodeConfig and spi.DecodeTransferRequest shall return ErrShortBuffer, ErrTrailingBytes, or ErrInvalidChannel rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-011",
+      "title": "SPI golden vectors pin the frozen wire byte layout",
+      "text": "spi.EncodeConfig and spi.EncodeTransferRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

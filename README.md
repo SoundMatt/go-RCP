@@ -30,7 +30,7 @@ prefer `go-rcp` for anything spec-related.
 
 ## Packages
 
-The repo ships ~47 packages beyond the root module. The table below groups
+The repo ships ~49 packages beyond the root module. The table below groups
 them by concern; see each package's doc comment (`go doc ./<pkg>`) for
 details.
 
@@ -51,6 +51,8 @@ full program and each satellite package's disposition.
 |---|---|
 | `avtp` | IEEE 1722 AVTPDU/ACF wire format for TC18 RCP (Milestone 44, v0.57.0) — untimed/timestamped AVTPDU headers, the short/long RCP message encodings, and stream_id/byte_bus_id/transaction_num addressing |
 | `server` | RC Server configuration lifecycle, register map, and Discovery for TC18 RCP (Milestones 45/46, v0.58.0/v0.59.0) — the 3-state lifecycle and its transition guards, the generic/functional per-endpoint register split, EP0 and the root-client/restricted-stream access model, the HW pin-mapping table, request-stream/response-queue configuration, the grant-independent register-0 discovery read, the timeout-releasable configuration-claim, and client-side conformant-server recognition/topology persistence |
+| `gpio` | GPIO endpoint type for TC18 RCP (Milestone 47, v0.60.0) — up to 32 pins, the eight write-semantics (replace/OR/AND/AND-NOT/XOR/saturating add/saturating subtract/reconfigure), and per-pin change-trigger signals |
+| `spi` | SPI endpoint type for TC18 RCP (Milestone 47, v0.60.0) — controller-only, up to six sub-opcode-selected chip-select channels, raw full-duplex transfer payloads, per-channel clock/mode/timing configuration, and transfer-complete/chip-select-edge triggers |
 
 ### RCP control-plane concerns (spec §13.7.2)
 
