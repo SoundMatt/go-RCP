@@ -583,7 +583,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Wire & Server** | v0.58.0 | RC Server lifecycle | 3-state config lifecycle, generic/functional register-map split, EP0 ✅ |
 | **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response ✅ |
 | **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes ✅ |
-| **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types |
+| **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types ✅ |
 | **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers |
 | **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, cancellation types |
 | **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred |
@@ -759,7 +759,42 @@ or access-control code were needed.
   model) but explicitly **not** on Phase 15's conditional-request work —
   these ship against the plain, unconditional request kind only
 
-### 48. I²C / UART / ADC / PWM Endpoints (v0.61.0)
+### 48. I²C / UART / ADC / PWM Endpoints (v0.61.0) ✅
+
+**Done (v0.61.0):** landed in four new packages, `i2c` (`i2c/doc.go`,
+`i2c/types.go`, `i2c/config.go`, `i2c/request.go`, `i2c/endpoint.go`), `uart`
+(`uart/doc.go`, `uart/types.go`, `uart/config.go`, `uart/request.go`,
+`uart/endpoint.go`), `adc` (`adc/doc.go`, `adc/types.go`, `adc/config.go`,
+`adc/request.go`, `adc/endpoint.go`), and `pwm` (`pwm/doc.go`,
+`pwm/types.go`, `pwm/config.go`, `pwm/request.go`, `pwm/endpoint.go`; see
+each package's doc.go for its package-level design notes, including the same
+explicit spec-fidelity call-out avtp/doc.go, server/doc.go, gpio/doc.go, and
+spi/doc.go established — the exact register/request byte layouts below are
+this implementation's own reasoned encoding pending confirmation against a
+public interoperability reference). All four packages build directly on
+`server` (Milestones 45/46) exactly as gpio/spi did in Milestone 47: each
+endpoint's functional configuration is read/written through
+`server.Server.WriteFunctional`/`server.Server.ReadEndpoint`, and each
+package's `Endpoint.HandleRequest` decodes and answers a plain `avtp.Message`
+using the same request-descriptor header every endpoint type shares.
+`server` itself is untouched by this milestone — no changes to its
+register-map, lifecycle, or access-control code were needed. The I2C
+bus-speed enum ambiguity this milestone calls out is flagged, not resolved,
+in `i2c/doc.go`'s spec-fidelity note: this package assigns its own
+freestanding five-value BusSpeed enumeration rather than guessing which
+collision arm the source material intends. UART's read-must-be-payload-less
+asymmetry versus GPIO/PWM is documented in `uart/doc.go`, including why its
+future (Phase 15) compound-wait equivalent will compare against accumulated
+RX FIFO content instead of a scalar register value. ADC's two
+continuous-sampling mechanisms are both implemented as external callers
+repeatedly invoking `adc.Endpoint.Trigger` — off another endpoint's own
+`DrainTriggers` queue, or off ADC's own `TriggerMeasurementDone` events —
+keeping this package's request handling synchronous like every other Phase
+14 endpoint type rather than running an internal timer/goroutine. PWM models
+output and input as a single endpoint type with a `Role` switch (per
+`server/types.go`'s single "OUT" PWM signal name), with `RoleInput` failing
+explicitly with `ErrSignalLost` on signal loss rather than returning stale
+data.
 
 - I²C: controller-only, raw byte-stream payload including address bytes
   (no protocol-level address parsing at this layer), configurable bus

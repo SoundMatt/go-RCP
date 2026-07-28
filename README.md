@@ -30,7 +30,7 @@ prefer `go-rcp` for anything spec-related.
 
 ## Packages
 
-The repo ships ~49 packages beyond the root module. The table below groups
+The repo ships ~53 packages beyond the root module. The table below groups
 them by concern; see each package's doc comment (`go doc ./<pkg>`) for
 details.
 
@@ -53,6 +53,10 @@ full program and each satellite package's disposition.
 | `server` | RC Server configuration lifecycle, register map, and Discovery for TC18 RCP (Milestones 45/46, v0.58.0/v0.59.0) — the 3-state lifecycle and its transition guards, the generic/functional per-endpoint register split, EP0 and the root-client/restricted-stream access model, the HW pin-mapping table, request-stream/response-queue configuration, the grant-independent register-0 discovery read, the timeout-releasable configuration-claim, and client-side conformant-server recognition/topology persistence |
 | `gpio` | GPIO endpoint type for TC18 RCP (Milestone 47, v0.60.0) — up to 32 pins, the eight write-semantics (replace/OR/AND/AND-NOT/XOR/saturating add/saturating subtract/reconfigure), and per-pin change-trigger signals |
 | `spi` | SPI endpoint type for TC18 RCP (Milestone 47, v0.60.0) — controller-only, up to six sub-opcode-selected chip-select channels, raw full-duplex transfer payloads, per-channel clock/mode/timing configuration, and transfer-complete/chip-select-edge triggers |
+| `i2c` | I2C endpoint type for TC18 RCP (Milestone 48, v0.61.0) — controller-only, single-bus raw transfer payloads including the address byte(s) themselves, configurable bus speed and inter-transaction trailing time, and transaction-complete triggers |
+| `uart` | UART endpoint type for TC18 RCP (Milestone 48, v0.61.0) — independent TX/RX request handling sharing one functional config, FIFO-drain-or-timeout read completion with fragmented delivery of partial data, and TX-complete/RX-data-available triggers |
+| `adc` | ADC endpoint type for TC18 RCP (Milestone 48, v0.61.0) — single-channel up to 16-bit resolution, the three-layer sample/average/combine model, and the two continuous-sampling mechanisms (triggered off another endpoint, or self-triggered off its own measurement-done event) |
+| `pwm` | PWM endpoint type for TC18 RCP (Milestone 48, v0.61.0) — output and input roles sharing a symmetric period/active-duration waveform shape, with input response-only and failing explicitly on signal loss |
 
 ### RCP control-plane concerns (spec §13.7.2)
 
