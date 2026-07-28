@@ -10,150 +10,153 @@
 package udsbr_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
-	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 	"github.com/SoundMatt/go-RCP/udsbr"
 )
 
-// REQ-UDS-001: BuildRequest produces a PDU with the correct SID and DID.
-func TestBuildRequest(t *testing.T) {
-	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DIDRCPCommand, []byte{0x01, 0x02})
-	if len(pdu) != 5 {
-		t.Fatalf("len = %d, want 5", len(pdu))
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
+
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+const testAddr = avtp.ByteBusID(1) // matches udsbr.DataIdentifier(0x01) via its low byte
+
+type echoHandler struct{}
+
+func (echoHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+func newHarness(t *testing.T) *udsbr.Server {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testAddr, echoHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	if pdu[0] != udsbr.SIDWriteDataByIdentifier {
-		t.Errorf("SID = 0x%02X, want 0x%02X", pdu[0], udsbr.SIDWriteDataByIdentifier)
+	srv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(clientStream(), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return udsbr.NewServer(ctrl)
+}
+
+// TestBuildRequest_Layout BuildRequest produces a PDU with the correct SID,
+// DID, and payload layout (REQ-UDS-001).
+func TestBuildRequest_Layout(t *testing.T) {
+	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, 0x1234, []byte{0xAA})
+	want := []byte{udsbr.SIDWriteDataByIdentifier, 0x12, 0x34, 0xAA}
+	if !bytes.Equal(pdu, want) {
+		t.Errorf("BuildRequest = % X, want % X", pdu, want)
 	}
 }
 
-// REQ-UDS-002: BuildPositiveResponse produces the correct 0x6E/0x62 response.
-func TestBuildPositiveResponse(t *testing.T) {
-	resp := udsbr.BuildPositiveResponse(udsbr.SIDWriteDataByIdentifier, udsbr.DIDRCPCommand, []byte{0x00})
-	want := udsbr.SIDWriteDataByIdentifier + udsbr.SIDPositiveOffset
-	if resp[0] != want {
-		t.Errorf("SID = 0x%02X, want 0x%02X", resp[0], want)
+// TestBuildPositiveResponse_Layout BuildPositiveResponse prefixes SID with
+// +0x40 (REQ-UDS-002).
+func TestBuildPositiveResponse_Layout(t *testing.T) {
+	pdu := udsbr.BuildPositiveResponse(udsbr.SIDReadDataByIdentifier, 0x0001, []byte{0x05})
+	want := []byte{udsbr.SIDReadDataByIdentifier + udsbr.SIDPositiveOffset, 0x00, 0x01, 0x05}
+	if !bytes.Equal(pdu, want) {
+		t.Errorf("BuildPositiveResponse = % X, want % X", pdu, want)
 	}
 }
 
-// REQ-UDS-003: BuildNegativeResponse produces a 0x7F PDU.
-func TestBuildNegativeResponse(t *testing.T) {
-	resp := udsbr.BuildNegativeResponse(udsbr.SIDWriteDataByIdentifier, udsbr.NRCRequestOutOfRange)
-	if resp[0] != udsbr.SIDNegativeResponse {
-		t.Errorf("byte[0] = 0x%02X, want 0x7F", resp[0])
-	}
-	if resp[1] != udsbr.SIDWriteDataByIdentifier {
-		t.Errorf("byte[1] = 0x%02X, want SID", resp[1])
+// TestBuildNegativeResponse_Layout BuildNegativeResponse produces a 0x7F
+// PDU with the echoed SID and NRC byte (REQ-UDS-003).
+func TestBuildNegativeResponse_Layout(t *testing.T) {
+	pdu := udsbr.BuildNegativeResponse(udsbr.SIDWriteDataByIdentifier, udsbr.NRCRequestOutOfRange)
+	want := []byte{udsbr.SIDNegativeResponse, udsbr.SIDWriteDataByIdentifier, udsbr.NRCRequestOutOfRange}
+	if !bytes.Equal(pdu, want) {
+		t.Errorf("BuildNegativeResponse = % X, want % X", pdu, want)
 	}
 }
 
-// REQ-UDS-004: Server.Handle dispatches WriteDataByIdentifier to rcp.Controller.Send.
-func TestServer_Handle_WriteDataByIdentifier(t *testing.T) {
-	dispatched := make(chan rcp.CommandType, 1)
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		dispatched <- cmd.Type
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
-
-	srv := udsbr.NewServer(inner)
-	defer srv.Close()
-
-	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DIDRCPCommand,
-		[]byte{byte(rcp.ZoneFrontLeft), byte(rcp.CmdSet)})
-	resp, err := srv.Handle(context.Background(), pdu)
+// TestHandle_WriteDispatchesToUpstream Handle forwards a
+// WriteDataByIdentifier PDU's payload to the upstream controller as a write
+// request, echoed back in the positive response (REQ-UDS-004).
+func TestHandle_WriteDispatchesToUpstream(t *testing.T) {
+	s := newHarness(t)
+	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DataIdentifier(testAddr), []byte{0xDE, 0xAD})
+	resp, err := s.Handle(context.Background(), pdu)
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
 	}
 	if resp[0] != udsbr.SIDWriteDataByIdentifier+udsbr.SIDPositiveOffset {
-		t.Errorf("response SID = 0x%02X, want positive", resp[0])
+		t.Errorf("resp[0] = %#x, want positive WriteDataByIdentifier", resp[0])
 	}
-	select {
-	case got := <-dispatched:
-		if got != rcp.CmdSet {
-			t.Errorf("dispatched %v, want CmdSet", got)
-		}
-	default:
-		t.Error("controller not dispatched")
+	if !bytes.Equal(resp[3:], []byte{0xDE, 0xAD}) {
+		t.Errorf("resp data = % X, want % X", resp[3:], []byte{0xDE, 0xAD})
 	}
 }
 
-// REQ-UDS-005: Server.Handle returns ErrNegativeResponse for unknown SID.
-func TestServer_Handle_UnknownSID(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
-	srv := udsbr.NewServer(inner)
-	defer srv.Close()
-
-	pdu := []byte{0xFF, 0xF1, 0x90}
-	resp, err := srv.Handle(context.Background(), pdu)
+// TestHandle_UnsupportedSID Handle returns ErrNegativeResponse for an
+// unsupported service ID (REQ-UDS-005).
+func TestHandle_UnsupportedSID(t *testing.T) {
+	s := newHarness(t)
+	pdu := udsbr.BuildRequest(0x99, udsbr.DataIdentifier(testAddr), nil)
+	_, err := s.Handle(context.Background(), pdu)
 	if !errors.Is(err, udsbr.ErrNegativeResponse) {
-		t.Errorf("want ErrNegativeResponse, got %v", err)
-	}
-	if resp[0] != udsbr.SIDNegativeResponse {
-		t.Errorf("response[0] = 0x%02X, want 0x7F", resp[0])
+		t.Errorf("err = %v, want ErrNegativeResponse", err)
 	}
 }
 
-// REQ-UDS-006: Server.Handle(ReadDataByIdentifier) returns rcp.Status data.
-func TestServer_Handle_ReadDataByIdentifier(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
-	srv := udsbr.NewServer(inner)
-	defer srv.Close()
-
-	// Publish a status first so Subscribe returns quickly
-	go func() {
-		time.Sleep(5 * time.Millisecond)
-		inner.Publish([]byte("status-data"))
-	}()
-
-	pdu := udsbr.BuildRequest(udsbr.SIDReadDataByIdentifier, udsbr.DIDRCPStatus, nil)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	resp, err := srv.Handle(ctx, pdu)
+// TestHandle_ReadDispatchesToUpstream Handle forwards a ReadDataByIdentifier
+// PDU as a read request and returns the endpoint's response body
+// (REQ-UDS-006).
+func TestHandle_ReadDispatchesToUpstream(t *testing.T) {
+	s := newHarness(t)
+	pdu := udsbr.BuildRequest(udsbr.SIDReadDataByIdentifier, udsbr.DataIdentifier(testAddr), nil)
+	resp, err := s.Handle(context.Background(), pdu)
 	if err != nil {
-		t.Fatalf("Handle ReadDataByIdentifier: %v", err)
+		t.Fatalf("Handle: %v", err)
 	}
 	if resp[0] != udsbr.SIDReadDataByIdentifier+udsbr.SIDPositiveOffset {
-		t.Errorf("response SID = 0x%02X, want positive", resp[0])
+		t.Errorf("resp[0] = %#x, want positive ReadDataByIdentifier", resp[0])
 	}
 }
 
-// REQ-UDS-007: Server.Handle returns ErrPDUTooShort for short PDUs.
-func TestServer_Handle_PDUTooShort(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
-	srv := udsbr.NewServer(inner)
-	defer srv.Close()
-
-	_, err := srv.Handle(context.Background(), []byte{0x2E})
+// TestHandle_PDUTooShort Handle returns ErrPDUTooShort for a PDU shorter
+// than 3 bytes (REQ-UDS-007).
+func TestHandle_PDUTooShort(t *testing.T) {
+	s := newHarness(t)
+	_, err := s.Handle(context.Background(), []byte{0x01, 0x02})
 	if !errors.Is(err, udsbr.ErrPDUTooShort) {
-		t.Errorf("want ErrPDUTooShort, got %v", err)
+		t.Errorf("err = %v, want ErrPDUTooShort", err)
 	}
 }
 
-// REQ-UDS-008: Server.Close prevents further Handle calls.
-func TestServer_Close(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
+// TestServer_Close_RejectsHandle Close prevents further Handle calls and is
+// idempotent (REQ-UDS-008).
+func TestServer_Close_RejectsHandle(t *testing.T) {
+	s := newHarness(t)
+	s.Close()
+	s.Close() // must not panic
 
-	srv := udsbr.NewServer(inner)
-	srv.Close()
-	srv.Close() // idempotent
-
-	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DIDRCPCommand,
-		[]byte{byte(rcp.ZoneFrontLeft), byte(rcp.CmdSet)})
-	_, err := srv.Handle(context.Background(), pdu)
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("want ErrClosed, got %v", err)
+	pdu := udsbr.BuildRequest(udsbr.SIDReadDataByIdentifier, udsbr.DataIdentifier(testAddr), nil)
+	if _, err := s.Handle(context.Background(), pdu); !errors.Is(err, udsbr.ErrClosed) {
+		t.Errorf("err = %v, want ErrClosed", err)
 	}
 }

@@ -10,231 +10,199 @@
 package someip_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net"
 	"testing"
-	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/server"
 	"github.com/SoundMatt/go-RCP/someip"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-func loopbackAddr(t *testing.T) *net.UDPAddr {
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
+
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+const testAddr = avtp.ByteBusID(1)
+
+type echoHandler struct{}
+
+func (echoHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+func newUpstream(t *testing.T) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testAddr, echoHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	srv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(clientStream(), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
+
+func mustResolve(t *testing.T) *net.UDPAddr {
 	t.Helper()
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ResolveUDPAddr: %v", err)
 	}
 	return addr
 }
 
-// REQ-SIPC-001: encodeFrame produces a valid 16-byte SOME/IP header.
-// REQ-SIPC-002: decodeFrame parses the header back correctly.
-func TestHeaderRoundTrip(t *testing.T) {
-	// We test encode/decode indirectly through Send/Server: if the server can
-	// parse what the controller sent, both encode and decode are correct.
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
+// newBridgedServer starts a someip.Server forwarding to a real upstream
+// *udp.Controller, and returns a someip.Controller dialed against it.
+func newBridgedServer(t *testing.T) *someip.Controller {
+	t.Helper()
+	upstream := newUpstream(t)
+	srv, err := someip.NewServer(upstream, mustResolve(t), someip.DefaultServiceID)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
 
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
+	c, err := someip.NewController(srv.Addr(), someip.DefaultServiceID)
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
+// TestFrame_EncodeDecode_RoundTrip a SOME/IP header/payload round-trips
+// through encode/decode via the Server/Controller wire path (REQ-SIPC-001).
+func TestFrame_EncodeDecode_RoundTrip(t *testing.T) {
+	c := newBridgedServer(t)
+	resp, err := c.Write(context.Background(), testAddr, []byte{1, 2, 3})
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if !bytes.Equal(resp.Body, []byte{1, 2, 3}) {
+		t.Errorf("Body = % X, want % X", resp.Body, []byte{1, 2, 3})
+	}
+}
+
+// TestServer_IgnoresOtherServiceID a REQUEST for a different ServiceID is
+// silently ignored (REQ-SIPC-002): exercised by dialing with a mismatched
+// serviceID and confirming the call times out rather than erroring
+// immediately, since decodeFrame itself never rejects a well-formed frame.
+func TestServer_IgnoresOtherServiceID(t *testing.T) {
+	upstream := newUpstream(t)
+	srv, err := someip.NewServer(upstream, mustResolve(t), someip.DefaultServiceID)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
 	defer func() { _ = srv.Close() }()
 
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
+	c, err := someip.NewController(srv.Addr(), someip.DefaultServiceID+1) // mismatched
 	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
 	defer func() { _ = c.Close() }()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100_000_000) // 100ms
 	defer cancel()
-
-	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Priority: rcp.PriorityNormal}
-	resp, err := c.Send(ctx, cmd)
-	if err != nil {
-		t.Fatalf("Send (header round-trip): %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("status = %v, want StatusOK", resp.Status)
+	if _, err := c.Read(ctx, testAddr); err == nil {
+		t.Error("Read with mismatched ServiceID unexpectedly succeeded")
 	}
 }
 
-// REQ-SIPC-003: Server accepts UDP requests and delegates to rcp.Controller.
-func TestServer_Dispatch(t *testing.T) {
-	dispatched := make(chan rcp.CommandType, 1)
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		dispatched <- cmd.Type
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
-
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
+// TestServer_ForwardsRequest a REQUEST is forwarded to the upstream
+// controller and its echoed body comes back in the RESPONSE (REQ-SIPC-003).
+func TestServer_ForwardsRequest(t *testing.T) {
+	c := newBridgedServer(t)
+	resp, err := c.Write(context.Background(), testAddr, []byte("hello"))
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("Write: %v", err)
 	}
-	defer func() { _ = srv.Close() }()
-
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewController: %v", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdGet}
-	if _, err := c.Send(ctx, cmd); err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	select {
-	case got := <-dispatched:
-		if got != rcp.CmdGet {
-			t.Errorf("dispatched type = %v, want CmdGet", got)
-		}
-	default:
-		t.Error("controller was not dispatched")
+	if resp.Control.Has(acf.FlagError) {
+		t.Error("Control has FlagError set, want a clean RESPONSE")
 	}
 }
 
-// REQ-SIPC-004: Server replies with a SOME/IP RESPONSE datagram.
-func TestServer_Response(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
-
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
+// TestServer_RespondsRESPONSE a request against an address with no
+// registered upstream handler comes back as a NOT_OK RESPONSE, surfaced as
+// FlagError (REQ-SIPC-004).
+func TestServer_RespondsRESPONSE(t *testing.T) {
+	c := newBridgedServer(t)
+	resp, err := c.Read(context.Background(), testAddr+1) // unregistered
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("Read: %v", err)
 	}
-	defer func() { _ = srv.Close() }()
-
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewController: %v", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err := c.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("status = %v, want StatusOK", resp.Status)
+	if !resp.Control.Has(acf.FlagError) {
+		t.Error("Control missing FlagError for an unregistered endpoint")
 	}
 }
 
-// REQ-SIPC-005: Controller.Send encodes the command and decodes the SOME/IP response.
-func TestController_Send(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
-
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
+// TestController_Read_EmptyPayloadIsRead an empty-payload Controller.Read
+// selects a read request; the echo handler still answers Body based on
+// what it was actually asked (Read has an empty body, so the upstream
+// answers empty too) (REQ-SIPC-005).
+func TestController_Read_EmptyPayloadIsRead(t *testing.T) {
+	c := newBridgedServer(t)
+	resp, err := c.Read(context.Background(), testAddr)
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("Read: %v", err)
 	}
-	defer func() { _ = srv.Close() }()
-
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewController: %v", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	for _, cmdType := range []rcp.CommandType{rcp.CmdSet, rcp.CmdGet, rcp.CmdReset} {
-		cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: cmdType}
-		resp, err := c.Send(ctx, cmd)
-		if err != nil {
-			t.Fatalf("Send(%v): %v", cmdType, err)
-		}
-		if resp.Status != rcp.StatusOK {
-			t.Errorf("Send(%v) status = %v, want StatusOK", cmdType, resp.Status)
-		}
+	if len(resp.Body) != 0 {
+		t.Errorf("Body = % X, want empty", resp.Body)
 	}
 }
 
-// REQ-SIPC-006: Controller.Send returns ErrZoneMismatch for wrong zone.
-func TestController_Send_ZoneMismatch(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
+// TestController_Write_NonEmptyPayloadIsWrite a non-empty payload selects a
+// write request whose body is exactly what was sent (REQ-SIPC-006).
+func TestController_Write_NonEmptyPayloadIsWrite(t *testing.T) {
+	c := newBridgedServer(t)
+	resp, err := c.Write(context.Background(), testAddr, []byte{0xAA})
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("Write: %v", err)
 	}
-	defer func() { _ = srv.Close() }()
-
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewController: %v", err)
-	}
-	defer func() { _ = c.Close() }()
-
-	cmd := &rcp.Command{Zone: rcp.ZoneRearLeft, Type: rcp.CmdSet}
-	_, err = c.Send(context.Background(), cmd)
-	if !errors.Is(err, rcp.ErrZoneMismatch) {
-		t.Errorf("want ErrZoneMismatch, got %v", err)
+	if !bytes.Equal(resp.Body, []byte{0xAA}) {
+		t.Errorf("Body = % X, want %X", resp.Body, []byte{0xAA})
 	}
 }
 
-// REQ-SIPC-007: Controller.Close is idempotent.
-func TestController_CloseIdempotent(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewServer: %v", err)
-	}
-	defer func() { _ = srv.Close() }()
-
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewController: %v", err)
+// TestController_Close_Idempotent Close is safe to call twice (REQ-SIPC-007).
+func TestController_Close_Idempotent(t *testing.T) {
+	c := newBridgedServer(t)
+	if err := c.Close(); err != nil {
+		t.Errorf("first Close: %v", err)
 	}
 	if err := c.Close(); err != nil {
-		t.Fatalf("first Close: %v", err)
-	}
-	if err := c.Close(); err != nil {
-		t.Fatalf("second Close: %v", err)
+		t.Errorf("second Close: %v", err)
 	}
 }
 
-// REQ-SIPC-008: Controller.Send returns ErrClosed after Close.
-func TestController_Send_AfterClose(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
-	srv, err := someip.NewServer(inner, loopbackAddr(t), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewServer: %v", err)
-	}
-	defer func() { _ = srv.Close() }()
-
-	c, err := someip.NewController(rcp.ZoneFrontLeft, srv.Addr(), someip.DefaultServiceID)
-	if err != nil {
-		t.Fatalf("NewController: %v", err)
-	}
+// TestController_Request_AfterClose Request after Close returns ErrClosed
+// (REQ-SIPC-008).
+func TestController_Request_AfterClose(t *testing.T) {
+	c := newBridgedServer(t)
 	_ = c.Close()
-
-	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet}
-	_, err = c.Send(context.Background(), cmd)
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("want ErrClosed, got %v", err)
+	if _, err := c.Read(context.Background(), testAddr); !errors.Is(err, someip.ErrClosed) {
+		t.Errorf("err = %v, want ErrClosed", err)
 	}
 }

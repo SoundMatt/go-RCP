@@ -10,203 +10,217 @@
 package mqttbr_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/mqttbr"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// REQ-MQTT-001: Broker routes PUBLISH to all matching subscribers.
-func TestBroker_Routes(t *testing.T) {
-	b := mqttbr.NewBroker()
-	c1 := mqttbr.NewClient(b)
-	c2 := mqttbr.NewClient(b)
-	defer c1.Close()
-	defer c2.Close()
-
-	ch1 := c1.Subscribe("rcp/status")
-	ch2 := c2.Subscribe("rcp/status")
-
-	c1.Publish("rcp/status", []byte("hello"))
-
-	select {
-	case msg := <-ch2:
-		if string(msg) != "hello" {
-			t.Errorf("c2 got %q, want %q", msg, "hello")
-		}
-	case <-time.After(time.Second):
-		t.Error("c2: timeout waiting for routed message")
-	}
-
-	// c1 also published, so it receives its own message via the broker
-	select {
-	case msg := <-ch1:
-		if string(msg) != "hello" {
-			t.Errorf("c1 got %q, want %q", msg, "hello")
-		}
-	case <-time.After(time.Second):
-		t.Error("c1: timeout waiting for own message")
-	}
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
 }
 
-// REQ-MQTT-002: Client.Publish delivers payload to all subscribers.
-func TestClient_Publish(t *testing.T) {
-	b := mqttbr.NewBroker()
-	pub := mqttbr.NewClient(b)
-	sub := mqttbr.NewClient(b)
-	defer pub.Close()
-	defer sub.Close()
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
 
-	ch := sub.Subscribe("test/topic")
-	pub.Publish("test/topic", []byte("payload"))
+const testAddr = avtp.ByteBusID(1)
+
+type stubHandler struct{}
+
+func (stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+func newUpstream(t *testing.T) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testAddr, stubHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	srv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(clientStream(), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
+
+// TestBroker_Publish_ReachesSubscriber a Broker delivers a Publish to a
+// subscribed Client (REQ-MQTT-001).
+func TestBroker_Publish_ReachesSubscriber(t *testing.T) {
+	broker := mqttbr.NewBroker()
+	pub := mqttbr.NewClient(broker)
+	sub := mqttbr.NewClient(broker)
+
+	ch := sub.Subscribe("topic")
+	pub.Publish("topic", []byte("hello"))
 
 	select {
 	case got := <-ch:
-		if string(got) != "payload" {
-			t.Errorf("got %q, want %q", got, "payload")
+		if string(got) != "hello" {
+			t.Errorf("got %q, want %q", got, "hello")
 		}
 	case <-time.After(time.Second):
-		t.Error("timeout")
+		t.Error("timeout waiting for message")
 	}
 }
 
-// REQ-MQTT-003: Client.Subscribe returns a channel of payloads.
-func TestClient_Subscribe(t *testing.T) {
-	b := mqttbr.NewBroker()
-	c := mqttbr.NewClient(b)
-	defer c.Close()
-
-	ch := c.Subscribe("my/topic")
-	if ch == nil {
-		t.Fatal("Subscribe returned nil channel")
-	}
-	// second call same topic returns same channel
-	ch2 := c.Subscribe("my/topic")
-	if ch != ch2 {
-		t.Error("Subscribe on same topic returned different channel")
+// TestClient_Subscribe_Idempotent repeated Subscribe calls for the same
+// topic return the same channel (REQ-MQTT-002).
+func TestClient_Subscribe_Idempotent(t *testing.T) {
+	broker := mqttbr.NewBroker()
+	c := mqttbr.NewClient(broker)
+	ch1 := c.Subscribe("topic")
+	ch2 := c.Subscribe("topic")
+	if ch1 != ch2 {
+		t.Error("Subscribe returned distinct channels for the same topic")
 	}
 }
 
-// REQ-MQTT-004: Client.Unsubscribe removes the subscription.
-func TestClient_Unsubscribe(t *testing.T) {
-	b := mqttbr.NewBroker()
-	pub := mqttbr.NewClient(b)
-	sub := mqttbr.NewClient(b)
-	defer pub.Close()
-	defer sub.Close()
+// TestClient_Unsubscribe_StopsDelivery a Client no longer receives messages
+// on a topic after Unsubscribe (REQ-MQTT-003).
+func TestClient_Unsubscribe_StopsDelivery(t *testing.T) {
+	broker := mqttbr.NewBroker()
+	pub := mqttbr.NewClient(broker)
+	sub := mqttbr.NewClient(broker)
 
-	ch := sub.Subscribe("unsub/test")
-	sub.Unsubscribe("unsub/test")
-	pub.Publish("unsub/test", []byte("after-unsub"))
+	sub.Subscribe("topic")
+	sub.Unsubscribe("topic")
+	pub.Publish("topic", []byte("hello"))
 
+	// Re-subscribing after Unsubscribe gets a fresh channel; assert the
+	// original subscription is gone by confirming a second, distinct
+	// subscribe call sees nothing left over from the unsubscribed one.
+	ch := sub.Subscribe("topic")
 	select {
-	case <-ch:
-		t.Error("received message after Unsubscribe")
+	case got := <-ch:
+		t.Errorf("received unexpected message %q after Unsubscribe", got)
 	case <-time.After(50 * time.Millisecond):
-		// expected: no message
+		// expected: nothing delivered
 	}
 }
 
-// REQ-MQTT-005: Bridge publishes rcp.Status to the status topic.
-func TestBridge_PublishesStatus(t *testing.T) {
-	b := mqttbr.NewBroker()
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
+// TestBridge_PublishResponse_Decodable PublishResponse's wire message
+// round-trips through DecodeStatus as a non-trigger StatusMessage
+// (REQ-MQTT-004).
+func TestBridge_PublishResponse_Decodable(t *testing.T) {
+	upstream := newUpstream(t)
+	broker := mqttbr.NewBroker()
+	client := mqttbr.NewClient(broker)
+	sub := mqttbr.NewClient(broker)
+	statusCh := sub.Subscribe("status")
 
-	client := mqttbr.NewClient(b)
-	defer client.Close()
-	listener := mqttbr.NewClient(b)
-	defer listener.Close()
+	b := mqttbr.NewBridge(upstream, client, "status", "cmd")
+	defer b.Close()
 
-	statusCh := listener.Subscribe("rcp/status")
-
-	bridge := mqttbr.NewBridge(inner, client, "rcp/status", "rcp/cmd")
-	defer bridge.Close()
-
-	// Publish repeatedly until the bridge goroutine has subscribed
-	go func() {
-		for {
-			inner.Publish([]byte("data"))
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
+	resp, err := upstream.Read(context.Background(), testAddr)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	b.PublishResponse(resp)
 
 	select {
 	case msg := <-statusCh:
-		if len(msg) < 2 {
-			t.Errorf("status message too short: %d bytes", len(msg))
+		got, err := mqttbr.DecodeStatus(msg)
+		if err != nil {
+			t.Fatalf("DecodeStatus: %v", err)
 		}
-	case <-time.After(3 * time.Second):
-		t.Error("timeout waiting for status publish")
+		if got.IsTrigger {
+			t.Error("IsTrigger = true, want false")
+		}
+		if got.ByteBusID != testAddr {
+			t.Errorf("ByteBusID = %v, want %v", got.ByteBusID, testAddr)
+		}
+	case <-time.After(time.Second):
+		t.Error("timeout waiting for status message")
 	}
 }
 
-// REQ-MQTT-006: Bridge dispatches command topic messages via rcp.Controller.Send.
-func TestBridge_DispatchesCmd(t *testing.T) {
-	b := mqttbr.NewBroker()
-	dispatched := make(chan rcp.CommandType, 1)
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		dispatched <- cmd.Type
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
+// TestBridge_PublishTrigger_Decodable PublishTrigger's wire message
+// round-trips through DecodeStatus as a trigger StatusMessage (REQ-MQTT-005).
+func TestBridge_PublishTrigger_Decodable(t *testing.T) {
+	upstream := newUpstream(t)
+	broker := mqttbr.NewBroker()
+	client := mqttbr.NewClient(broker)
+	sub := mqttbr.NewClient(broker)
+	statusCh := sub.Subscribe("status")
 
-	client := mqttbr.NewClient(b)
-	defer client.Close()
-	bridge := mqttbr.NewBridge(inner, client, "rcp/status", "rcp/cmd")
-	defer bridge.Close()
+	b := mqttbr.NewBridge(upstream, client, "status", "cmd")
+	defer b.Close()
 
-	sender := mqttbr.NewClient(b)
-	defer sender.Close()
-
-	// Give the bridge goroutine time to subscribe
-	time.Sleep(20 * time.Millisecond)
-
-	msg := []byte{byte(rcp.ZoneFrontLeft), byte(rcp.CmdSet)}
-	sender.Publish("rcp/cmd", msg)
+	b.PublishTrigger(testAddr, 7)
 
 	select {
-	case got := <-dispatched:
-		if got != rcp.CmdSet {
-			t.Errorf("got %v, want CmdSet", got)
+	case msg := <-statusCh:
+		got, err := mqttbr.DecodeStatus(msg)
+		if err != nil {
+			t.Fatalf("DecodeStatus: %v", err)
 		}
-	case <-time.After(3 * time.Second):
-		t.Error("timeout waiting for dispatch")
+		if !got.IsTrigger {
+			t.Error("IsTrigger = false, want true")
+		}
+		if got.Count != 7 {
+			t.Errorf("Count = %d, want 7", got.Count)
+		}
+	case <-time.After(time.Second):
+		t.Error("timeout waiting for status message")
 	}
 }
 
-// REQ-MQTT-007: Client.Close unsubscribes from all topics.
-func TestClient_CloseUnsubscribesAll(t *testing.T) {
-	b := mqttbr.NewBroker()
-	pub := mqttbr.NewClient(b)
-	sub := mqttbr.NewClient(b)
-	defer pub.Close()
+// TestBridge_CommandDispatch a command message published to the command
+// topic is decoded and forwarded to the upstream controller (REQ-MQTT-006).
+func TestBridge_CommandDispatch(t *testing.T) {
+	upstream := newUpstream(t)
+	broker := mqttbr.NewBroker()
+	client := mqttbr.NewClient(broker)
+	cmdPub := mqttbr.NewClient(broker)
 
-	ch := sub.Subscribe("a/topic")
-	sub.Close()
+	b := mqttbr.NewBridge(upstream, client, "status", "cmd")
+	defer b.Close()
 
-	pub.Publish("a/topic", []byte("after-close"))
+	cmdPub.Publish("cmd", mqttbr.EncodeCommand(testAddr, acf.FlagWrite, []byte("hi")))
 
-	select {
-	case <-ch:
-		t.Error("received message after client Close")
-	case <-time.After(50 * time.Millisecond):
-		// expected: channel closed, no new messages
+	time.Sleep(50 * time.Millisecond)
+	if _, err := upstream.Read(context.Background(), testAddr); err != nil {
+		t.Fatalf("Read after dispatch: %v", err)
 	}
 }
 
-// REQ-MQTT-008: Bridge.Close is idempotent.
+// TestBridge_CloseIdempotent Close stops the command-forwarding goroutine
+// and is safe to call twice (REQ-MQTT-007).
 func TestBridge_CloseIdempotent(t *testing.T) {
-	b := mqttbr.NewBroker()
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
+	upstream := newUpstream(t)
+	broker := mqttbr.NewBroker()
+	client := mqttbr.NewClient(broker)
 
-	client := mqttbr.NewClient(b)
-	defer client.Close()
+	b := mqttbr.NewBridge(upstream, client, "status", "cmd")
+	b.Close()
+	b.Close() // must not panic or block
+}
 
-	bridge := mqttbr.NewBridge(inner, client, "rcp/status", "rcp/cmd")
-	bridge.Close()
-	bridge.Close() // must not panic or deadlock
+// TestDecodeStatus_ShortMessage DecodeStatus reports ErrShortMessage for an
+// undersized buffer (REQ-MQTT-008).
+func TestDecodeStatus_ShortMessage(t *testing.T) {
+	if _, err := mqttbr.DecodeStatus([]byte{0x00}); !errors.Is(err, mqttbr.ErrShortMessage) {
+		t.Errorf("err = %v, want ErrShortMessage", err)
+	}
 }

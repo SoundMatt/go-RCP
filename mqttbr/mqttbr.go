@@ -1,3 +1,23 @@
+// Package mqttbr provides a pure-Go in-process MQTT-shaped cloud/telematics
+// bridge for go-RCP, for the OPEN Alliance TC18 Remote Control Protocol
+// (RCP), as described by the "OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 56 (v0.69.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, the reasoning is identical to ddsbr's — MQTT
+// cloud/telematics integration is orthogonal to TC18 RCP and stays
+// genuinely necessary, just re-pointed at the new addressing/request types
+// in place of the retired rcp.Status broadcast. See ddsbr's own package doc
+// comment for the fuller rationale (this package's Bridge mirrors ddsbr's
+// shape exactly, one MQTT topic pair standing in for ddsbr's DDS topic
+// pair): PublishResponse/PublishTrigger publish caller-supplied endpoint
+// telemetry to the MQTT status topic, while messages arriving on the
+// command topic are decoded and forwarded to an upstream *udp.Controller.
+//
+// Broker/Client are unchanged from the retired package: this in-process
+// MQTT-like machinery never depended on the retired rcp API.
+package mqttbr
+
 //fusa:req REQ-MQTT-001
 //fusa:req REQ-MQTT-002
 //fusa:req REQ-MQTT-003
@@ -7,22 +27,26 @@
 //fusa:req REQ-MQTT-007
 //fusa:req REQ-MQTT-008
 
-// Package mqttbr provides a pure-Go in-process MQTT broker bridge for go-RCP.
-//
-// Broker routes PUBLISH messages to all subscribers on a topic. Client connects
-// to a Broker and can Publish or Subscribe to topics. Bridge wires an
-// rcp.Controller to a pair of MQTT topics: rcp.Status events are published to
-// the status topic, and command payloads arriving on the command topic are
-// forwarded to the controller via Send.
-package mqttbr
-
 import (
 	"context"
+	"encoding/binary"
+	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
+
+// ErrShortMessage is returned when a command-topic message is too short to
+// contain the fixed wire header (see decodeCommand).
+var ErrShortMessage = errors.New("rcp/mqttbr: command message too short")
+
+// DefaultRequestTimeout bounds how long Bridge waits for the upstream
+// controller's response to a forwarded command message.
+const DefaultRequestTimeout = 5 * time.Second
 
 // ─── Broker ───────────────────────────────────────────────────────────────────
 
@@ -150,36 +174,151 @@ func (c *Client) Close() {
 
 // ─── Bridge ───────────────────────────────────────────────────────────────────
 
-// Bridge connects an rcp.Controller to MQTT topics via a Client.
-// Status events are published to statusTopic; messages on cmdTopic are decoded
-// as rcp.Command Zone + Type (single byte each) and dispatched via Send.
+// EncodeCommand/decodeCommand wire format for the command topic:
+// [byte_bus_id(1)][control(1)][body...].
+const commandHeaderLen = 2
+
+func EncodeCommand(addr avtp.ByteBusID, control acf.ControlFlags, body []byte) []byte {
+	out := make([]byte, commandHeaderLen+len(body))
+	out[0] = byte(addr)
+	out[1] = byte(control)
+	copy(out[commandHeaderLen:], body)
+	return out
+}
+
+func decodeCommand(msg []byte) (avtp.ByteBusID, acf.ControlFlags, []byte, error) {
+	if len(msg) < commandHeaderLen {
+		return 0, 0, nil, ErrShortMessage
+	}
+	return avtp.ByteBusID(msg[0]), acf.ControlFlags(msg[1]), msg[commandHeaderLen:], nil
+}
+
+// Status-topic message tags, distinguishing a published endpoint response
+// from a published trigger-event count on the same topic.
+const (
+	statusTagResponse uint8 = 0x00
+	statusTagTrigger  uint8 = 0x01
+)
+
+// StatusMessage is a decoded status-topic message (see DecodeStatus): either
+// an endpoint ResponseSample (IsTrigger false) or a trigger-event count
+// (IsTrigger true, Count meaningful, Control/Body/TransactionNum unused).
+type StatusMessage struct {
+	IsTrigger      bool
+	ByteBusID      avtp.ByteBusID
+	TransactionNum avtp.TransactionNum
+	Control        acf.ControlFlags
+	Body           []byte
+	Count          int
+}
+
+// responseHeaderLen is tag(1) + byte_bus_id(1) + transaction_num(2) + control(1).
+const responseHeaderLen = 5
+
+// triggerMsgLen is tag(1) + byte_bus_id(1) + count(2).
+const triggerMsgLen = 4
+
+func encodeResponseStatus(resp acf.Message) []byte {
+	out := make([]byte, responseHeaderLen+len(resp.Body))
+	out[0] = statusTagResponse
+	out[1] = byte(resp.ByteBusID)
+	binary.BigEndian.PutUint16(out[2:4], uint16(resp.TransactionNum))
+	out[4] = byte(resp.Control)
+	copy(out[responseHeaderLen:], resp.Body)
+	return out
+}
+
+func encodeTriggerStatus(source avtp.ByteBusID, count int) []byte {
+	out := make([]byte, triggerMsgLen)
+	out[0] = statusTagTrigger
+	out[1] = byte(source)
+	c := count
+	if c < 0 {
+		c = 0
+	} else if c > 0xFFFF {
+		c = 0xFFFF
+	}
+	binary.BigEndian.PutUint16(out[2:4], uint16(c)) //nolint:gosec // clamped above
+	return out
+}
+
+// DecodeStatus parses a status-topic message published by PublishResponse
+// or PublishTrigger back into a StatusMessage.
+func DecodeStatus(msg []byte) (StatusMessage, error) {
+	if len(msg) < 2 {
+		return StatusMessage{}, ErrShortMessage
+	}
+	switch msg[0] {
+	case statusTagTrigger:
+		if len(msg) != triggerMsgLen {
+			return StatusMessage{}, ErrShortMessage
+		}
+		return StatusMessage{
+			IsTrigger: true,
+			ByteBusID: avtp.ByteBusID(msg[1]),
+			Count:     int(binary.BigEndian.Uint16(msg[2:4])),
+		}, nil
+	default:
+		if len(msg) < responseHeaderLen {
+			return StatusMessage{}, ErrShortMessage
+		}
+		return StatusMessage{
+			ByteBusID:      avtp.ByteBusID(msg[1]),
+			TransactionNum: avtp.TransactionNum(binary.BigEndian.Uint16(msg[2:4])),
+			Control:        acf.ControlFlags(msg[4]),
+			Body:           append([]byte(nil), msg[responseHeaderLen:]...),
+		}, nil
+	}
+}
+
+// Bridge connects a *udp.Controller to MQTT topics via a Client:
+// PublishResponse/PublishTrigger publish caller-supplied endpoint telemetry
+// to statusTopic, while messages arriving on cmdTopic are decoded and
+// forwarded upstream as requests.
 type Bridge struct {
-	ctrl        rcp.Controller
+	upstream    *udp.Controller
 	client      *Client
 	statusTopic string
 	cmdTopic    string
+	timeout     time.Duration
 	closed      atomic.Bool
 	stop        chan struct{}
 	wg          sync.WaitGroup
 }
 
-// NewBridge creates a Bridge and starts background goroutines.
-// Call Close to stop them.
-func NewBridge(ctrl rcp.Controller, client *Client, statusTopic, cmdTopic string) *Bridge {
+// NewBridge creates a Bridge and starts the command-forwarding goroutine.
+// Call Close to stop it.
+func NewBridge(upstream *udp.Controller, client *Client, statusTopic, cmdTopic string) *Bridge {
 	b := &Bridge{
-		ctrl:        ctrl,
+		upstream:    upstream,
 		client:      client,
 		statusTopic: statusTopic,
 		cmdTopic:    cmdTopic,
+		timeout:     DefaultRequestTimeout,
 		stop:        make(chan struct{}),
 	}
-	b.wg.Add(2)
-	go b.runStatus()
+	b.wg.Add(1)
 	go b.runCmd()
 	return b
 }
 
-// Close stops the bridge goroutines and waits for them to exit. Idempotent.
+// PublishResponse publishes resp to the MQTT status topic. A caller obtains
+// resp however it likes (a direct Read/Write call, a request.Dispatcher
+// poll result, or any other source) and calls this method for every
+// response it wants fanned out to MQTT subscribers.
+func (b *Bridge) PublishResponse(resp acf.Message) {
+	b.client.Publish(b.statusTopic, encodeResponseStatus(resp))
+}
+
+// PublishTrigger publishes a trigger-event count observed on source to the
+// MQTT status topic, tagged so a subscriber decoding with DecodeStatus can
+// tell it apart from a PublishResponse message on the same topic.
+func (b *Bridge) PublishTrigger(source avtp.ByteBusID, count int) {
+	b.client.Publish(b.statusTopic, encodeTriggerStatus(source, count))
+}
+
+// Close stops the command-forwarding goroutine and waits for it to exit.
+// Idempotent.
 func (b *Bridge) Close() {
 	if !b.closed.CompareAndSwap(false, true) {
 		return
@@ -188,35 +327,8 @@ func (b *Bridge) Close() {
 	b.wg.Wait()
 }
 
-// runStatus subscribes to the controller and publishes encoded Status payloads.
-func (b *Bridge) runStatus() {
-	defer b.wg.Done()
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { <-b.stop; cancel() }()
-
-	ch, err := b.ctrl.Subscribe(ctx)
-	if err != nil {
-		return
-	}
-	for {
-		select {
-		case st, ok := <-ch:
-			if !ok {
-				return
-			}
-			msg := make([]byte, 2+len(st.Payload))
-			msg[0] = byte(st.Zone)
-			msg[1] = byte(st.Seq & 0xFF)
-			copy(msg[2:], st.Payload)
-			b.client.Publish(b.statusTopic, msg)
-		case <-b.stop:
-			return
-		}
-	}
-}
-
-// runCmd reads command messages from the MQTT topic and dispatches via Send.
-// Wire format: [zone byte][type byte][payload...].
+// runCmd reads command messages from the MQTT command topic and forwards
+// each as a request to the upstream controller.
 func (b *Bridge) runCmd() {
 	defer b.wg.Done()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -232,15 +344,13 @@ func (b *Bridge) runCmd() {
 			if !ok {
 				return
 			}
-			if len(msg) < 2 {
+			addr, control, body, err := decodeCommand(msg)
+			if err != nil {
 				continue
 			}
-			cmd := &rcp.Command{
-				Zone:    rcp.Zone(msg[0]),
-				Type:    rcp.CommandType(msg[1]),
-				Payload: msg[2:],
-			}
-			_, _ = b.ctrl.Send(ctx, cmd)
+			reqCtx, reqCancel := context.WithTimeout(ctx, b.timeout)
+			_, _ = b.upstream.Request(reqCtx, addr, control, body)
+			reqCancel()
 		}
 	}
 }

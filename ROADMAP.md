@@ -591,7 +591,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue rebuilt against the new model; e2e retired in favour of crcsafe ✅ |
 | **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire retired (no successor), udp rebuilt on avtp/acf, tsn/shmem/loan adapted; mdns's role narrowed to an optional rendezvous helper; tlstransport deprecated ✅ |
 | **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata all re-keyed off avtp.StreamID/avtp.ByteBusID and re-pointed at *udp.Controller/udp.Router ✅ |
-| **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge |
+| **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge all re-pointed at *udp.Controller/udp.Router; canbr/linbr narrow around the native can/lin endpoints, linbr absorbing PID/checksum/schedule-table logic client-side ✅ |
 | **Satellite Migration** | v0.70.0 | Tooling & test-double rebuild | mock, sim, capi, codegen, record, observe, faultinject, firmware |
 | **Satellite Migration** | v0.71.0 | Certification refresh | formal, iso21434, certgap, safety re-scoped to the new state machines and attack surface |
 | **Cutover** | v1.0.0 | TC18 conformance + RELAY re-certification | Legacy Zone/Command API removed; RELAY `Adapt`/golden-vectors/CLI re-satisfied against the new model |
@@ -1471,13 +1471,69 @@ occasional "no successor family" retirements. 100% traced and tested per
 of the nine outside their own test files, so no additional call sites
 needed updating.
 
-### 56. Protocol Bridge Adaptation (v0.69.0)
+### 56. Protocol Bridge Adaptation (v0.69.0) ✅
 
 - Adapt `canbr`, `linbr`, `ddsbr`, `mqttbr`, `someip`, `udsbr`, `doipbr`,
   `grpcbridge`, `restbridge` per the table above
 - `canbr`/`linbr` specifically need to absorb frame-level logic (LIN
   PID/checksum/schedule tables in particular) that the native endpoints
   deliberately don't provide (Phase 16)
+
+**Done (v0.69.0):** all nine ADAPT-flagged bridge packages this milestone
+names are rebuilt against the TC18 model, each following its own
+disposition-table rationale:
+
+- **`canbr` narrows to a `can.Frame`-typed ergonomics wrapper**: `Controller`
+  wraps a `*udp.Controller` addressing a declared `can.Endpoint`
+  (Milestone 51) and calls through to `can.EncodeFrame`/`can.DecodeFrame`
+  rather than reimplementing framing — the retired package's bespoke
+  13-byte frame format and in-process `Bus` are gone, since the native
+  `can` package's own `Transport` interface already covers bus simulation.
+- **`linbr` absorbs the frame-level logic `lin.Endpoint` deliberately
+  doesn't provide (Milestone 51)**: it now owns protected-identifier
+  parity, LIN classic/enhanced checksum computation and verification, and
+  a round-robin `ScheduleTable`, entirely client-side, layered on top of
+  the native `lin.Endpoint`'s raw byte pass-through transfer request/
+  response.
+- **`ddsbr`/`mqttbr` stay genuinely necessary** (DDS/MQTT fan-out is not
+  something TC18 RCP does natively), re-pointed at caller-driven
+  `PublishResponse`/`PublishTrigger` calls in place of the retired
+  `rcp.Controller.Subscribe`/`rcp.Status` broadcast — TC18 has no native
+  server-push broadcast to subscribe to (Phase 13's "no server-side safety
+  net" framing), so telemetry publication becomes caller-driven, mirroring
+  `request.Dispatcher`'s own `TriggerPump` posture.
+- **`someip` re-points at endpoint requests/responses**: a SOME/IP
+  `MethodID`'s low byte now addresses an `avtp.ByteBusID` directly, and a
+  REQUEST's Read/Write intent is inferred from whether its payload is
+  empty (this package's own free design choice for a bridge protocol the
+  specification itself does not define an RCP mapping for).
+- **`udsbr`/`doipbr` re-point at the new request/response types**: a UDS
+  `DataIdentifier`'s low byte addresses an `avtp.ByteBusID` directly, in
+  place of the retired fixed `DIDRCPCommand`/`DIDRCPStatus` pair (TC18's
+  addressing model has no single global command/status endpoint to pin a
+  well-known DID to); `doipbr`'s own TCP framing needed no code changes,
+  since it only ever depended on `udsbr`, not the retired `rcp` API
+  directly. `udsbr` remains flagged as a candidate transport for the
+  `firmware` package's chunked-transfer needs (Milestone 57).
+- **`grpcbridge`/`restbridge` re-point at the new Controller-equivalent
+  interface**: both `Server` types now wrap a `*udp.Controller` directly
+  (the same "wrap the concrete transport type" precedent Milestone 54
+  established), and both `Controller` types present the same
+  Request/Read/Write surface a `*udp.Controller` does. Neither protocol has
+  a native way to express TC18's request/response model as a push
+  broadcast, so both gained a caller-driven `PublishTelemetry`/Subscribe
+  pair mirroring `ddsbr`/`mqttbr`'s own posture, in place of the retired
+  `rcp.Status` streaming subscription.
+
+73 `//fusa:req`/`//fusa:test`-tagged requirements are rewritten in place
+under their original prefixes (`REQ-CAN-*`, `REQ-LIN-*`, `REQ-DDS-*`,
+`REQ-MQTT-*`, `REQ-SIPC-*`, `REQ-UDS-*`, `REQ-DOIP-*`, `REQ-GRPC-*`,
+`REQ-REST-*`) — the same "rewrite in place rather than renumber" precedent
+Milestones 53/55 established — since every one of the nine packages keeps
+its original name and role; none are added or dropped. 100% traced and
+tested per `gofusa check`/`gofusa trace`. No other package in this repo
+imported any of the nine outside their own test files, so no additional
+call sites needed updating.
 
 ### 57. Tooling & Test-Double Rebuild (v0.70.0)
 

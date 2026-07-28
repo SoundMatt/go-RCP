@@ -1,3 +1,30 @@
+// Package ddsbr provides a DDS (Data Distribution Service) publish-subscribe
+// telemetry bridge for go-RCP, for the OPEN Alliance TC18 Remote Control
+// Protocol (RCP), as described by the "OPEN Alliance TC18 Remote Control
+// Protocol Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 56 (v0.69.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, DDS pub/sub telemetry fan-out is not
+// something TC18 RCP does natively, so this bridge remains genuinely
+// necessary — unlike canbr/linbr, it does not narrow into a thin wrapper
+// around a native endpoint type. What does change is what it fans out: the
+// retired package's Bridge subscribed directly to an rcp.Controller's own
+// Subscribe method and republished each incoming rcp.Status. This
+// milestone's addressing model has no equivalent native broadcast (see
+// ROADMAP.md's Phase 13 framing, "no server-side safety net"): a
+// *udp.Controller only ever answers a request it itself sent. So telemetry
+// publication becomes caller-driven, PublishResponse/PublishTrigger calls a
+// caller makes as it obtains endpoint responses (a direct Read/Write, a
+// request.Dispatcher poll result, or a native trigger drain) by whatever
+// means it already does — the same "caller supplies the polling loop"
+// posture request.Dispatcher's own TriggerPump already establishes for this
+// repo (see request/dispatcher.go).
+//
+// The Domain/Topic/DataWriter/DataReader publish-subscribe machinery below
+// is unchanged from the retired package: it never depended on the retired
+// rcp API in the first place, so it needed no rebuild of its own.
+package ddsbr
+
 //fusa:req REQ-DDS-001
 //fusa:req REQ-DDS-002
 //fusa:req REQ-DDS-003
@@ -7,31 +34,26 @@
 //fusa:req REQ-DDS-007
 //fusa:req REQ-DDS-008
 
-// Package ddsbr provides a DDS (Data Distribution Service) bridge for go-RCP.
-//
-// DDS is the publish-subscribe middleware used by AUTOSAR Adaptive and
-// ROS 2 for real-time data distribution. This package implements a pure-Go
-// in-process DDS domain so rcp.Status updates can be published to DDS topics
-// and DDS command samples can be forwarded to an rcp.Controller.
-//
-// Domain manages named Topics. DataWriter writes typed samples to a Topic;
-// DataReader receives them. Bridge wires a pair of Topics to an rcp.Controller:
-// status events flow from the controller to the status topic, while command
-// samples arriving on the command topic are dispatched via the controller.
-package ddsbr
-
 import (
 	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
 // ErrTopicNotFound is returned when a topic name is not registered in the domain.
 var ErrTopicNotFound = errors.New("rcp/ddsbr: topic not found")
+
+// DefaultRequestTimeout bounds how long Bridge waits for the upstream
+// controller's response to a forwarded command sample, since a DDS sample
+// carries no per-call context of its own.
+const DefaultRequestTimeout = 5 * time.Second
 
 // ─── Domain / Topic ───────────────────────────────────────────────────────────
 
@@ -144,88 +166,114 @@ func (r *DataReader) Close() { r.topic.unsubscribe(r.ch) }
 
 // ─── Bridge ───────────────────────────────────────────────────────────────────
 
-// Bridge connects an rcp.Controller to DDS topics.
-// Status events from the controller are published to statusWriter.
-// Samples from cmdReader are dispatched via the controller's Send method.
-type Bridge struct {
-	ctrl         rcp.Controller
-	statusWriter *DataWriter
-	cmdReader    *DataReader
-	closed       atomic.Bool
-	stopStatus   chan struct{}
-	stopCmd      chan struct{}
-	wg           sync.WaitGroup
+// ResponseSample is a telemetry sample published for one endpoint response
+// (see Bridge.PublishResponse).
+type ResponseSample struct {
+	ByteBusID      avtp.ByteBusID
+	TransactionNum avtp.TransactionNum
+	Control        acf.ControlFlags
+	Body           []byte
 }
 
-// NewBridge creates a Bridge and starts background goroutines.
-// Call Bridge.Close to shut them down.
-func NewBridge(ctrl rcp.Controller, statusWriter *DataWriter, cmdReader *DataReader) *Bridge {
+// TriggerSample is a telemetry sample published for a trigger-event count
+// observed on source (see Bridge.PublishTrigger, and request.TriggerPump for
+// the shape a caller typically drains this from).
+type TriggerSample struct {
+	ByteBusID avtp.ByteBusID
+	Count     int
+}
+
+// CommandSample is a DDS command sample a Bridge forwards to its upstream
+// controller as one plain request.
+type CommandSample struct {
+	ByteBusID avtp.ByteBusID
+	Control   acf.ControlFlags
+	Body      []byte
+}
+
+// Bridge connects a *udp.Controller to DDS topics: PublishResponse/
+// PublishTrigger fan out caller-supplied endpoint telemetry to
+// telemetryWriter, while CommandSamples arriving on cmdReader are forwarded
+// upstream as requests.
+type Bridge struct {
+	upstream        *udp.Controller
+	telemetryWriter *DataWriter
+	cmdReader       *DataReader
+	timeout         time.Duration
+	closed          atomic.Bool
+	stop            chan struct{}
+	wg              sync.WaitGroup
+}
+
+// NewBridge creates a Bridge forwarding CommandSamples from cmdReader to
+// upstream, and publishing telemetry to telemetryWriter. Call Bridge.Close
+// to stop the command-forwarding goroutine.
+func NewBridge(upstream *udp.Controller, telemetryWriter *DataWriter, cmdReader *DataReader) *Bridge {
 	b := &Bridge{
-		ctrl:         ctrl,
-		statusWriter: statusWriter,
-		cmdReader:    cmdReader,
-		stopStatus:   make(chan struct{}),
-		stopCmd:      make(chan struct{}),
+		upstream:        upstream,
+		telemetryWriter: telemetryWriter,
+		cmdReader:       cmdReader,
+		timeout:         DefaultRequestTimeout,
+		stop:            make(chan struct{}),
 	}
-	b.wg.Add(2)
-	go b.runStatus()
+	b.wg.Add(1)
 	go b.runCmd()
 	return b
 }
 
-// Close stops the background goroutines and waits for them to exit.
+// PublishResponse publishes resp as a ResponseSample to the telemetry
+// topic. A caller obtains resp however it likes — a direct Read/Write call
+// against upstream, a request.Dispatcher.Response poll, or any other
+// source — and calls this method for every response it wants fanned out to
+// DDS subscribers.
+func (b *Bridge) PublishResponse(resp acf.Message) {
+	b.telemetryWriter.Write(ResponseSample{
+		ByteBusID:      resp.ByteBusID,
+		TransactionNum: resp.TransactionNum,
+		Control:        resp.Control,
+		Body:           resp.Body,
+	})
+}
+
+// PublishTrigger publishes a TriggerSample reporting count new trigger
+// events observed on source to the telemetry topic.
+func (b *Bridge) PublishTrigger(source avtp.ByteBusID, count int) {
+	b.telemetryWriter.Write(TriggerSample{ByteBusID: source, Count: count})
+}
+
+// Close stops the command-forwarding goroutine and waits for it to exit.
 // Idempotent.
 func (b *Bridge) Close() {
 	if !b.closed.CompareAndSwap(false, true) {
 		return
 	}
-	close(b.stopStatus)
-	close(b.stopCmd)
+	close(b.stop)
 	b.wg.Wait()
 }
 
-// runStatus subscribes to the controller and publishes Status samples.
-func (b *Bridge) runStatus() {
-	defer b.wg.Done()
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { <-b.stopStatus; cancel() }()
-
-	ch, err := b.ctrl.Subscribe(ctx)
-	if err != nil {
-		return
-	}
-	for {
-		select {
-		case st, ok := <-ch:
-			if !ok {
-				return
-			}
-			b.statusWriter.Write(st)
-		case <-b.stopStatus:
-			return
-		}
-	}
-}
-
-// runCmd reads command samples from the DDS reader and calls Send.
+// runCmd reads CommandSamples from cmdReader and forwards each as a plain
+// request to the upstream controller.
 func (b *Bridge) runCmd() {
 	defer b.wg.Done()
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { <-b.stopCmd; cancel() }()
+	go func() { <-b.stop; cancel() }()
 	defer cancel()
+
 	for {
 		select {
-		case <-b.stopCmd:
+		case <-b.stop:
 			return
 		case sample, ok := <-b.cmdReader.Read():
 			if !ok {
 				return
 			}
-			cmd, ok := sample.(*rcp.Command)
+			cs, ok := sample.(CommandSample)
 			if !ok {
 				continue
 			}
-			_, _ = b.ctrl.Send(ctx, cmd)
+			reqCtx, reqCancel := context.WithTimeout(ctx, b.timeout)
+			_, _ = b.upstream.Request(reqCtx, cs.ByteBusID, cs.Control, cs.Body)
+			reqCancel()
 		}
 	}
 }

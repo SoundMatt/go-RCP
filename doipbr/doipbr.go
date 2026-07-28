@@ -9,12 +9,23 @@
 //fusa:req REQ-DOIP-009
 
 // Package doipbr provides a DoIP (Diagnostics over IP, ISO 13400) bridge
-// for go-RCP.
+// for go-RCP, for the OPEN Alliance TC18 Remote Control Protocol (RCP), as
+// described by the "OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 56 (v0.69.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, the reasoning is identical to udsbr's — DoIP
+// tunnels the same UDS diagnostic PDUs udsbr already re-points at endpoint
+// requests/responses (see udsbr's own package doc comment), and this
+// package's own TCP framing around those PDUs never referenced the retired
+// rcp API directly. Its embedded *udsbr.Server now forwards to an upstream
+// *udp.Controller rather than an rcp.Controller — a change entirely
+// contained within udsbr, requiring no code changes here.
 //
 // DoIP allows diagnostic tools to communicate with automotive ECUs over
 // standard IP networks. This package implements an in-process DoIP server
-// over TCP that tunnels UDS payloads from a diagnostic client to an
-// rcp.Controller via the udsbr layer.
+// over TCP that tunnels UDS payloads from a diagnostic client to the
+// embedded udsbr.Server.
 //
 // DoIP message header (ISO 13400-2):
 //

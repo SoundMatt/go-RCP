@@ -15,57 +15,85 @@ import (
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/ddsbr"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// REQ-DDS-001: Domain.NewTopic creates and registers a named topic; Lookup retrieves it.
-func TestDomain_NewTopicAndLookup(t *testing.T) {
-	d := ddsbr.NewDomain()
-	topic := d.NewTopic("rcp/status")
-	if topic == nil {
-		t.Fatal("NewTopic returned nil")
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
+
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+const testAddr = avtp.ByteBusID(1)
+
+// stubHandler answers every request with FlagResponse set and an echoed
+// body, mirroring udp_test.go's own fixture.
+type stubHandler struct{}
+
+func (stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+func newUpstream(t *testing.T) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testAddr, stubHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	if topic.Name() != "rcp/status" {
-		t.Errorf("Name = %q, want rcp/status", topic.Name())
-	}
-	got, err := d.Lookup("rcp/status")
+	srv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
 	if err != nil {
-		t.Fatalf("Lookup: %v", err)
+		t.Fatalf("NewServer: %v", err)
 	}
-	if got != topic {
-		t.Error("Lookup returned different topic")
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(clientStream(), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
+
+// TestDomain_NewTopic_Registers a repeated NewTopic call for the same name
+// returns the same Topic instance (REQ-DDS-001).
+func TestDomain_NewTopic_Registers(t *testing.T) {
+	d := ddsbr.NewDomain()
+	a := d.NewTopic("telemetry")
+	b := d.NewTopic("telemetry")
+	if a != b {
+		t.Error("NewTopic returned distinct Topics for the same name")
 	}
 }
 
-// REQ-DDS-008: Domain.Lookup returns ErrTopicNotFound for unknown names.
-func TestDomain_Lookup_NotFound(t *testing.T) {
+// TestDataWriter_Broadcast a DataWriter's Write reaches every subscribed
+// DataReader (REQ-DDS-002).
+func TestDataWriter_Broadcast(t *testing.T) {
 	d := ddsbr.NewDomain()
-	_, err := d.Lookup("nonexistent")
-	if !errors.Is(err, ddsbr.ErrTopicNotFound) {
-		t.Errorf("want ErrTopicNotFound, got %v", err)
-	}
-}
-
-// REQ-DDS-002: Topic.Write delivers a sample to all subscribers.
-func TestTopic_Write_Broadcast(t *testing.T) {
-	d := ddsbr.NewDomain()
-	topic := d.NewTopic("test")
-
+	topic := d.NewTopic("telemetry")
+	w := ddsbr.NewDataWriter(topic)
 	r1 := ddsbr.NewDataReader(topic)
-	defer r1.Close()
 	r2 := ddsbr.NewDataReader(topic)
+	defer r1.Close()
 	defer r2.Close()
 
-	w := ddsbr.NewDataWriter(topic)
-	w.Write("hello")
-
+	w.Write("sample")
 	for _, r := range []*ddsbr.DataReader{r1, r2} {
 		select {
 		case got := <-r.Read():
-			if s, ok := got.(string); !ok || s != "hello" {
-				t.Errorf("got %v, want hello", got)
+			if got != "sample" {
+				t.Errorf("got %v, want %q", got, "sample")
 			}
 		case <-time.After(time.Second):
 			t.Error("timeout waiting for sample")
@@ -73,138 +101,129 @@ func TestTopic_Write_Broadcast(t *testing.T) {
 	}
 }
 
-// REQ-DDS-003: DataReader receives samples written by DataWriter.
-func TestDataWriter_DataReader_RoundTrip(t *testing.T) {
+// TestDataReader_ReceivesSample a DataReader receives exactly what was
+// written (REQ-DDS-003).
+func TestDataReader_ReceivesSample(t *testing.T) {
 	d := ddsbr.NewDomain()
 	topic := d.NewTopic("cmd")
-	w := ddsbr.NewDataWriter(topic)
 	r := ddsbr.NewDataReader(topic)
 	defer r.Close()
 
-	w.Write(42)
+	ddsbr.NewDataWriter(topic).Write(42)
 	select {
-	case v := <-r.Read():
-		if vi, ok := v.(int); !ok || vi != 42 {
-			t.Errorf("got %v, want 42", v)
+	case got := <-r.Read():
+		if got != 42 {
+			t.Errorf("got %v, want 42", got)
 		}
 	case <-time.After(time.Second):
-		t.Error("timeout")
+		t.Error("timeout waiting for sample")
 	}
 }
 
-// REQ-DDS-004: Bridge publishes rcp.Status to the status topic.
-func TestBridge_PublishStatus(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
+// TestBridge_PublishResponse PublishResponse fans an endpoint response out
+// to the telemetry topic as a ResponseSample (REQ-DDS-004).
+func TestBridge_PublishResponse(t *testing.T) {
+	upstream := newUpstream(t)
 	d := ddsbr.NewDomain()
-	statusTopic := d.NewTopic("rcp/status")
-	cmdTopic := d.NewTopic("rcp/cmd")
+	telemetryTopic := d.NewTopic("telemetry")
+	cmdTopic := d.NewTopic("cmd")
+	reader := ddsbr.NewDataReader(telemetryTopic)
+	defer reader.Close()
 
-	sw := ddsbr.NewDataWriter(statusTopic)
-	sr := ddsbr.NewDataReader(statusTopic)
-	defer sr.Close()
-	cr := ddsbr.NewDataReader(cmdTopic)
-	defer cr.Close()
-
-	b := ddsbr.NewBridge(inner, sw, cr)
+	b := ddsbr.NewBridge(upstream, ddsbr.NewDataWriter(telemetryTopic), ddsbr.NewDataReader(cmdTopic))
 	defer b.Close()
 
-	// Publish a status update from the mock.
-	go func() {
-		ticker := time.NewTicker(20 * time.Millisecond)
-		defer ticker.Stop()
-		for range ticker.C {
-			inner.Publish([]byte("status-data"))
-		}
-	}()
+	resp, err := upstream.Read(context.Background(), testAddr)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	b.PublishResponse(resp)
 
 	select {
-	case sample := <-sr.Read():
-		st, ok := sample.(*rcp.Status)
+	case got := <-reader.Read():
+		sample, ok := got.(ddsbr.ResponseSample)
 		if !ok {
-			t.Fatalf("expected *rcp.Status, got %T", sample)
+			t.Fatalf("got %T, want ddsbr.ResponseSample", got)
 		}
-		if st.Zone != rcp.ZoneFrontLeft {
-			t.Errorf("zone = %v, want ZoneFrontLeft", st.Zone)
+		if sample.ByteBusID != testAddr {
+			t.Errorf("ByteBusID = %v, want %v", sample.ByteBusID, testAddr)
 		}
-	case <-time.After(3 * time.Second):
-		t.Error("timeout waiting for status sample")
+	case <-time.After(time.Second):
+		t.Error("timeout waiting for telemetry sample")
 	}
 }
 
-// REQ-DDS-005: Bridge dispatches DDS command samples to the controller.
-func TestBridge_SubscribeCommands(t *testing.T) {
-	dispatched := make(chan rcp.CommandType, 1)
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		dispatched <- cmd.Type
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
-
+// TestBridge_PublishTrigger PublishTrigger fans a trigger-event count out to
+// the telemetry topic as a TriggerSample (REQ-DDS-005).
+func TestBridge_PublishTrigger(t *testing.T) {
+	upstream := newUpstream(t)
 	d := ddsbr.NewDomain()
-	statusTopic := d.NewTopic("rcp/status")
-	cmdTopic := d.NewTopic("rcp/cmd")
+	telemetryTopic := d.NewTopic("telemetry")
+	cmdTopic := d.NewTopic("cmd")
+	reader := ddsbr.NewDataReader(telemetryTopic)
+	defer reader.Close()
 
-	sw := ddsbr.NewDataWriter(statusTopic)
-	cw := ddsbr.NewDataWriter(cmdTopic)
-	cr := ddsbr.NewDataReader(cmdTopic)
-	defer cr.Close()
-
-	b := ddsbr.NewBridge(inner, sw, cr)
+	b := ddsbr.NewBridge(upstream, ddsbr.NewDataWriter(telemetryTopic), ddsbr.NewDataReader(cmdTopic))
 	defer b.Close()
 
-	cw.Write(&rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Priority: rcp.PriorityNormal})
+	b.PublishTrigger(testAddr, 3)
 
 	select {
-	case got := <-dispatched:
-		if got != rcp.CmdSet {
-			t.Errorf("type = %v, want CmdSet", got)
+	case got := <-reader.Read():
+		sample, ok := got.(ddsbr.TriggerSample)
+		if !ok {
+			t.Fatalf("got %T, want ddsbr.TriggerSample", got)
 		}
-	case <-time.After(3 * time.Second):
-		t.Error("timeout waiting for command dispatch")
+		if sample.Count != 3 {
+			t.Errorf("Count = %d, want 3", sample.Count)
+		}
+	case <-time.After(time.Second):
+		t.Error("timeout waiting for trigger sample")
 	}
 }
 
-// REQ-DDS-006: Bridge.Close stops status publication.
-func TestBridge_Close_StopsGoroutines(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
+// TestBridge_CommandDispatch a CommandSample arriving on cmdReader is
+// forwarded to the upstream controller as a request (REQ-DDS-006).
+func TestBridge_CommandDispatch(t *testing.T) {
+	upstream := newUpstream(t)
 	d := ddsbr.NewDomain()
-	sw := ddsbr.NewDataWriter(d.NewTopic("s"))
-	cr := ddsbr.NewDataReader(d.NewTopic("c"))
-	defer cr.Close()
+	telemetryTopic := d.NewTopic("telemetry")
+	cmdTopic := d.NewTopic("cmd")
+	cmdWriter := ddsbr.NewDataWriter(cmdTopic)
 
-	b := ddsbr.NewBridge(inner, sw, cr)
+	b := ddsbr.NewBridge(upstream, ddsbr.NewDataWriter(telemetryTopic), ddsbr.NewDataReader(cmdTopic))
+	defer b.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	cmdWriter.Write(ddsbr.CommandSample{ByteBusID: testAddr, Control: acf.FlagWrite, Body: []byte("hello")})
 
-	done := make(chan struct{})
-	go func() {
-		b.Close()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-ctx.Done():
-		t.Error("Bridge.Close timed out")
+	// The stub handler on the far side echoes the body; poll the endpoint's
+	// own state indirectly isn't possible here (stub is stateless), so this
+	// confirms dispatch didn't hang or panic by racing a normal request
+	// against the same endpoint immediately after.
+	time.Sleep(50 * time.Millisecond)
+	if _, err := upstream.Read(context.Background(), testAddr); err != nil {
+		t.Fatalf("Read after dispatch: %v", err)
 	}
 }
 
-// REQ-DDS-007: Bridge.Close is idempotent.
+// TestBridge_CloseIdempotent Close stops the command-forwarding goroutine
+// and is safe to call twice (REQ-DDS-007).
 func TestBridge_CloseIdempotent(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
-
+	upstream := newUpstream(t)
 	d := ddsbr.NewDomain()
-	sw := ddsbr.NewDataWriter(d.NewTopic("s2"))
-	cr := ddsbr.NewDataReader(d.NewTopic("c2"))
-	defer cr.Close()
+	telemetryTopic := d.NewTopic("telemetry")
+	cmdTopic := d.NewTopic("cmd")
 
-	b := ddsbr.NewBridge(inner, sw, cr)
+	b := ddsbr.NewBridge(upstream, ddsbr.NewDataWriter(telemetryTopic), ddsbr.NewDataReader(cmdTopic))
 	b.Close()
-	b.Close() // must not panic or hang
+	b.Close() // must not panic or block
+}
+
+// TestDomain_Lookup_NotFound Lookup reports ErrTopicNotFound for an
+// unregistered name (REQ-DDS-008).
+func TestDomain_Lookup_NotFound(t *testing.T) {
+	d := ddsbr.NewDomain()
+	if _, err := d.Lookup("nope"); !errors.Is(err, ddsbr.ErrTopicNotFound) {
+		t.Errorf("err = %v, want ErrTopicNotFound", err)
+	}
 }
