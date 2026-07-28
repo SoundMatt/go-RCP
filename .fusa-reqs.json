@@ -4983,6 +4983,102 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-001",
+      "title": "Split leaves a small message unchanged and rejects invalid input",
+      "text": "fragment.Split shall return the given Message unchanged as a single-element slice when its Body already fits within maxBody, shall return ErrInvalidMaxSegmentBody for a non-positive maxBody, ErrAlreadyFragmented when the Message already carries avtp.FlagMoreSegments, and ErrTooManySegments when the Body would require more non-terminal segments than the wire's 16-bit segment-number field can represent.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-002",
+      "title": "Split's segments carry correct sequencing and shared descriptor fields, and losslessly reconstruct the original Body",
+      "text": "fragment.Split shall set avtp.FlagMoreSegments and a 0-based ReadSizeOrSegment segment number on every segment but the last, shall clear avtp.FlagMoreSegments and restore the original ReadSizeOrSegment value on the last segment, shall preserve Kind/ByteBusID/TransactionNum/Timestamp verbatim across every segment, and the ascending-order concatenation of every segment's Body shall equal the original Body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-003",
+      "title": "Reassembler.Add treats an unfragmented message as an immediately complete sequence",
+      "text": "fragment.Reassembler.Add shall report a Message with avtp.FlagMoreSegments clear, addressed to a Key with no prior buffered segments, as immediately complete, and fragment.Reassembler.Finish shall then return that Message's own Body and descriptor fields unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-004",
+      "title": "Reassembler.Add enforces strict in-order non-terminal segment numbering and tolerates exact-duplicate retransmissions",
+      "text": "fragment.Reassembler.Add shall return ErrOutOfOrderSegment (abandoning the sequence) when a non-terminal segment's own segment number does not equal the sequence's next expected index, shall silently accept a byte-for-byte repeat of the most recently accepted segment or of an already-completed sequence's terminal segment as a no-op, and shall return ErrDuplicateSegment (abandoning the sequence) for a same-numbered segment whose Body differs from the one already buffered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-005",
+      "title": "Reassembler.Add enforces shared descriptor-field consistency across one sequence's segments",
+      "text": "fragment.Reassembler.Add shall return ErrHeaderMismatch, abandoning the sequence, when a later segment's Kind, Timestamp, or Control (apart from avtp.FlagMoreSegments) disagrees with the first segment already buffered for the same Key.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-006",
+      "title": "Reassembler.Add enforces Config.MaxSegments",
+      "text": "fragment.Reassembler.Add shall return ErrTooManySegments, abandoning the sequence, when accepting a segment would cause an in-progress sequence's buffered segment count to exceed its configured Config.MaxSegments.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-007",
+      "title": "Reassembler.Finish returns the exact concatenation of accepted segments once complete",
+      "text": "fragment.Reassembler.Finish shall return the ascending-order concatenation of every segment Body accepted for a completed sequence's Key together with that sequence's shared descriptor fields, shall return ErrIncomplete for a Key whose sequence has not yet received its terminal segment, and ErrUnknownSequence for a Key naming no sequence this Reassembler currently holds.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-008",
+      "title": "Sweep purges only stale, incomplete sequences",
+      "text": "fragment.Reassembler.Sweep shall purge and report the Key of every incomplete sequence that has not accepted a new segment within the configured Config.Timeout, and shall never purge a sequence that has already received its terminal segment regardless of age.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-009",
+      "title": "FinishProtected verifies a fragmented message's CRC32 safe point via crcsafe.ComputeFragmented",
+      "text": "fragment.Reassembler.FinishProtected shall recompute the trailing CRC32 safe point of a completed sequence's terminal segment via crcsafe.ComputeFragmented over the sequence's own per-segment Body slices, returning the reassembled Message with that field stripped on a match, wrapping crcsafe.ErrCRCMismatch on a mismatch, and returning crcsafe.ErrShortSafePoint when the terminal segment's Body is too short to contain one — matching what crcsafe.Verify computes for the same logical message sent unfragmented.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-010",
+      "title": "Gateway.Submit reassembles a fragmented request before admitting it to the wrapped request.Dispatcher",
+      "text": "fragment.Gateway.Submit shall pass an unfragmented Message directly to the wrapped Submitter's Submit method, shall return ErrAwaitingSegments with no ticket admitted for a non-terminal segment of an in-progress sequence, and shall call Submit exactly once with the fully reassembled Message once a sequence's terminal segment arrives.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-011",
+      "title": "Gateway.Response splits a too-large resolved response",
+      "text": "fragment.Gateway.Response shall return an unchanged single-element slice for a Message whose Body already fits within the configured MaxSegmentBody, and shall otherwise split it per fragment.Split's own segmenting rule.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FRAG-012",
+      "title": "Fragment golden vectors pin the frozen segment wire byte layout",
+      "text": "fragment.Split, combined with avtp.EncodeMessage, shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative multi-segment input, and decoding those frozen bytes back through fragment.Reassembler shall reconstruct the original Body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
