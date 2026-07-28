@@ -4359,6 +4359,174 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-001",
+      "title": "Kind.Valid and IsCancellation recognize exactly the defined values",
+      "text": "request.Kind.Valid shall return true for exactly the eight non-plain Kind constants (KindCompound through KindCancelSequencer) and false for KindPlain and any value at or beyond the sentinel; request.Kind.IsCancellation shall return true for exactly KindCancelAll, KindCancelTransaction, and KindCancelSequencer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-002",
+      "title": "Kind.Priority implements the fixed cross-type execution-priority ordering",
+      "text": "request.Kind.Priority shall rank the three cancellation variants equally and ahead of every other Kind, followed in order by KindChained, KindTriggered, KindTimed, KindCompoundWait, KindCompound, and KindPlain last.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-003",
+      "title": "CompareOp.Evaluate and Valid implement the six comparison operators",
+      "text": "request.CompareOp.Evaluate shall correctly implement equal/not-equal/less/less-or-equal/greater/greater-or-equal for its six defined values, and CompareOp.Valid shall return false for any value at or beyond the sentinel.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-004",
+      "title": "Sequencer registers wrap on Advance and only advance on a matched Conditional",
+      "text": "request.Sequencer.Advance shall add its delta modulo 2^32 (wrapping rather than saturating), each SequencerID shall address an independent register starting at zero, and evaluating a Conditional shall advance its register only when the comparison holds.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-005",
+      "title": "Compound/CompoundWait envelopes round-trip through Encode/Decode",
+      "text": "request.EncodeCompound/DecodeCompound and EncodeCompoundWait/DecodeCompoundWait shall round-trip a Conditional and (for Compound) an inner Control/Body, PeekKind shall report the leading Kind byte without consuming the rest of the buffer, and each decoder shall reject a short buffer, trailing bytes, or a mismatched Kind tag.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-006",
+      "title": "Triggered/Timed envelopes round-trip through Encode/Decode",
+      "text": "request.EncodeTriggered/DecodeTriggered and EncodeTimed/DecodeTimed shall round-trip their trigger source or target execution time alongside an inner Control/Body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-007",
+      "title": "Cancellation envelopes and responses round-trip through Encode/Decode",
+      "text": "request.EncodeCancelAll/DecodeCancelAll, EncodeCancelTransaction/DecodeCancelTransaction, and EncodeCancelSequencer/DecodeCancelSequencer shall round-trip their scope, and EncodeConditionalResponse/DecodeConditionalResponse and EncodeCancelResponse/DecodeCancelResponse shall round-trip their result payloads.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-008",
+      "title": "Chained request envelopes round-trip through Encode/Decode",
+      "text": "request.EncodeChained/DecodeChained shall round-trip an ordered list of ChainedSegment values, reject zero segments, and reject a truncated buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-009",
+      "title": "Chained response bodies preserve fail-fast abort information",
+      "text": "request.EncodeChainedResponse/DecodeChainedResponse shall round-trip a partial ChainedResult, preserving which segment (if any) is marked Failed and the original Total segment count even when fewer segments actually ran.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-010",
+      "title": "request package decoders never panic on malformed input",
+      "text": "Every DecodeXxx function in the request package shall never panic on arbitrary input, including empty and truncated buffers.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-011",
+      "title": "Dispatcher retrofits KindPlain requests onto the wrapped Handler unchanged",
+      "text": "request.Dispatcher shall dispatch a Message without avtp.FlagExtended set directly to its wrapped Handler with the same Control/Body semantics a Phase 14 endpoint's own HandleRequest already implements, and the resulting response shall not carry avtp.FlagExtended.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-012",
+      "title": "Dispatcher gates KindCompound execution and sequencer advance on a match",
+      "text": "request.Dispatcher shall call the wrapped Handler for a KindCompound ticket only when its Conditional matches, shall advance the addressed sequencer register only on a match, and shall report ConditionalResult.Matched and the resulting sequencer value in the response regardless of outcome.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-013",
+      "title": "Dispatcher never calls the wrapped Handler for KindCompoundWait",
+      "text": "request.Dispatcher shall evaluate a KindCompoundWait ticket's Conditional and report its outcome without ever calling the wrapped Handler, regardless of whether the condition matches.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-014",
+      "title": "Dispatcher defers KindTriggered execution until its TriggerPump reports an event",
+      "text": "request.Dispatcher.Pump shall leave a KindTriggered ticket pending until its registered TriggerPump for the referenced source reports at least one new event, shall call each distinct source's TriggerPump at most once per Pump call, and shall consume at most one reported event per satisfied ticket.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-015",
+      "title": "Dispatcher defers KindTimed execution until the caller-supplied clock reaches its target",
+      "text": "request.Dispatcher.Pump shall leave a KindTimed ticket pending until called with now at or past its encoded target execution time.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-016",
+      "title": "Dispatcher executes KindChained segments strictly in order and aborts on failure",
+      "text": "request.Dispatcher shall call the wrapped Handler once per ChainedSegment in declared order, and shall stop executing remaining segments (without skipping ahead) the moment one segment's Handler call returns an error, reporting ErrChainedSegmentFailed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-017",
+      "title": "Cancellation kinds clear only their declared scope of pending tickets",
+      "text": "request.Dispatcher shall have KindCancelAll finalize every other pending ticket, KindCancelTransaction finalize only the pending ticket matching its TransactionNum, and KindCancelSequencer finalize only pending KindCompound/KindCompoundWait tickets gated on its SequencerID, each reporting ErrTicketCancelled and leaving every non-matching pending ticket untouched.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-018",
+      "title": "Dispatcher.Submit enforces the configured AccessCheck before any decoding",
+      "text": "request.Dispatcher.Submit shall reject a request with the AccessCheck's error, for every Kind including KindCompoundWait and every cancellation variant, when a non-nil AccessCheck rejects the requester.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-019",
+      "title": "Dispatcher.Pump applies the fixed cross-type priority ordering within one call",
+      "text": "request.Dispatcher.Pump shall execute every ticket that becomes ready within one call in Kind.Priority order (lower rank first), regardless of submission order, when more than one ticket on the same Dispatcher becomes eligible simultaneously.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-020",
+      "title": "Dispatcher ticket bookkeeping (Response/StateOf/Forget/Pending) behaves correctly",
+      "text": "request.Dispatcher.Response shall report ErrUnknownTicket for an unissued or Forgotten TicketID and ErrPending for a ticket not yet StateFinalized; Forget shall discard only a finalized ticket's bookkeeping and be a no-op otherwise; Pending shall count only tickets not yet StateFinalized.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-021",
+      "title": "request package golden vectors pin the frozen conditional-request wire byte layout",
+      "text": "request.EncodeCompound and EncodeCancelAll shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input, and dispatching a golden KindCompound envelope end-to-end against a real endpoint shall produce the expected wrapped response.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

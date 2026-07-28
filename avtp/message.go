@@ -27,7 +27,19 @@ const (
 	FlagError        ControlFlags = 1 << 3
 	FlagMoreSegments ControlFlags = 1 << 2
 
-	controlReservedMask ControlFlags = 0x03
+	// FlagExtended marks that Body begins with the conditional-request
+	// envelope the request package (ROADMAP.md Milestone 49) defines —
+	// a leading kind tag followed by kind-specific fields — rather than
+	// being a bare, endpoint-specific payload. It claims the first of the
+	// two control bits this package left reserved through Milestone 48;
+	// see the "Milestone 49 addendum" section of this package's doc
+	// comment. Every Phase 14 endpoint type, and every existing test
+	// fixture in this repo, never sets it.
+	FlagExtended ControlFlags = 1 << 0
+
+	// controlReservedMask now bounds the single control bit still reserved
+	// (required zero) after FlagExtended claimed the other one.
+	controlReservedMask ControlFlags = 0x02
 )
 
 // Has reports whether all bits of want are set in f.
@@ -121,7 +133,7 @@ func EncodeMessage(m Message) ([]byte, error) {
 	if m.Pad > padMask {
 		return nil, ErrPadOverflow
 	}
-	const knownFlags = FlagAck | FlagRead | FlagWrite | FlagResponse | FlagError | FlagMoreSegments
+	const knownFlags = FlagAck | FlagRead | FlagWrite | FlagResponse | FlagError | FlagMoreSegments | FlagExtended
 	if m.Control&^knownFlags != 0 {
 		return nil, ErrReservedBitsSet
 	}

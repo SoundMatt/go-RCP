@@ -48,6 +48,19 @@
 // time-synchronization support at all, since it has no clock to schedule
 // against. See Disposition for the exact precedence between these rules.
 //
+// # Milestone 49 addendum: FlagExtended
+//
+// ROADMAP.md Milestone 49 (v0.62.0, the `request` package) claims one of
+// this package's two originally-reserved control bits as FlagExtended: a
+// marker that a Message's Body begins with the request package's own
+// conditional-request envelope rather than being a bare, endpoint-specific
+// payload. This is a small, additive, backward-compatible change — every
+// message this package's own tests, and every Phase 14 endpoint type, ever
+// constructed left both reserved bits at zero, so nothing that decoded
+// successfully before decodes differently now. One control bit remains
+// reserved (required zero) after this addendum; see FlagExtended's own doc
+// comment for the reasoning and request/doc.go for how it's used.
+//
 // # Explicit non-goal
 //
 // This milestone targets Ethernet-carried AVTPDUs only. The specification

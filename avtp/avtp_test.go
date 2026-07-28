@@ -344,9 +344,30 @@ func TestMessage_DualPurposeField(t *testing.T) {
 }
 
 func TestEncodeMessage_ReservedControlBits(t *testing.T) {
-	m := avtp.Message{Kind: avtp.KindShort, Control: avtp.ControlFlags(0x01)}
+	// Bit 0x01 is FlagExtended (claimed by the request package, Milestone
+	// 49) and no longer reserved; only 0x02 remains reserved. See
+	// TestEncodeMessage_FlagExtendedRoundTrip below for the now-valid case.
+	m := avtp.Message{Kind: avtp.KindShort, Control: avtp.ControlFlags(0x02)}
 	if _, err := avtp.EncodeMessage(m); !errors.Is(err, avtp.ErrReservedBitsSet) {
 		t.Errorf("EncodeMessage = %v, want ErrReservedBitsSet", err)
+	}
+}
+
+// TestEncodeMessage_FlagExtendedRoundTrip checks FlagExtended encodes and
+// decodes like any other known control bit, now that Milestone 49 has
+// claimed it.
+func TestEncodeMessage_FlagExtendedRoundTrip(t *testing.T) {
+	m := avtp.Message{Kind: avtp.KindShort, Control: avtp.FlagWrite | avtp.FlagExtended, Body: []byte{0x01, 0x02}}
+	b, err := avtp.EncodeMessage(m)
+	if err != nil {
+		t.Fatalf("EncodeMessage: %v", err)
+	}
+	got, err := avtp.DecodeMessage(b)
+	if err != nil {
+		t.Fatalf("DecodeMessage: %v", err)
+	}
+	if !got.Control.Has(avtp.FlagExtended) {
+		t.Errorf("decoded Control = %v, want FlagExtended set", got.Control)
 	}
 }
 
