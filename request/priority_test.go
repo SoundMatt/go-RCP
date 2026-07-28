@@ -1,0 +1,78 @@
+//fusa:test REQ-REQ-019
+
+package request_test
+
+import (
+	"testing"
+
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/gpio"
+	"github.com/SoundMatt/go-RCP/request"
+)
+
+// orderRecorder wraps a gpio.Endpoint and records the order in which
+// HandleRequest is actually invoked, by inspecting each write's operand —
+// this test's way of observing Dispatcher.Pump's execution order across
+// several different Kinds that all become ready within the same call.
+type orderRecorder struct {
+	ep    *gpio.Endpoint
+	order *[]uint32
+}
+
+func (r orderRecorder) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+	resp, err := r.ep.HandleRequest(requester, req)
+	if err == nil && req.Control.Has(avtp.FlagWrite) {
+		if sem, operand, decErr := gpio.DecodeWriteRequest(req.Body); decErr == nil && sem == gpio.SemanticOr {
+			*r.order = append(*r.order, operand)
+		}
+	}
+	return resp, err
+}
+
+// TestDispatcher_PriorityOrdering checks that when a Timed ticket, a
+// Compound ticket, and a Plain ticket all become ready to execute within
+// the same Pump call, they run in the fixed cross-type order Kind.Priority
+// documents (Timed before Compound before Plain), regardless of submission
+// order (REQ-REQ-019).
+func TestDispatcher_PriorityOrdering(t *testing.T) {
+	ep, root, addr := newGPIOEndpoint(t, gpio.Config{PinCount: 8, Direction: 0xFF})
+	var order []uint32
+	handler := orderRecorder{ep: ep, order: &order}
+	d := request.NewDispatcher(handler, addr, request.NewSequencer(), nil)
+
+	// Submitted in Plain, Compound, Timed order — the reverse of their
+	// execution-priority rank — so a passing test can only mean priority
+	// ordering, not submission-order coincidence.
+	plainOperand := uint32(0x01)
+	if _, err := d.Submit(root, gpioWriteMsg(addr, 1, gpio.SemanticOr, plainOperand)); err != nil {
+		t.Fatalf("Submit(plain): %v", err)
+	}
+
+	compoundOperand := uint32(0x02)
+	matched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 0}
+	compoundBody := request.EncodeCompound(matched, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, compoundOperand))
+	if _, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 2, Control: avtp.FlagWrite | avtp.FlagExtended, Body: compoundBody}); err != nil {
+		t.Fatalf("Submit(compound): %v", err)
+	}
+
+	timedOperand := uint32(0x04)
+	timedBody := request.EncodeTimed(1000, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, timedOperand))
+	if _, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 3, Control: avtp.FlagWrite | avtp.FlagExtended, Body: timedBody}); err != nil {
+		t.Fatalf("Submit(timed): %v", err)
+	}
+
+	// One Pump call, at a time the Timed ticket is also due: all three
+	// become ready simultaneously.
+	d.Pump(1000)
+
+	want := []uint32{timedOperand, compoundOperand, plainOperand}
+	if len(order) != len(want) {
+		t.Fatalf("execution order = %v, want %v", order, want)
+	}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Errorf("execution order = %v, want %v (Timed before Compound before Plain)", order, want)
+			break
+		}
+	}
+}

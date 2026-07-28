@@ -584,7 +584,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response ✅ |
 | **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes ✅ |
 | **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types ✅ |
-| **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers |
+| **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers ✅ |
 | **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, cancellation types |
 | **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred |
 | **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified |
@@ -820,7 +820,47 @@ data.
 ### Phase 15 — TC18 Core: Conditional Requests & Safety
 ---
 
-### 49. Conditional Request Taxonomy & Sequencers (v0.62.0)
+### 49. Conditional Request Taxonomy & Sequencers (v0.62.0) ✅
+
+**Done (v0.62.0):** landed in one new package, `request` (`request/doc.go`,
+`request/kind.go`, `request/sequencer.go`, `request/envelope.go`,
+`request/chained.go`, `request/ticket.go`, `request/dispatcher.go`; see
+`request/doc.go` for the package-level design notes, including the same
+explicit spec-fidelity call-out avtp/doc.go, server/doc.go, and every Phase
+14 endpoint package's doc.go established — the envelope byte layouts, the
+sequencer wraparound-advance rule, the mandatory/optional cancellation
+split, and the fixed cross-type priority ordering below are this
+implementation's own reasoned encoding pending confirmation against a
+public interoperability reference). This package retrofits the six Phase
+14 endpoint types' already-shipped plain-request path onto the same
+request-lifecycle state machine by wrapping, not editing: every one of
+`gpio.Endpoint`, `spi.Endpoint`, `i2c.Endpoint`, `uart.Endpoint`,
+`adc.Endpoint`, and `pwm.Endpoint` already satisfies `request.Handler`'s
+`HandleRequest(avtp.StreamID, avtp.Message) (avtp.Message, error)` shape
+exactly as shipped, so none of those six packages needed a single line
+changed. The wire-level envelope marker claims one of the two control bits
+`avtp` left reserved through Milestone 48 (`avtp.FlagExtended`, a small,
+additive, backward-compatible change — see avtp/doc.go's own "Milestone 49
+addendum") rather than taxing every plain request with an extra body byte.
+`Dispatcher` is the resulting request-lifecycle state machine for one
+endpoint: every ticket, regardless of Kind — including the plain,
+unconditional shape Phase 14 already shipped — advances through
+StateQueued → StateStarted → StateExecuting → StateFinalized, with
+`Dispatcher.Submit` handling admission/decoding (including an optional
+`AccessCheck` gate this design needs precisely because `KindCompoundWait`
+and every cancellation variant never reach the wrapped `Handler` at all,
+and would otherwise bypass an endpoint's own access-control check
+entirely) and `Dispatcher.Pump` handling readiness evaluation, the fixed
+cross-type priority ordering (`Kind.Priority`), and finalization;
+`Dispatcher.Dispatch` composes the two into one synchronous call for every
+Kind that always resolves immediately. The two optional, narrower
+cancellation variants this milestone chose — `KindCancelTransaction` (one
+ticket, by `avtp.TransactionNum`) and `KindCancelSequencer` (every pending
+Compound/CompoundWait ticket gated on one sequencer register, a
+deliberate thematic pairing with this same milestone's Sequencer
+primitive) — are this implementation's own reasoned choice of the "two
+optional narrower variants" the roadmap called for, not a transcription of
+the source specification's own split.
 
 - The full conditional-request model on top of the basic request/response
   work from Phase 14: compound (sequencer-state-gated execution),
