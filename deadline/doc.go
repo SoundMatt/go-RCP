@@ -17,8 +17,8 @@
 //     implements (see e.g. gpio.Endpoint.DrainTriggers) — evidence that a
 //     specific endpoint is actively producing events, i.e. genuine
 //     liveness of whatever that endpoint is monitoring; and
-//   - response-queue heartbeat flushes — server.QueueConfig's
-//     HeartbeatIntervalMillis (server/queues.go, ROADMAP.md Milestone 45)
+//   - response-queue heartbeat flushes — regmap.QueueConfig's
+//     HeartbeatIntervalMillis (regmap/queues.go, ROADMAP.md Milestone 45)
 //     — evidence only that the link/queue itself is up, emitted
 //     specifically "while the queue is otherwise idle" so a client can
 //     "distinguish 'nothing to report' from 'the link is down'".
@@ -32,9 +32,9 @@
 // Monitor.ObserveTrigger or Monitor.ObserveHeartbeat; State (or the
 // convenience Alive) reports the current verdict, computed lazily against
 // an injectable clock — no goroutine, no timer, the same caller-driven
-// posture crcsafe.Supervisor and fragment.Reassembler.Sweep already
+// posture e2e.Supervisor and fragment.Reassembler.Sweep already
 // establish. DeadlineForQueue derives a plausible Config.Deadline directly
-// from a server.QueueConfig's own HeartbeatIntervalMillis, so a caller does
+// from a regmap.QueueConfig's own HeartbeatIntervalMillis, so a caller does
 // not have to duplicate that arithmetic (or worse, let the two configs
 // silently drift apart) at the call site.
 //

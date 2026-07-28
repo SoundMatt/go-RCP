@@ -3,12 +3,13 @@ package request
 import (
 	"encoding/binary"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
 
 // This file implements this package's own wire encoding for the
 // conditional-request envelope carried in a Message's Body whenever
-// avtp.FlagExtended is set. Every encoder writes the envelope's Kind byte
+// acf.FlagExtended is set. Every encoder writes the envelope's Kind byte
 // first; every decoder validates it against the Kind the caller asked for.
 // As with every other package's envelope/register byte layout in this repo,
 // these exact field widths and orderings are this implementation's own
@@ -61,7 +62,7 @@ func decodeConditional(b []byte) (Conditional, error) {
 // (Read/Write, exactly as a Plain request to the same endpoint would set)
 // and Body, carried verbatim so the Dispatcher can hand them to Handler.HandleRequest
 // unchanged once the condition matches.
-func EncodeCompound(c Conditional, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+func EncodeCompound(c Conditional, innerControl acf.ControlFlags, innerBody []byte) []byte {
 	buf := make([]byte, 1+conditionalLen+1+len(innerBody))
 	buf[0] = byte(KindCompound)
 	encodeConditional(buf[1:1+conditionalLen], c)
@@ -75,7 +76,7 @@ func EncodeCompound(c Conditional, innerControl avtp.ControlFlags, innerBody []b
 // KindCompoundSafety instead of KindCompound so Dispatcher only executes it
 // once the addressed endpoint's configured safe state is active, and so it
 // survives Dispatcher.PurgeNonSafety.
-func EncodeCompoundSafety(c Conditional, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+func EncodeCompoundSafety(c Conditional, innerControl acf.ControlFlags, innerBody []byte) []byte {
 	body := EncodeCompound(c, innerControl, innerBody)
 	body[0] = byte(KindCompoundSafety)
 	return body
@@ -84,7 +85,7 @@ func EncodeCompoundSafety(c Conditional, innerControl avtp.ControlFlags, innerBo
 // DecodeCompound parses a KindCompound or KindCompoundSafety envelope — the
 // body layout is identical between the two; only the leading Kind byte
 // differs. It never panics on malformed input.
-func DecodeCompound(body []byte) (Conditional, avtp.ControlFlags, []byte, error) {
+func DecodeCompound(body []byte) (Conditional, acf.ControlFlags, []byte, error) {
 	if len(body) < 1+conditionalLen+1 {
 		return Conditional{}, 0, nil, ErrShortBuffer
 	}
@@ -95,7 +96,7 @@ func DecodeCompound(body []byte) (Conditional, avtp.ControlFlags, []byte, error)
 	if err != nil {
 		return Conditional{}, 0, nil, err
 	}
-	innerControl := avtp.ControlFlags(body[1+conditionalLen])
+	innerControl := acf.ControlFlags(body[1+conditionalLen])
 	var innerBody []byte
 	if rest := body[1+conditionalLen+1:]; len(rest) > 0 {
 		innerBody = make([]byte, len(rest))
@@ -142,7 +143,7 @@ func DecodeCompoundWait(body []byte) (Conditional, error) {
 // endpoint's trigger signal (source) gates execution, followed by the inner
 // request's own Control flags and Body, carried verbatim the same way
 // EncodeCompound does.
-func EncodeTriggered(source avtp.ByteBusID, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+func EncodeTriggered(source avtp.ByteBusID, innerControl acf.ControlFlags, innerBody []byte) []byte {
 	buf := make([]byte, 1+1+1+len(innerBody))
 	buf[0] = byte(KindTriggered)
 	buf[1] = byte(source)
@@ -153,7 +154,7 @@ func EncodeTriggered(source avtp.ByteBusID, innerControl avtp.ControlFlags, inne
 
 // EncodeTriggeredSafety is EncodeTriggered's safety-request counterpart; see
 // EncodeCompoundSafety's doc comment.
-func EncodeTriggeredSafety(source avtp.ByteBusID, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+func EncodeTriggeredSafety(source avtp.ByteBusID, innerControl acf.ControlFlags, innerBody []byte) []byte {
 	body := EncodeTriggered(source, innerControl, innerBody)
 	body[0] = byte(KindTriggeredSafety)
 	return body
@@ -161,7 +162,7 @@ func EncodeTriggeredSafety(source avtp.ByteBusID, innerControl avtp.ControlFlags
 
 // DecodeTriggered parses a KindTriggered or KindTriggeredSafety envelope. It
 // never panics on malformed input.
-func DecodeTriggered(body []byte) (avtp.ByteBusID, avtp.ControlFlags, []byte, error) {
+func DecodeTriggered(body []byte) (avtp.ByteBusID, acf.ControlFlags, []byte, error) {
 	if len(body) < 3 {
 		return 0, 0, nil, ErrShortBuffer
 	}
@@ -169,7 +170,7 @@ func DecodeTriggered(body []byte) (avtp.ByteBusID, avtp.ControlFlags, []byte, er
 		return 0, 0, nil, ErrWrongKind
 	}
 	source := avtp.ByteBusID(body[1])
-	innerControl := avtp.ControlFlags(body[2])
+	innerControl := acf.ControlFlags(body[2])
 	var innerBody []byte
 	if rest := body[3:]; len(rest) > 0 {
 		innerBody = make([]byte, len(rest))
@@ -182,7 +183,7 @@ func DecodeTriggered(body []byte) (avtp.ByteBusID, avtp.ControlFlags, []byte, er
 // time executeAtMicros (in whatever monotonic microsecond clock domain the
 // caller and Dispatcher.Pump agree on — see doc.go's spec-fidelity note),
 // followed by the inner request's own Control flags and Body.
-func EncodeTimed(executeAtMicros uint64, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+func EncodeTimed(executeAtMicros uint64, innerControl acf.ControlFlags, innerBody []byte) []byte {
 	buf := make([]byte, 1+8+1+len(innerBody))
 	buf[0] = byte(KindTimed)
 	binary.BigEndian.PutUint64(buf[1:9], executeAtMicros)
@@ -193,7 +194,7 @@ func EncodeTimed(executeAtMicros uint64, innerControl avtp.ControlFlags, innerBo
 
 // DecodeTimed parses a KindTimed envelope. It never panics on malformed
 // input.
-func DecodeTimed(body []byte) (executeAtMicros uint64, innerControl avtp.ControlFlags, innerBody []byte, err error) {
+func DecodeTimed(body []byte) (executeAtMicros uint64, innerControl acf.ControlFlags, innerBody []byte, err error) {
 	if len(body) < 10 {
 		return 0, 0, nil, ErrShortBuffer
 	}
@@ -201,7 +202,7 @@ func DecodeTimed(body []byte) (executeAtMicros uint64, innerControl avtp.Control
 		return 0, 0, nil, ErrWrongKind
 	}
 	executeAtMicros = binary.BigEndian.Uint64(body[1:9])
-	innerControl = avtp.ControlFlags(body[9])
+	innerControl = acf.ControlFlags(body[9])
 	if rest := body[10:]; len(rest) > 0 {
 		innerBody = make([]byte, len(rest))
 		copy(innerBody, rest)
@@ -233,7 +234,7 @@ func DecodeCancelAll(body []byte) error {
 
 // EncodeCancelTransaction serializes the first optional narrower
 // cancellation variant: clear only the one pending ticket whose original
-// request carried txn as its avtp.Message.TransactionNum.
+// request carried txn as its acf.Message.TransactionNum.
 func EncodeCancelTransaction(txn avtp.TransactionNum) []byte {
 	buf := make([]byte, 3)
 	buf[0] = byte(KindCancelTransaction)

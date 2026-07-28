@@ -12,7 +12,7 @@ const (
 // ComputeCRC computes this package's ISELED-native CRC8 over data: a
 // bit-by-bit, MSB-first CRC8 using crcPoly/crcInit/crcXorOut. See doc.go's
 // "ISELED-native CRC" section for how this composes with (rather than
-// replaces) the general crcsafe end-to-end mechanism.
+// replaces) the general e2e end-to-end mechanism.
 func ComputeCRC(data []byte) uint8 {
 	crc := uint8(crcInit)
 	for _, b := range data {

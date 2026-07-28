@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 	"github.com/SoundMatt/go-RCP/gpio"
 	"github.com/SoundMatt/go-RCP/request"
 	"github.com/SoundMatt/go-RCP/server"
@@ -19,7 +20,7 @@ import (
 )
 
 // fakeClock is a manually-advanced clock for deterministic tests, the same
-// injectable-clock pattern crcsafe's own tests establish.
+// injectable-clock pattern e2e's own tests establish.
 type fakeClock struct{ t time.Time }
 
 func (c *fakeClock) now() time.Time          { return c.t }
@@ -51,11 +52,11 @@ func testStream(suffix uint16) avtp.StreamID {
 // on behalf of requester, returning its TicketID.
 func submitPlain(t *testing.T, d *request.Dispatcher, requester avtp.StreamID, addr avtp.ByteBusID, txn avtp.TransactionNum) request.TicketID {
 	t.Helper()
-	id, err := d.Submit(requester, avtp.Message{
-		Kind:           avtp.KindShort,
+	id, err := d.Submit(requester, acf.Message{
+		Kind:           acf.KindShort,
 		ByteBusID:      addr,
 		TransactionNum: txn,
-		Control:        avtp.FlagWrite,
+		Control:        acf.FlagWrite,
 		Body:           gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001),
 	})
 	if err != nil {
@@ -68,7 +69,7 @@ func submitPlain(t *testing.T, d *request.Dispatcher, requester avtp.StreamID, a
 // pair, Streams reports it, and re-registering the identical pair is a
 // no-op rather than a duplicate entry (REQ-WDG-001).
 func TestKeeper_WatchDeduplicates(t *testing.T) {
-	sup := crcsafe.NewSupervisor(crcsafe.StreamConfig{Timeout: time.Hour})
+	sup := e2e.NewSupervisor(e2e.StreamConfig{Timeout: time.Hour})
 	k := watchdog.NewKeeper(sup)
 
 	root := testStream(1)
@@ -92,7 +93,7 @@ func TestKeeper_WatchDeduplicates(t *testing.T) {
 // tripped (REQ-WDG-002).
 func TestKeeper_TickNoOpWhenNotTripped(t *testing.T) {
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: time.Hour}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: time.Hour}, clock.now)
 	k := watchdog.NewKeeper(sup)
 
 	root := testStream(2)
@@ -122,7 +123,7 @@ func TestKeeper_TickNoOpWhenNotTripped(t *testing.T) {
 // a Dispatcher registered under an untripped stream (REQ-WDG-003).
 func TestKeeper_TickPurgesTrippedStreams(t *testing.T) {
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
 	k := watchdog.NewKeeper(sup)
 
 	tripped := testStream(3)
@@ -144,9 +145,9 @@ func TestKeeper_TickPurgesTrippedStreams(t *testing.T) {
 
 	ordinary := submitPlain(t, dTripped, tripped, avtp.ByteBusID(1), 1)
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 1}
-	safeID, err := dTripped.Submit(tripped, avtp.Message{
-		Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), TransactionNum: 2,
-		Control: avtp.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond),
+	safeID, err := dTripped.Submit(tripped, acf.Message{
+		Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), TransactionNum: 2,
+		Control: acf.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond),
 	})
 	if err != nil {
 		t.Fatalf("Submit(safety): %v", err)
@@ -191,7 +192,7 @@ func TestKeeper_TickPurgesTrippedStreams(t *testing.T) {
 // (REQ-WDG-004).
 func TestKeeper_TickReportsZeroPurgeEvent(t *testing.T) {
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
 	k := watchdog.NewKeeper(sup)
 
 	root := testStream(5)
@@ -222,7 +223,7 @@ func TestKeeper_TickReportsZeroPurgeEvent(t *testing.T) {
 // TicketID (REQ-WDG-005).
 func TestKeeper_TickHandlesDispatcherSharedAcrossStreams(t *testing.T) {
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
 	k := watchdog.NewKeeper(sup)
 
 	streamA := testStream(6)

@@ -1,11 +1,14 @@
 package request
 
-import "github.com/SoundMatt/go-RCP/avtp"
+import (
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+)
 
 // TicketID identifies one in-flight or resolved request within a
 // Dispatcher's own bookkeeping. It has no meaning outside the Dispatcher
 // instance that issued it, and no wire representation — the wire-level
-// correlation handle is (and remains) avtp.Message.TransactionNum.
+// correlation handle is (and remains) acf.Message.TransactionNum.
 type TicketID uint64
 
 // State is one stage of the request lifecycle state machine every request
@@ -65,14 +68,14 @@ func (s State) String() string {
 type ticket struct {
 	id        TicketID
 	requester avtp.StreamID
-	original  avtp.Message
+	original  acf.Message
 	kind      Kind
 	state     State
 
 	// Decoded kind-specific fields. Only the ones relevant to kind are
 	// populated; the rest sit at their zero value.
 	conditional     Conditional
-	innerControl    avtp.ControlFlags
+	innerControl    acf.ControlFlags
 	innerBody       []byte
 	triggerSource   avtp.ByteBusID
 	executeAtMicros uint64
@@ -81,6 +84,6 @@ type ticket struct {
 	cancelSeq       SequencerID
 
 	// Outcome, populated once state reaches StateFinalized.
-	response avtp.Message
+	response acf.Message
 	err      error
 }

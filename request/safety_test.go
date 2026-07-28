@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/gpio"
 	"github.com/SoundMatt/go-RCP/request"
@@ -74,12 +75,12 @@ func TestKind_SafetyTagging(t *testing.T) {
 func TestEnvelope_SafetyRoundTrip(t *testing.T) {
 	c := request.Conditional{Sequencer: 4, Op: request.CompareLessOrEqual, Operand: 7, AdvanceOnMatch: 2}
 
-	compoundBody := request.EncodeCompoundSafety(c, avtp.FlagWrite, []byte{0x01})
+	compoundBody := request.EncodeCompoundSafety(c, acf.FlagWrite, []byte{0x01})
 	if k, err := request.PeekKind(compoundBody); err != nil || k != request.KindCompoundSafety {
 		t.Errorf("PeekKind(compound-safety) = (%v, %v), want (KindCompoundSafety, nil)", k, err)
 	}
 	gotC, gotControl, gotBody, err := request.DecodeCompound(compoundBody)
-	if err != nil || gotC != c || gotControl != avtp.FlagWrite || string(gotBody) != "\x01" {
+	if err != nil || gotC != c || gotControl != acf.FlagWrite || string(gotBody) != "\x01" {
 		t.Errorf("DecodeCompound(safety) = (%+v, %v, % X, %v), want (%+v, FlagWrite, 01, nil)", gotC, gotControl, gotBody, err, c)
 	}
 
@@ -91,11 +92,11 @@ func TestEnvelope_SafetyRoundTrip(t *testing.T) {
 		t.Errorf("DecodeCompoundWait(safety) = (%+v, %v), want (%+v, nil)", got, err, c)
 	}
 
-	triggeredBody := request.EncodeTriggeredSafety(avtp.ByteBusID(5), avtp.FlagRead, nil)
+	triggeredBody := request.EncodeTriggeredSafety(avtp.ByteBusID(5), acf.FlagRead, nil)
 	if k, err := request.PeekKind(triggeredBody); err != nil || k != request.KindTriggeredSafety {
 		t.Errorf("PeekKind(triggered-safety) = (%v, %v), want (KindTriggeredSafety, nil)", k, err)
 	}
-	if src, ctrl, inner, err := request.DecodeTriggered(triggeredBody); err != nil || src != avtp.ByteBusID(5) || ctrl != avtp.FlagRead || len(inner) != 0 {
+	if src, ctrl, inner, err := request.DecodeTriggered(triggeredBody); err != nil || src != avtp.ByteBusID(5) || ctrl != acf.FlagRead || len(inner) != 0 {
 		t.Errorf("DecodeTriggered(safety) = (%v, %v, %v, %v), want (5, FlagRead, empty, nil)", src, ctrl, inner, err)
 	}
 }
@@ -111,10 +112,10 @@ func TestDispatcher_SafeStateGate(t *testing.T) {
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 0}
-	safeReq := avtp.Message{
-		Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1,
-		Control: avtp.FlagWrite | avtp.FlagExtended,
-		Body:    request.EncodeCompoundSafety(cond, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001)),
+	safeReq := acf.Message{
+		Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1,
+		Control: acf.FlagWrite | acf.FlagExtended,
+		Body:    request.EncodeCompoundSafety(cond, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001)),
 	}
 
 	// No SafeStateCheck configured yet: Submit must refuse outright rather
@@ -172,8 +173,8 @@ func TestDispatcher_PurgeNonSafety(t *testing.T) {
 	d.SetSafeStateCheck(func(avtp.StreamID) bool { return true })
 
 	// An ordinary pending Timed ticket, not yet due.
-	timedBody := request.EncodeTimed(1000, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	timedID, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: timedBody})
+	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	timedID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: timedBody})
 	if err != nil {
 		t.Fatalf("Submit(timed): %v", err)
 	}
@@ -181,7 +182,7 @@ func TestDispatcher_PurgeNonSafety(t *testing.T) {
 	// A safety-request CompoundWaitSafety ticket, gated ready (SafeStateCheck
 	// always true here), but not yet executed by a Pump call.
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 1}
-	safeID, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 2, Control: avtp.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond)})
+	safeID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond)})
 	if err != nil {
 		t.Fatalf("Submit(safety): %v", err)
 	}

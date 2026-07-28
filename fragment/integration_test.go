@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/can"
 	"github.com/SoundMatt/go-RCP/fragment"
 	"github.com/SoundMatt/go-RCP/gpio"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/server"
 	"github.com/SoundMatt/go-RCP/uart"
 )
@@ -18,7 +20,7 @@ import (
 // splitAndReassemble runs msg through fragment.Split at maxBody and back
 // through a fresh fragment.Reassembler, failing the test on any error, and
 // returns the reassembled Message.
-func splitAndReassemble(t *testing.T, stream avtp.StreamID, msg avtp.Message, maxBody int) avtp.Message {
+func splitAndReassemble(t *testing.T, stream avtp.StreamID, msg acf.Message, maxBody int) acf.Message {
 	t.Helper()
 	segs, err := fragment.Split(msg, maxBody)
 	if err != nil {
@@ -60,10 +62,10 @@ func TestIntegration_CANXLPayload(t *testing.T) {
 		t.Fatalf("test setup: Frame.Validate: %v", err)
 	}
 
-	original := avtp.Message{
-		Kind:      avtp.KindShort,
+	original := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: 1,
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      can.EncodeFrame(frame),
 	}
 
@@ -91,10 +93,10 @@ func TestIntegration_UARTFIFODrain(t *testing.T) {
 	drained := bytes.Repeat([]byte{0x42}, 4000)
 	respBody := uart.EncodeReadResponse(true, drained)
 
-	original := avtp.Message{
-		Kind:      avtp.KindShort,
+	original := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: 2,
-		Control:   avtp.FlagResponse,
+		Control:   acf.FlagResponse,
 		Body:      respBody,
 	}
 
@@ -125,7 +127,7 @@ func TestIntegration_DiscoveryRegisterMap(t *testing.T) {
 	// small per-segment budget, modelling Milestone 52's "grows with
 	// endpoint count" concern without needing a slow, unrealistically large
 	// fixture.
-	types := []server.EndpointType{gpio.EndpointType, can.EndpointType, uart.EndpointType}
+	types := []regmap.EndpointType{gpio.EndpointType, can.EndpointType, uart.EndpointType}
 	for i := 0; i < 60; i++ {
 		if err := s.AddEndpoint(stream, avtp.ByteBusID(i+1), types[i%len(types)]); err != nil {
 			t.Fatalf("AddEndpoint(%d): %v", i, err)
@@ -133,7 +135,7 @@ func TestIntegration_DiscoveryRegisterMap(t *testing.T) {
 	}
 
 	discovery := s.ReadDiscovery()
-	original := avtp.Message{Kind: avtp.KindShort, Control: avtp.FlagResponse, Body: discovery}
+	original := acf.Message{Kind: acf.KindShort, Control: acf.FlagResponse, Body: discovery}
 
 	const smallSegmentBudget = 64 // well under a real register map's size, to force multiple segments
 	out := splitAndReassemble(t, stream, original, smallSegmentBudget)

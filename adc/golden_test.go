@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/adc"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
@@ -63,7 +64,7 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	}
 	ep.SetTransport(&sequenceTransport{samples: []uint16{0x0ABC}})
 
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead}
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
 	resp, err := ep.HandleRequest(root, req)
 	if err != nil {
 		t.Fatalf("HandleRequest(golden read): %v", err)

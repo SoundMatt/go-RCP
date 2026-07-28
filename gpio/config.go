@@ -5,8 +5,8 @@ import "encoding/binary"
 // Config is a GPIO endpoint's functional (type-specific) configuration: how
 // many of its up to MaxPins pins are in use, which of those are output vs
 // input, and which report a change/edge trigger signal. It is stored as an
-// endpoint's server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// endpoint's regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// PinCount is the number of pins in use, from 1 to MaxPins. Only the low
 	// PinCount bits of Direction and TriggerEnable are meaningful; the rest
@@ -60,7 +60,7 @@ func EncodeConfig(c Config) []byte {
 
 // DecodeConfig parses a Config from b. It never panics on malformed input,
 // and rejects a buffer with any bytes left over once configLen is consumed,
-// the same posture avtp.DecodeFrame and server.DecodeRegisterMap take on a
+// the same posture acf.DecodeFrame and regmap.DecodeRegisterMap take on a
 // length mismatch.
 func DecodeConfig(b []byte) (Config, error) {
 	if len(b) < configLen {

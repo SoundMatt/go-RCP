@@ -1,11 +1,11 @@
 package mdio
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeMDIO so a caller that only
+// EndpointType re-exports regmap.EndpointTypeMDIO so a caller that only
 // imports this package doesn't also need to import server just to declare
 // an MDIO endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeMDIO
+const EndpointType = regmap.EndpointTypeMDIO
 
 // AddressMode selects which IEEE 802.3 MDIO addressing shape a Request
 // uses. See doc.go's Scope section.

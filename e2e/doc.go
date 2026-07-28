@@ -1,4 +1,4 @@
-// Package crcsafe implements the CRC32 safe-point mechanism, the safety-
+// Package e2e implements the CRC32 safe-point mechanism, the safety-
 // request ("MSB-set") readiness gate, and the server-side per-stream
 // watchdog that automatically drives it, for the OPEN Alliance TC18 Remote
 // Control Protocol (RCP), as described by the "OPEN Alliance TC18 Remote
@@ -12,11 +12,28 @@
 // piece here is additive, wrapping (Guard around a request.Handler,
 // SetSafeStateCheck/PurgeNonSafety as new request.Dispatcher methods) or
 // purely new state (Supervisor) — no existing package's exported behavior
-// changes for a caller that never touches crcsafe at all.
+// changes for a caller that never touches e2e at all.
+//
+// # A note on this package's name
+//
+// This package was built at Milestone 50 (v0.63.0) under the name
+// `crcsafe`, specifically to avoid colliding with the pre-TC18 bespoke
+// Zone/Command protocol's own `e2e` package (a different, unrelated CRC-16/
+// CCITT-FALSE mechanism) while that package still existed. Milestone 53
+// (v0.66.0) retired the legacy `e2e` package outright with no successor,
+// and RELAY spec v1.14 §13.7.2's cross-language module-naming registry
+// separately settled on `e2e` as the canonical name every language's RCP
+// implementation must use for this "end-to-end / E2E safety protection"
+// concern (cpp-RCP and rust-RCP already used it). With the legacy package
+// gone and the name no longer ambiguous, this package was renamed from
+// `crcsafe` to `e2e` to converge with the other three implementations. The
+// doc comments below still say "the old `e2e` package" or "the legacy `e2e`
+// package" where they contrast against that retired, unrelated mechanism —
+// never against an earlier version of this package itself.
 //
 // # CRC32 safe points
 //
-// Compute/Protect/Verify replace the old `e2e` package's ad hoc CRC-16/
+// Compute/Protect/Verify replace the legacy `e2e` package's ad hoc CRC-16/
 // CCITT-FALSE scheme with a different, explicit per-endpoint opt-in mode —
 // "different" in the three ways ROADMAP.md Milestone 50 calls out by name:
 //
@@ -48,7 +65,7 @@
 // with no SafeStateCheck configured. Supervisor.CheckFunc is this package's
 // own answer to that gate — see "The watchdog" below — but a caller is free
 // to back request.SafeStateCheck with any policy of its own instead;
-// request.Dispatcher does not import crcsafe, only the other way around.
+// request.Dispatcher does not import e2e, only the other way around.
 //
 // # The watchdog and safety requests' purge-survival property
 //
@@ -66,7 +83,7 @@
 // A caller wires the two request.Dispatcher hooks this milestone adds
 // directly to a Supervisor:
 //
-//	sup := crcsafe.NewSupervisor(crcsafe.StreamConfig{Timeout: 50 * time.Millisecond})
+//	sup := e2e.NewSupervisor(e2e.StreamConfig{Timeout: 50 * time.Millisecond})
 //	dispatcher.SetSafeStateCheck(sup.CheckFunc())
 //	// ... on whatever cadence a caller judges appropriate (e.g. once per
 //	// Dispatcher.Pump call, or on its own timer):
@@ -83,11 +100,11 @@
 // anywhere in the old protocol. This package computes the watchdog verdict;
 // request.Dispatcher performs the purge; neither package computes the
 // other's half, matching the same one-directional-dependency shape as
-// SafeStateCheck (crcsafe imports request; request never imports crcsafe).
+// SafeStateCheck (e2e imports request; request never imports e2e).
 //
 // # Explicit non-goals
 //
-// This package does not edit or migrate the old `e2e` or `watchdog`
+// This package does not edit or migrate the legacy `e2e` or `watchdog`
 // packages — ROADMAP.md's own Phase 17 disposition table schedules that
 // satellite-migration work for Milestone 53 (v0.66.0), not this one; both
 // old packages are left fully intact and continue to compile and pass their
@@ -116,7 +133,7 @@
 // format or the source specification's own rules, the same open-item
 // posture avtp/doc.go, server/doc.go, and request/doc.go already document
 // for their own packages.
-package crcsafe
+package e2e
 
 //fusa:req REQ-CRC-001
 //fusa:req REQ-CRC-002

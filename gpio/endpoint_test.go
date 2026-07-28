@@ -10,9 +10,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/gpio"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 // TestHandleRequest_ReadReturnsCurrentValue checks a read request returns the
@@ -23,12 +24,12 @@ func TestHandleRequest_ReadReturnsCurrentValue(t *testing.T) {
 	ep, root := newConfiguredEndpoint(t, cfg)
 	writeAndGetValue(t, ep, root, gpio.SemanticReplace, 0b0001)
 
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead}
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
 	resp, err := ep.HandleRequest(root, req)
 	if err != nil {
 		t.Fatalf("HandleRequest: %v", err)
 	}
-	if !resp.Control.Has(avtp.FlagResponse | avtp.FlagRead) {
+	if !resp.Control.Has(acf.FlagResponse | acf.FlagRead) {
 		t.Errorf("response Control = %v, want FlagResponse|FlagRead set", resp.Control)
 	}
 	v, err := gpio.DecodeValue(resp.Body)
@@ -39,7 +40,7 @@ func TestHandleRequest_ReadReturnsCurrentValue(t *testing.T) {
 		t.Errorf("read value = %04b, want 0001", v)
 	}
 
-	noFlags := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	noFlags := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1)}
 	if _, err := ep.HandleRequest(root, noFlags); !errors.Is(err, gpio.ErrRequestMustReadOrWrite) {
 		t.Errorf("HandleRequest(no flags) err = %v, want ErrRequestMustReadOrWrite", err)
 	}
@@ -52,15 +53,15 @@ func TestHandleRequest_WrongEndpointOrNoAccess(t *testing.T) {
 	cfg := gpio.Config{PinCount: 4, Direction: 0b1111}
 	ep, root := newConfiguredEndpoint(t, cfg)
 
-	wrongAddr := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(2), Control: avtp.FlagRead}
+	wrongAddr := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(2), Control: acf.FlagRead}
 	if _, err := ep.HandleRequest(root, wrongAddr); !errors.Is(err, gpio.ErrWrongEndpoint) {
 		t.Errorf("HandleRequest(wrong addr) err = %v, want ErrWrongEndpoint", err)
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead}
-	if _, err := ep.HandleRequest(stranger, req); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
+	if _, err := ep.HandleRequest(stranger, req); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 }
 

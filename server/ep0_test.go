@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 // TestReadEP0_RoundTrips checks a whole-map read decodes back to a map with
@@ -23,10 +23,10 @@ func TestReadEP0_RoundTrips(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
 
-	if err := s.AddEndpoint(root, 1, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, 1, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
-	if err := s.SetPinAssignment(root, server.PinAssignment{Pin: 7, Endpoint: 1, SignalIndex: 0}); err != nil {
+	if err := s.SetPinAssignment(root, regmap.PinAssignment{Pin: 7, Endpoint: 1, SignalIndex: 0}); err != nil {
 		t.Fatalf("SetPinAssignment: %v", err)
 	}
 	if err := s.WriteFunctional(root, 1, []byte{0xAA, 0xBB}); err != nil {
@@ -38,7 +38,7 @@ func TestReadEP0_RoundTrips(t *testing.T) {
 		t.Fatalf("ReadEP0: %v", err)
 	}
 
-	m, err := server.DecodeRegisterMap(buf)
+	m, err := regmap.DecodeRegisterMap(buf)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestReadEP0_RoundTrips(t *testing.T) {
 	if !ok {
 		t.Fatalf("Endpoint(1) not found after round trip")
 	}
-	if ep.Generic.Type != server.EndpointTypeGPIO {
+	if ep.Generic.Type != regmap.EndpointTypeGPIO {
 		t.Errorf("Endpoint(1).Generic.Type = %v, want EndpointTypeGPIO", ep.Generic.Type)
 	}
 	if !bytes.Equal(ep.Functional.Data, []byte{0xAA, 0xBB}) {
@@ -64,7 +64,7 @@ func TestReadEP0_RoundTrips(t *testing.T) {
 func TestWriteEP0_RootCanUpdatePreLock(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
-	if err := s.AddEndpoint(root, 1, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, 1, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
 
@@ -72,14 +72,14 @@ func TestWriteEP0_RootCanUpdatePreLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadEP0: %v", err)
 	}
-	m, err := server.DecodeRegisterMap(buf)
+	m, err := regmap.DecodeRegisterMap(buf)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap: %v", err)
 	}
 	ep, _ := m.Endpoint(1)
 	ep.Functional.Data = []byte{0x42}
 
-	if writeErr := s.WriteEP0(root, server.EncodeRegisterMap(m)); writeErr != nil {
+	if writeErr := s.WriteEP0(root, regmap.EncodeRegisterMap(m)); writeErr != nil {
 		t.Fatalf("WriteEP0: %v", writeErr)
 	}
 
@@ -106,11 +106,11 @@ func TestWriteEP0_DeniedForNonRoot(t *testing.T) {
 
 	// other has no grant for EP0 either, so ReadEP0 as other must also be
 	// denied — exercised here alongside the write-side check.
-	if _, err := s.ReadEP0(other); !errors.Is(err, server.ErrAccessDenied) {
+	if _, err := s.ReadEP0(other); !errors.Is(err, regmap.ErrAccessDenied) {
 		t.Fatalf("ReadEP0(other) = %v, want ErrAccessDenied", err)
 	}
 
-	if err := s.WriteEP0(other, buf); !errors.Is(err, server.ErrNotRootClient) {
+	if err := s.WriteEP0(other, buf); !errors.Is(err, regmap.ErrNotRootClient) {
 		t.Fatalf("WriteEP0(other) = %v, want ErrNotRootClient", err)
 	}
 }
@@ -121,7 +121,7 @@ func TestWriteEP0_DeniedForNonRoot(t *testing.T) {
 func TestRestrictedStream_GrantedEndpointAccessible(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
-	if err := s.AddEndpoint(root, 1, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, 1, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
 
@@ -145,20 +145,20 @@ func TestRestrictedStream_GrantedEndpointAccessible(t *testing.T) {
 func TestRestrictedStream_UngrantedEndpointDenied(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
-	if err := s.AddEndpoint(root, 1, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, 1, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
-	if err := s.AddEndpoint(root, 2, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, 2, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
 
 	restricted := avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x99}, 5)
 	s.Grant(restricted, 1) // granted endpoint 1 only
 
-	if _, err := s.ReadEndpoint(restricted, 2); !errors.Is(err, server.ErrAccessDenied) {
+	if _, err := s.ReadEndpoint(restricted, 2); !errors.Is(err, regmap.ErrAccessDenied) {
 		t.Fatalf("ReadEndpoint(restricted, 2) = %v, want ErrAccessDenied", err)
 	}
-	if err := s.WriteFunctional(restricted, 2, []byte{0x01}); !errors.Is(err, server.ErrAccessDenied) {
+	if err := s.WriteFunctional(restricted, 2, []byte{0x01}); !errors.Is(err, regmap.ErrAccessDenied) {
 		t.Fatalf("WriteFunctional(restricted, 2) = %v, want ErrAccessDenied", err)
 	}
 }
@@ -175,7 +175,7 @@ func TestClaimRoot_ExclusiveToOneStream(t *testing.T) {
 	}
 
 	other := avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0xAA}, 6)
-	if err := s.ClaimRoot(other); !errors.Is(err, server.ErrRootAlreadyClaimed) {
+	if err := s.ClaimRoot(other); !errors.Is(err, regmap.ErrRootAlreadyClaimed) {
 		t.Fatalf("ClaimRoot(other) = %v, want ErrRootAlreadyClaimed", err)
 	}
 }

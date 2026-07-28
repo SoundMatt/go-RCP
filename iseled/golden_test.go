@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/iseled"
 )
@@ -62,10 +63,10 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 		t.Fatalf("Configure: %v", err)
 	}
 
-	req := avtp.Message{
-		Kind:      avtp.KindShort,
+	req := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      goldenCommand,
 	}
 	resp, err := ep.HandleRequest(root, req)

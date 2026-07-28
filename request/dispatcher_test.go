@@ -15,6 +15,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/gpio"
 	"github.com/SoundMatt/go-RCP/request"
@@ -46,18 +47,18 @@ func newGPIOEndpoint(t *testing.T, cfg gpio.Config) (*gpio.Endpoint, avtp.Stream
 	return ep, root, addr
 }
 
-func gpioReadMsg(addr avtp.ByteBusID, txn avtp.TransactionNum) avtp.Message {
-	return avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: txn, Control: avtp.FlagRead}
+func gpioReadMsg(addr avtp.ByteBusID, txn avtp.TransactionNum) acf.Message {
+	return acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: txn, Control: acf.FlagRead}
 }
 
-func gpioWriteMsg(addr avtp.ByteBusID, txn avtp.TransactionNum, sem gpio.WriteSemantic, operand uint32) avtp.Message {
-	return avtp.Message{
-		Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: txn, Control: avtp.FlagWrite,
+func gpioWriteMsg(addr avtp.ByteBusID, txn avtp.TransactionNum, sem gpio.WriteSemantic, operand uint32) acf.Message {
+	return acf.Message{
+		Kind: acf.KindShort, ByteBusID: addr, TransactionNum: txn, Control: acf.FlagWrite,
 		Body: gpio.EncodeWriteRequest(sem, operand),
 	}
 }
 
-// TestDispatcher_PlainRetrofit checks a Message without avtp.FlagExtended
+// TestDispatcher_PlainRetrofit checks a Message without acf.FlagExtended
 // set is dispatched to the wrapped Handler completely unchanged — the Phase
 // 14 plain-request path, retrofitted onto the lifecycle state machine
 // without editing gpio itself (REQ-REQ-011).
@@ -78,10 +79,10 @@ func TestDispatcher_PlainRetrofit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dispatch(read): %v", err)
 	}
-	if !resp.Control.Has(avtp.FlagResponse | avtp.FlagRead) {
+	if !resp.Control.Has(acf.FlagResponse | acf.FlagRead) {
 		t.Errorf("plain response Control = %v, want FlagResponse|FlagRead (no FlagExtended)", resp.Control)
 	}
-	if resp.Control.Has(avtp.FlagExtended) {
+	if resp.Control.Has(acf.FlagExtended) {
 		t.Errorf("plain response Control = %v, must not set FlagExtended", resp.Control)
 	}
 }
@@ -98,8 +99,8 @@ func TestDispatcher_CompoundMatchAndAdvance(t *testing.T) {
 	// Condition false (10 != 20): the write must not reach the endpoint,
 	// and the sequencer must stay at 10.
 	unmatched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 20, AdvanceOnMatch: 5}
-	body := request.EncodeCompound(unmatched, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: body}
+	body := request.EncodeCompound(unmatched, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: body}
 
 	resp, err := d.Dispatch(root, req, 0)
 	if err != nil {
@@ -126,8 +127,8 @@ func TestDispatcher_CompoundMatchAndAdvance(t *testing.T) {
 	// Condition true (10 == 10): the write must reach the endpoint, and the
 	// sequencer must advance by AdvanceOnMatch.
 	matched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 10, AdvanceOnMatch: 5}
-	body = request.EncodeCompound(matched, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	req = avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 3, Control: avtp.FlagWrite | avtp.FlagExtended, Body: body}
+	body = request.EncodeCompound(matched, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	req = acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 3, Control: acf.FlagWrite | acf.FlagExtended, Body: body}
 
 	resp, err = d.Dispatch(root, req, 0)
 	if err != nil {
@@ -159,7 +160,7 @@ func TestDispatcher_CompoundWaitNeverTouchesEndpoint(t *testing.T) {
 
 	cond := request.Conditional{Sequencer: 2, Op: request.CompareGreaterOrEqual, Operand: 3, AdvanceOnMatch: 1}
 	body := request.EncodeCompoundWait(cond)
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagExtended, Body: body}
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagExtended, Body: body}
 
 	resp, err := d.Dispatch(root, req, 0)
 	if err != nil {
@@ -202,8 +203,8 @@ func TestDispatcher_Triggered(t *testing.T) {
 		return n
 	})
 
-	body := request.EncodeTriggered(source, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: body}
+	body := request.EncodeTriggered(source, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: body}
 
 	id, err := d.Submit(root, req)
 	if err != nil {
@@ -234,8 +235,8 @@ func TestDispatcher_Timed(t *testing.T) {
 	ep, root, addr := newGPIOEndpoint(t, gpio.Config{PinCount: 4, Direction: 0b1111})
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
-	body := request.EncodeTimed(1000, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0010))
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: body}
+	body := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0010))
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: body}
 
 	id, err := d.Submit(root, req)
 	if err != nil {
@@ -264,16 +265,16 @@ func TestDispatcher_ChainedSequentialAndAbort(t *testing.T) {
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
 	segs := []request.ChainedSegment{
-		{Control: avtp.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001)},
-		{Control: avtp.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0010)},
+		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001)},
+		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0010)},
 		{Control: 0, Body: nil}, // neither Read nor Write: gpio rejects this
-		{Control: avtp.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b1000)},
+		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b1000)},
 	}
 	body, err := request.EncodeChained(segs)
 	if err != nil {
 		t.Fatalf("EncodeChained: %v", err)
 	}
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagExtended, Body: body}
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagExtended, Body: body}
 
 	_, err = d.Dispatch(root, req, 0)
 	if !errors.Is(err, request.ErrChainedSegmentFailed) {
@@ -300,17 +301,17 @@ func TestDispatcher_CancelAll(t *testing.T) {
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
 	// Two Timed tickets, both not yet due, sit in StateStarted.
-	body := request.EncodeTimed(1000, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	id1, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: body})
+	body := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	id1, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: body})
 	if err != nil {
 		t.Fatalf("Submit(timed 1): %v", err)
 	}
-	id2, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 2, Control: avtp.FlagWrite | avtp.FlagExtended, Body: body})
+	id2, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagWrite | acf.FlagExtended, Body: body})
 	if err != nil {
 		t.Fatalf("Submit(timed 2): %v", err)
 	}
 
-	cancelReq := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 3, Control: avtp.FlagExtended, Body: request.EncodeCancelAll()}
+	cancelReq := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 3, Control: acf.FlagExtended, Body: request.EncodeCancelAll()}
 	cancelID, err := d.Submit(root, cancelReq)
 	if err != nil {
 		t.Fatalf("Submit(cancel-all): %v", err)
@@ -353,18 +354,18 @@ func TestDispatcher_CancelTransactionAndSequencer(t *testing.T) {
 	seq := request.NewSequencer()
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
-	timedBody := request.EncodeTimed(1000, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
 	targetTxn := avtp.TransactionNum(42)
-	target, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: targetTxn, Control: avtp.FlagWrite | avtp.FlagExtended, Body: timedBody})
+	target, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: targetTxn, Control: acf.FlagWrite | acf.FlagExtended, Body: timedBody})
 	if err != nil {
 		t.Fatalf("Submit(target timed): %v", err)
 	}
-	bystander, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 43, Control: avtp.FlagWrite | avtp.FlagExtended, Body: timedBody})
+	bystander, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 43, Control: acf.FlagWrite | acf.FlagExtended, Body: timedBody})
 	if err != nil {
 		t.Fatalf("Submit(bystander timed): %v", err)
 	}
 
-	cancelTxnReq := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 44, Control: avtp.FlagExtended, Body: request.EncodeCancelTransaction(targetTxn)}
+	cancelTxnReq := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 44, Control: acf.FlagExtended, Body: request.EncodeCancelTransaction(targetTxn)}
 	cancelResp, err := d.Dispatch(root, cancelTxnReq, 0)
 	if err != nil {
 		t.Fatalf("Dispatch(cancel-transaction): %v", err)
@@ -383,12 +384,12 @@ func TestDispatcher_CancelTransactionAndSequencer(t *testing.T) {
 	// sequencer 5, plus an unrelated Timed ticket that must survive.
 	cond := request.Conditional{Sequencer: 5, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 0}
 	compoundWaitBody := request.EncodeCompoundWait(cond)
-	gatedID, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 50, Control: avtp.FlagExtended, Body: compoundWaitBody})
+	gatedID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 50, Control: acf.FlagExtended, Body: compoundWaitBody})
 	if err != nil {
 		t.Fatalf("Submit(gated compound-wait): %v", err)
 	}
 
-	cancelSeqReq := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 51, Control: avtp.FlagExtended, Body: request.EncodeCancelSequencer(5)}
+	cancelSeqReq := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 51, Control: acf.FlagExtended, Body: request.EncodeCancelSequencer(5)}
 	cancelSeqResp, err := d.Dispatch(root, cancelSeqReq, 0)
 	if err != nil {
 		t.Fatalf("Dispatch(cancel-sequencer): %v", err)
@@ -414,7 +415,7 @@ func TestDispatcher_AccessCheck(t *testing.T) {
 	denyAll := errors.New("denied")
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), func(avtp.StreamID) error { return denyAll })
 
-	cancelReq := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagExtended, Body: request.EncodeCancelAll()}
+	cancelReq := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagExtended, Body: request.EncodeCancelAll()}
 	if _, err := d.Submit(root, cancelReq); !errors.Is(err, denyAll) {
 		t.Errorf("Submit(cancel-all, denied) err = %v, want %v", err, denyAll)
 	}

@@ -7,8 +7,8 @@ import "encoding/binary"
 // channels, this package's Scope section explains why one bus is enough), its
 // speed class, and the minimum time the controller waits after one
 // transaction completes before starting the next. It is stored as an
-// endpoint's server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// endpoint's regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint's bus is configured for use. A
 	// transfer request against a disabled bus is rejected with

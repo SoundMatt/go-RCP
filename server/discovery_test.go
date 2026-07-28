@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/discovery"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/server"
 )
 
@@ -60,7 +62,7 @@ func TestReadDiscovery_AnswersInEveryLifecycleState(t *testing.T) {
 
 	// StateUnconfigured.
 	buf := s.ReadDiscovery()
-	if _, err := server.DecodeRegisterMap(buf); err != nil {
+	if _, err := regmap.DecodeRegisterMap(buf); err != nil {
 		t.Fatalf("DecodeRegisterMap (unconfigured): %v", err)
 	}
 
@@ -68,13 +70,13 @@ func TestReadDiscovery_AnswersInEveryLifecycleState(t *testing.T) {
 	if err := s.WriteFunctional(root, 1, []byte{0x01}); err != nil {
 		t.Fatalf("WriteFunctional: %v", err)
 	}
-	if err := s.SetQueueConfig(root, server.QueueConfig{FlushThreshold: 4}); err != nil {
+	if err := s.SetQueueConfig(root, regmap.QueueConfig{FlushThreshold: 4}); err != nil {
 		t.Fatalf("SetQueueConfig: %v", err)
 	}
 
 	// StateHWLocked.
 	buf = s.ReadDiscovery()
-	if _, err := server.DecodeRegisterMap(buf); err != nil {
+	if _, err := regmap.DecodeRegisterMap(buf); err != nil {
 		t.Fatalf("DecodeRegisterMap (hw-locked): %v", err)
 	}
 
@@ -84,11 +86,11 @@ func TestReadDiscovery_AnswersInEveryLifecycleState(t *testing.T) {
 
 	// StateFullyConfigured, exercised by a stream with no grant at all —
 	// ReadEP0 would deny this, ReadDiscovery must not.
-	if _, err := s.ReadEP0(restricted); !errors.Is(err, server.ErrAccessDenied) {
+	if _, err := s.ReadEP0(restricted); !errors.Is(err, regmap.ErrAccessDenied) {
 		t.Fatalf("ReadEP0(restricted) = %v, want ErrAccessDenied (sanity check)", err)
 	}
 	buf = s.ReadDiscovery()
-	m, err := server.DecodeRegisterMap(buf)
+	m, err := regmap.DecodeRegisterMap(buf)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap (fully-configured): %v", err)
 	}
@@ -110,7 +112,7 @@ func TestReadDiscovery_AvailableWhileConfigurationClaimHeld(t *testing.T) {
 	}
 
 	buf := s.ReadDiscovery()
-	if _, err := server.DecodeRegisterMap(buf); err != nil {
+	if _, err := regmap.DecodeRegisterMap(buf); err != nil {
 		t.Fatalf("DecodeRegisterMap: %v", err)
 	}
 	_ = reader // reader never needs a grant/claim of its own to read
@@ -124,7 +126,7 @@ func TestHandleDiscoveryRequest_RejectsTimedHeader(t *testing.T) {
 	hdr := avtp.Header{Timed: true, TimestampStatus: avtp.TimestampValid}
 
 	buf, err := s.HandleDiscoveryRequest(hdr)
-	if !errors.Is(err, server.ErrDiscoveryRequiresUntimedHeader) {
+	if !errors.Is(err, discovery.ErrDiscoveryRequiresUntimedHeader) {
 		t.Fatalf("HandleDiscoveryRequest(timed) err = %v, want ErrDiscoveryRequiresUntimedHeader", err)
 	}
 	if buf != nil {
@@ -160,7 +162,7 @@ func TestClaimConfiguration_FirstStreamReservesAndBlocksOthers(t *testing.T) {
 	if err := s.ClaimConfiguration(first); err != nil {
 		t.Fatalf("ClaimConfiguration(first): %v", err)
 	}
-	if err := s.ClaimConfiguration(second); !errors.Is(err, server.ErrConfigurationClaimed) {
+	if err := s.ClaimConfiguration(second); !errors.Is(err, discovery.ErrConfigurationClaimed) {
 		t.Fatalf("ClaimConfiguration(second) = %v, want ErrConfigurationClaimed", err)
 	}
 
@@ -236,7 +238,7 @@ func TestReleaseConfigurationClaim_HolderAndNonHolder(t *testing.T) {
 		t.Fatalf("ClaimConfiguration(holder): %v", err)
 	}
 
-	if err := s.ReleaseConfigurationClaim(other); !errors.Is(err, server.ErrNotConfigurationClaimant) {
+	if err := s.ReleaseConfigurationClaim(other); !errors.Is(err, discovery.ErrNotConfigurationClaimant) {
 		t.Fatalf("ReleaseConfigurationClaim(other) = %v, want ErrNotConfigurationClaimant", err)
 	}
 	if err := s.ReleaseConfigurationClaim(holder); err != nil {
@@ -255,30 +257,30 @@ func TestReleaseConfigurationClaim_HolderAndNonHolder(t *testing.T) {
 // TestIsConformantServer checks recognition of a discovery response's
 // identification/version/vendor/product fields (REQ-RCS-029).
 func TestIsConformantServer(t *testing.T) {
-	good := server.GeneralBlock{
+	good := regmap.GeneralBlock{
 		VendorID:           0x1234,
 		ProductID:          0x5678,
-		RegisterMapVersion: server.RegisterMapVersion,
+		RegisterMapVersion: regmap.RegisterMapVersion,
 	}
-	if !server.IsConformantServer(good) {
+	if !discovery.IsConformantServer(good) {
 		t.Errorf("IsConformantServer(good) = false, want true")
 	}
 
 	badVersion := good
-	badVersion.RegisterMapVersion = server.RegisterMapVersion + 1
-	if server.IsConformantServer(badVersion) {
+	badVersion.RegisterMapVersion = regmap.RegisterMapVersion + 1
+	if discovery.IsConformantServer(badVersion) {
 		t.Errorf("IsConformantServer(badVersion) = true, want false")
 	}
 
 	zeroVendor := good
 	zeroVendor.VendorID = 0
-	if server.IsConformantServer(zeroVendor) {
+	if discovery.IsConformantServer(zeroVendor) {
 		t.Errorf("IsConformantServer(zeroVendor) = true, want false")
 	}
 
 	zeroProduct := good
 	zeroProduct.ProductID = 0
-	if server.IsConformantServer(zeroProduct) {
+	if discovery.IsConformantServer(zeroProduct) {
 		t.Errorf("IsConformantServer(zeroProduct) = true, want false")
 	}
 }
@@ -290,35 +292,35 @@ func TestIsConformantServer(t *testing.T) {
 func TestTopology_RoundTrips(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
-	if err := s.AddEndpoint(root, 1, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, 1, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
-	if err := s.AddEndpoint(root, 2, server.EndpointTypeSPI); err != nil {
+	if err := s.AddEndpoint(root, 2, regmap.EndpointTypeSPI); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
 
 	buf := s.ReadDiscovery()
-	m, err := server.DecodeRegisterMap(buf)
+	m, err := regmap.DecodeRegisterMap(buf)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap: %v", err)
 	}
 
-	topo := server.DiscoverTopology(m)
+	topo := discovery.DiscoverTopology(m)
 	if topo.EndpointCount() != 2 {
 		t.Fatalf("EndpointCount() = %d, want 2", topo.EndpointCount())
 	}
-	if topo.Endpoints[0].Address != 1 || topo.Endpoints[0].Type != server.EndpointTypeGPIO {
+	if topo.Endpoints[0].Address != 1 || topo.Endpoints[0].Type != regmap.EndpointTypeGPIO {
 		t.Errorf("Endpoints[0] = %+v, want {Address:1 Type:GPIO}", topo.Endpoints[0])
 	}
-	if topo.Endpoints[1].Address != 2 || topo.Endpoints[1].Type != server.EndpointTypeSPI {
+	if topo.Endpoints[1].Address != 2 || topo.Endpoints[1].Type != regmap.EndpointTypeSPI {
 		t.Errorf("Endpoints[1] = %+v, want {Address:2 Type:SPI}", topo.Endpoints[1])
 	}
 
 	var persisted bytes.Buffer
-	if writeErr := server.WriteTopology(&persisted, topo); writeErr != nil {
+	if writeErr := discovery.WriteTopology(&persisted, topo); writeErr != nil {
 		t.Fatalf("WriteTopology: %v", writeErr)
 	}
-	reloaded, err := server.ReadTopology(&persisted)
+	reloaded, err := discovery.ReadTopology(&persisted)
 	if err != nil {
 		t.Fatalf("ReadTopology: %v", err)
 	}

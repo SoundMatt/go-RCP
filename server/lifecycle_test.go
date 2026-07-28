@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/lifecycle"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/server"
 )
 
@@ -35,7 +37,7 @@ func newRootServer(t *testing.T, stream avtp.StreamID) *server.Server {
 // defaults unconfigured state (REQ-RCS-001).
 func TestNewServer_StartsUnconfigured(t *testing.T) {
 	s := server.NewServer()
-	if s.State() != server.StateUnconfigured {
+	if s.State() != lifecycle.StateUnconfigured {
 		t.Errorf("State() = %v, want StateUnconfigured", s.State())
 	}
 }
@@ -46,17 +48,17 @@ func TestAdvanceToHWLocked_Succeeds(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
 
-	if err := s.AddEndpoint(root, avtp.ByteBusID(1), server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, avtp.ByteBusID(1), regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
-	if err := s.SetPinAssignment(root, server.PinAssignment{Pin: 10, Endpoint: 1, SignalIndex: 0}); err != nil {
+	if err := s.SetPinAssignment(root, regmap.PinAssignment{Pin: 10, Endpoint: 1, SignalIndex: 0}); err != nil {
 		t.Fatalf("SetPinAssignment: %v", err)
 	}
 
 	if err := s.AdvanceToHWLocked(); err != nil {
 		t.Fatalf("AdvanceToHWLocked: %v", err)
 	}
-	if s.State() != server.StateHWLocked {
+	if s.State() != lifecycle.StateHWLocked {
 		t.Errorf("State() = %v, want StateHWLocked", s.State())
 	}
 }
@@ -68,15 +70,15 @@ func TestAdvanceToHWLocked_RejectsUndeclaredEndpoint(t *testing.T) {
 	root := rootStream()
 	s := newRootServer(t, root)
 
-	if err := s.SetPinAssignment(root, server.PinAssignment{Pin: 10, Endpoint: 99, SignalIndex: 0}); err != nil {
+	if err := s.SetPinAssignment(root, regmap.PinAssignment{Pin: 10, Endpoint: 99, SignalIndex: 0}); err != nil {
 		t.Fatalf("SetPinAssignment: %v", err)
 	}
 
 	err := s.AdvanceToHWLocked()
-	if !errors.Is(err, server.ErrPinMapInvalid) {
+	if !errors.Is(err, regmap.ErrPinMapInvalid) {
 		t.Fatalf("AdvanceToHWLocked err = %v, want ErrPinMapInvalid", err)
 	}
-	if s.State() != server.StateUnconfigured {
+	if s.State() != lifecycle.StateUnconfigured {
 		t.Errorf("State() = %v after rejected transition, want StateUnconfigured unchanged", s.State())
 	}
 }
@@ -85,10 +87,10 @@ func TestAdvanceToHWLocked_RejectsUndeclaredEndpoint(t *testing.T) {
 // plausible pin assignment and advances s to StateHWLocked.
 func advanceToHWLocked(t *testing.T, s *server.Server, root avtp.StreamID, addr avtp.ByteBusID) {
 	t.Helper()
-	if err := s.AddEndpoint(root, addr, server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, addr, regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
-	if err := s.SetPinAssignment(root, server.PinAssignment{Pin: 10, Endpoint: addr, SignalIndex: 0}); err != nil {
+	if err := s.SetPinAssignment(root, regmap.PinAssignment{Pin: 10, Endpoint: addr, SignalIndex: 0}); err != nil {
 		t.Fatalf("SetPinAssignment: %v", err)
 	}
 	if err := s.AdvanceToHWLocked(); err != nil {
@@ -107,14 +109,14 @@ func TestAdvanceToFullyConfigured_Succeeds(t *testing.T) {
 	if err := s.WriteFunctional(root, 1, []byte{0x01}); err != nil {
 		t.Fatalf("WriteFunctional: %v", err)
 	}
-	if err := s.SetQueueConfig(root, server.QueueConfig{FlushThreshold: 4}); err != nil {
+	if err := s.SetQueueConfig(root, regmap.QueueConfig{FlushThreshold: 4}); err != nil {
 		t.Fatalf("SetQueueConfig: %v", err)
 	}
 
 	if err := s.AdvanceToFullyConfigured(); err != nil {
 		t.Fatalf("AdvanceToFullyConfigured: %v", err)
 	}
-	if s.State() != server.StateFullyConfigured {
+	if s.State() != lifecycle.StateFullyConfigured {
 		t.Errorf("State() = %v, want StateFullyConfigured", s.State())
 	}
 }
@@ -127,15 +129,15 @@ func TestAdvanceToFullyConfigured_RejectsIncompleteFunctional(t *testing.T) {
 	s := newRootServer(t, root)
 	advanceToHWLocked(t, s, root, 1)
 
-	if err := s.SetQueueConfig(root, server.QueueConfig{FlushThreshold: 4}); err != nil {
+	if err := s.SetQueueConfig(root, regmap.QueueConfig{FlushThreshold: 4}); err != nil {
 		t.Fatalf("SetQueueConfig: %v", err)
 	}
 
 	err := s.AdvanceToFullyConfigured()
-	if !errors.Is(err, server.ErrFunctionalBlockIncomplete) {
+	if !errors.Is(err, lifecycle.ErrFunctionalBlockIncomplete) {
 		t.Fatalf("AdvanceToFullyConfigured err = %v, want ErrFunctionalBlockIncomplete", err)
 	}
-	if s.State() != server.StateHWLocked {
+	if s.State() != lifecycle.StateHWLocked {
 		t.Errorf("State() = %v after rejected transition, want StateHWLocked unchanged", s.State())
 	}
 }
@@ -154,7 +156,7 @@ func TestAdvanceToFullyConfigured_RejectsUnflushableQueue(t *testing.T) {
 	// QueueConfig zero value: FlushThreshold=0, FlushTimeMillis=0.
 
 	err := s.AdvanceToFullyConfigured()
-	if !errors.Is(err, server.ErrQueueConfigInvalid) {
+	if !errors.Is(err, regmap.ErrQueueConfigInvalid) {
 		t.Fatalf("AdvanceToFullyConfigured err = %v, want ErrQueueConfigInvalid", err)
 	}
 }
@@ -164,10 +166,10 @@ func TestAdvanceToFullyConfigured_RejectsUnflushableQueue(t *testing.T) {
 func TestLifecycle_CannotSkipState(t *testing.T) {
 	s := server.NewServer()
 	err := s.AdvanceToFullyConfigured()
-	if !errors.Is(err, server.ErrLifecycleOutOfOrder) {
+	if !errors.Is(err, lifecycle.ErrLifecycleOutOfOrder) {
 		t.Fatalf("AdvanceToFullyConfigured from Unconfigured err = %v, want ErrLifecycleOutOfOrder", err)
 	}
-	if s.State() != server.StateUnconfigured {
+	if s.State() != lifecycle.StateUnconfigured {
 		t.Errorf("State() = %v, want StateUnconfigured unchanged", s.State())
 	}
 }

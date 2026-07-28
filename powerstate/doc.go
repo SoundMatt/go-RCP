@@ -27,7 +27,7 @@
 // wakeup.Config.WakeHandshakeIntervalMillis, reproduces exactly the
 // "repeating, caller-paced" retransmission wakeup/doc.go describes without
 // this package owning a timer of its own (the same caller-driven posture
-// crcsafe.Supervisor and request.Dispatcher.Pump already establish
+// e2e.Supervisor and request.Dispatcher.Pump already establish
 // throughout this repo's safety-critical layers). Driver.Acknowledge
 // forwards to wakeup.Endpoint.AcknowledgeWake and additionally discards any
 // repeat this Driver had already pulled off that queue but not yet

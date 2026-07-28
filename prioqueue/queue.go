@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/request"
 )
@@ -11,14 +12,14 @@ import (
 // Item is one request queued for later release, carrying enough for a
 // caller to submit it to a request.Dispatcher (Submit or Dispatch) once
 // popped: which stream is requesting (Requester) and the already-encoded
-// avtp.Message (Message), envelope included if Kind is anything other than
+// acf.Message (Message), envelope included if Kind is anything other than
 // request.KindPlain. Kind is carried separately (rather than re-derived
 // from Message) purely so Queue never needs to decode Message's body itself
 // to rank it.
 type Item struct {
 	Kind      request.Kind
 	Requester avtp.StreamID
-	Message   avtp.Message
+	Message   acf.Message
 
 	seq uint64
 }
@@ -51,7 +52,7 @@ func NewQueue() *Queue {
 // comment) — a plain, unconditional request still has a well-defined
 // priority rank (request.Kind.Priority), and this queue's job is ordering
 // pending work, not wire validation.
-func (q *Queue) Push(kind request.Kind, requester avtp.StreamID, msg avtp.Message) error {
+func (q *Queue) Push(kind request.Kind, requester avtp.StreamID, msg acf.Message) error {
 	if !validKind(kind) {
 		return ErrInvalidKind
 	}

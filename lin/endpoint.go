@@ -3,6 +3,7 @@ package lin
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -86,27 +87,27 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message transfer
+// HandleRequest answers one plain, unconditional acf.Message transfer
 // request addressed to this endpoint (see doc.go's "Explicit non-goal"
 // section for the conditional-request kinds this deliberately leaves to
-// request.Dispatcher). req must set avtp.FlagWrite: a LIN commander transfer
+// request.Dispatcher). req must set acf.FlagWrite: a LIN commander transfer
 // always carries an outgoing frame body (even a zero-length one), so there
 // is nothing to transfer without it.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
-	if !req.Control.Has(avtp.FlagWrite) {
-		return avtp.Message{}, ErrRequestMustWrite
+	if !req.Control.Has(acf.FlagWrite) {
+		return acf.Message{}, ErrRequestMustWrite
 	}
 
 	tx := DecodeTransferRequest(req.Body)
 	rx, err := e.transfer(tx)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	return responseFor(req, EncodeTransferResponse(rx)), nil
 }
@@ -143,12 +144,12 @@ func (e *Endpoint) transfer(tx []byte) ([]byte, error) {
 // responseFor builds the response Message for req: FlagResponse set, same
 // Kind/ByteBusID/TransactionNum as req for correlation, and body as the
 // caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | avtp.FlagWrite,
+		Control:        acf.FlagResponse | acf.FlagWrite,
 		Body:           body,
 	}
 }

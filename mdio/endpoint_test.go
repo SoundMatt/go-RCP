@@ -8,25 +8,26 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/mdio"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
-func readReq(r mdio.Request) avtp.Message {
-	return avtp.Message{
-		Kind:      avtp.KindShort,
+func readReq(r mdio.Request) acf.Message {
+	return acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagRead,
+		Control:   acf.FlagRead,
 		Body:      mdio.EncodeReadRequest(r),
 	}
 }
 
-func writeReq(r mdio.Request, data uint16) avtp.Message {
-	return avtp.Message{
-		Kind:      avtp.KindShort,
+func writeReq(r mdio.Request, data uint16) acf.Message {
+	return acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      mdio.EncodeWriteRequest(r, data),
 	}
 }
@@ -63,7 +64,7 @@ func TestHandleRequest_RequiresReadOrWriteWrongEndpointOrAccess(t *testing.T) {
 		t.Fatalf("Configure: %v", err)
 	}
 
-	neither := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	neither := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1)}
 	if _, err := ep.HandleRequest(root, neither); !errors.Is(err, mdio.ErrRequestMustReadOrWrite) {
 		t.Errorf("HandleRequest(neither flag) err = %v, want ErrRequestMustReadOrWrite", err)
 	}
@@ -75,8 +76,8 @@ func TestHandleRequest_RequiresReadOrWriteWrongEndpointOrAccess(t *testing.T) {
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x06, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	if _, err := ep.HandleRequest(stranger, readReq(mdio.Request{})); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	if _, err := ep.HandleRequest(stranger, readReq(mdio.Request{})); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 }
 

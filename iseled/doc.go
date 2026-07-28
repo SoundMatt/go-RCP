@@ -11,13 +11,13 @@
 // (Config) is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint, and
 // Endpoint.HandleRequest implements the same request.Handler shape
-// (avtp.StreamID, avtp.Message) (avtp.Message, error) every other endpoint
+// (avtp.StreamID, acf.Message) (acf.Message, error) every other endpoint
 // type does, so it drops into request.Dispatcher unmodified.
 //
 // # Scope
 //
 // ISELED (Intelligent Solid-state Emitter LED) devices are daisy-chained on
-// a single native 4b/5b-encoded data line — matching server/types.go's
+// a single native 4b/5b-encoded data line — matching regmap/types.go's
 // single "DATA" ISELED signal. One ISELED endpoint is controller-only and
 // models one such chain: Config carries the number of devices on the chain
 // (Config.DeviceCount) and the timeout the controller waits for a device's
@@ -36,14 +36,14 @@
 // integrity check specific to the ISELED chain protocol itself, verified by
 // the addressed device(s) at the physical/link layer independently of
 // anything RCP-level. This is *layered on top of*, not a replacement for,
-// the general end-to-end mechanism crcsafe (ROADMAP.md Milestone 50)
+// the general end-to-end mechanism e2e (ROADMAP.md Milestone 50)
 // already provides at the RCP-message level: a caller free to wrap this
-// package's Endpoint in crcsafe.Guard gets both checks — crcsafe's CRC32
+// package's Endpoint in e2e.Guard gets both checks — e2e's CRC32
 // safe point over the whole RCP Message, and this package's own CRC8 over
 // just the ISELED command bytes inside that message's Body — exactly as
-// ROADMAP.md Milestone 51 calls for. This package does not import crcsafe
+// ROADMAP.md Milestone 51 calls for. This package does not import e2e
 // itself (nothing here depends on it to function), the same one-directional
-// "wrap, don't require" relationship crcsafe/doc.go already established for
+// "wrap, don't require" relationship e2e/doc.go already established for
 // every other endpoint type.
 //
 // # Multi-device response aggregation (optional)
@@ -62,7 +62,7 @@
 // # Explicit non-goal
 //
 // Per ROADMAP.md Milestone 48/51, this package's Endpoint.HandleRequest
-// answers the plain, unconditional avtp.Message request shape only.
+// answers the plain, unconditional acf.Message request shape only.
 // Compound/triggered/chained/timed request variants are provided by
 // wrapping this package's Endpoint (a request.Handler) in a
 // request.Dispatcher exactly as every other endpoint type is, rather than
@@ -80,7 +80,7 @@
 // text this note cannot reproduce) are this implementation's own reasoned,
 // self-consistent encoding rather than a verified transcription of the
 // published byte assignments and algorithm — the same open-item posture
-// avtp/doc.go, server/doc.go, and crcsafe/doc.go document for their own
+// avtp/doc.go, server/doc.go, and e2e/doc.go document for their own
 // packages, pending confirmation against a public interoperability
 // reference.
 package iseled

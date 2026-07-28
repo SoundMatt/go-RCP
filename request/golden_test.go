@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/gpio"
 	"github.com/SoundMatt/go-RCP/request"
 )
@@ -35,13 +35,13 @@ var goldenCompound = []byte{
 	0x00,                   // Op = CompareEqual
 	0x00, 0x00, 0x00, 0x0A, // Operand
 	0x00, 0x00, 0x00, 0x01, // AdvanceOnMatch
-	byte(avtp.FlagWrite),         // inner Control
+	byte(acf.FlagWrite),          // inner Control
 	0x01, 0x00, 0x00, 0x00, 0x05, // inner Body (goldenCompoundInnerBody)
 }
 
 func TestGolden_Compound(t *testing.T) {
 	c := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 10, AdvanceOnMatch: 1}
-	got := request.EncodeCompound(c, avtp.FlagWrite, goldenCompoundInnerBody)
+	got := request.EncodeCompound(c, acf.FlagWrite, goldenCompoundInnerBody)
 	if !bytes.Equal(got, goldenCompound) {
 		t.Fatalf("EncodeCompound changed:\n got  % X\n want % X", got, goldenCompound)
 	}
@@ -49,8 +49,8 @@ func TestGolden_Compound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeCompound(golden): %v", err)
 	}
-	if gotC != c || gotControl != avtp.FlagWrite || !bytes.Equal(gotBody, goldenCompoundInnerBody) {
-		t.Errorf("DecodeCompound(golden) = (%+v, %v, % X), want (%+v, %v, % X)", gotC, gotControl, gotBody, c, avtp.FlagWrite, goldenCompoundInnerBody)
+	if gotC != c || gotControl != acf.FlagWrite || !bytes.Equal(gotBody, goldenCompoundInnerBody) {
+		t.Errorf("DecodeCompound(golden) = (%+v, %v, % X), want (%+v, %v, % X)", gotC, gotControl, gotBody, c, acf.FlagWrite, goldenCompoundInnerBody)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	seq.Set(1, 10) // matches goldenCompound's Operand
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
-	req := avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: goldenCompound}
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: goldenCompound}
 	resp, err := d.Dispatch(root, req, 0)
 	if err != nil {
 		t.Fatalf("Dispatch(golden compound): %v", err)

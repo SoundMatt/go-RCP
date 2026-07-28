@@ -1,11 +1,11 @@
 package uart
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeUART so a caller that only
+// EndpointType re-exports regmap.EndpointTypeUART so a caller that only
 // imports this package doesn't also need to import server just to declare a
 // UART endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeUART
+const EndpointType = regmap.EndpointTypeUART
 
 // Parity selects a UART endpoint's parity bit generation/checking mode.
 type Parity uint8

@@ -1,6 +1,10 @@
-package avtp
+package acf
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/SoundMatt/go-RCP/avtp"
+)
 
 // MessageKind selects which of the two RCP-over-ACF message encodings a
 // Message is. Both share one request-descriptor header; they differ only in
@@ -74,12 +78,14 @@ type Message struct {
 	Pad uint8
 
 	// ByteBusID addresses the endpoint this message targets, scoped to the
-	// stream_id of the enclosing AVTPDU.
-	ByteBusID ByteBusID
+	// stream_id of the enclosing AVTPDU. This is the avtp package's typed
+	// addressing unit (see avtp/doc.go) — this package carries it, but does
+	// not itself implement (stream_id, byte_bus_id) addressing.
+	ByteBusID avtp.ByteBusID
 
 	// TransactionNum correlates this message with its counterpart
 	// request/response, scoped to the enclosing stream.
-	TransactionNum TransactionNum
+	TransactionNum avtp.TransactionNum
 
 	// Control carries the Ack/Read/Write/Response/Error/MoreSegments bits.
 	Control ControlFlags
@@ -135,7 +141,7 @@ func EncodeMessage(m Message) ([]byte, error) {
 	}
 	const knownFlags = FlagAck | FlagRead | FlagWrite | FlagResponse | FlagError | FlagMoreSegments | FlagExtended
 	if m.Control&^knownFlags != 0 {
-		return nil, ErrReservedBitsSet
+		return nil, avtp.ErrReservedBitsSet
 	}
 
 	total := m.unpaddedLen() + int(m.Pad)
@@ -177,7 +183,7 @@ func DecodeMessage(b []byte) (Message, error) {
 	}
 
 	if b[1]&0x3F != 0 {
-		return Message{}, ErrReservedBitsSet
+		return Message{}, avtp.ErrReservedBitsSet
 	}
 	pad := (b[1] >> 6) & padMask
 
@@ -192,14 +198,14 @@ func DecodeMessage(b []byte) (Message, error) {
 
 	control := ControlFlags(b[7])
 	if control&controlReservedMask != 0 {
-		return Message{}, ErrReservedBitsSet
+		return Message{}, avtp.ErrReservedBitsSet
 	}
 
 	m := Message{
 		Kind:              kind,
 		Pad:               pad,
-		ByteBusID:         ByteBusID(b[4]),
-		TransactionNum:    TransactionNum(binary.BigEndian.Uint16(b[5:7])),
+		ByteBusID:         avtp.ByteBusID(b[4]),
+		TransactionNum:    avtp.TransactionNum(binary.BigEndian.Uint16(b[5:7])),
 		Control:           control,
 		ReadSizeOrSegment: binary.BigEndian.Uint16(b[8:10]),
 	}

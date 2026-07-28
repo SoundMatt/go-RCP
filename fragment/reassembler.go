@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 )
 
 // sequence is one Reassembler-internal in-progress or completed reassembly.
@@ -18,14 +19,14 @@ type sequence struct {
 	// checked against every later one (apart from ReadSizeOrSegment, which
 	// only the terminal/single segment's own value contributes to the final
 	// combined Message — see headerMatches and Reassembler.Add).
-	kind        avtp.MessageKind
+	kind        acf.MessageKind
 	timestamp   uint64
-	baseControl avtp.ControlFlags
+	baseControl acf.ControlFlags
 
 	// finalReadSizeOrSegment is the terminal (or, for a single-segment
 	// sequence, the only) segment's own ReadSizeOrSegment value — the real
 	// read-size (or otherwise endpoint-meaningful) value that field carries
-	// once avtp.FlagMoreSegments is no longer set, not a segment number.
+	// once acf.FlagMoreSegments is no longer set, not a segment number.
 	finalReadSizeOrSegment uint16
 
 	bodies  [][]byte // ascending segment order; each entry owned (copied) by this sequence
@@ -37,16 +38,16 @@ type sequence struct {
 // with s's already-buffered ones. m.ByteBusID and m.TransactionNum are not
 // compared here — they are exactly the fields that select which sequence a
 // caller looked up by Key in the first place.
-func (s *sequence) headerMatches(m avtp.Message) bool {
+func (s *sequence) headerMatches(m acf.Message) bool {
 	return m.Kind == s.kind &&
 		m.Timestamp == s.timestamp &&
-		(m.Control&^avtp.FlagMoreSegments) == s.baseControl
+		(m.Control&^acf.FlagMoreSegments) == s.baseControl
 }
 
 // messageFor builds the shared-field skeleton of key's reassembled Message
 // (every field but Body).
-func (s *sequence) messageFor(key Key) avtp.Message {
-	return avtp.Message{
+func (s *sequence) messageFor(key Key) acf.Message {
+	return acf.Message{
 		Kind:              s.kind,
 		ByteBusID:         key.Bus,
 		TransactionNum:    key.Txn,
@@ -71,8 +72,8 @@ func concatBodies(bodies [][]byte) []byte {
 }
 
 // Reassembler is the receive-side half of ROADMAP.md Milestone 52: it
-// accumulates avtp.Message segments sharing one Key (see KeyOf) until the
-// terminal one (avtp.FlagMoreSegments clear) arrives, at which point Finish
+// accumulates acf.Message segments sharing one Key (see KeyOf) until the
+// terminal one (acf.FlagMoreSegments clear) arrives, at which point Finish
 // or FinishProtected returns the reassembled logical Message. It also
 // accepts an ordinary, never-fragmented Message as a degenerate one-segment
 // sequence that is immediately ready — every caller-facing method works the
@@ -112,8 +113,8 @@ func concatBodies(bodies [][]byte) []byte {
 // One consequence of the wire format itself (avtp/message.go, not this
 // package's own choice) rather than a policy decision above: the terminal
 // segment of a sequence carries no segment number at all — once
-// avtp.FlagMoreSegments is clear, ReadSizeOrSegment reverts to its ordinary,
-// non-fragmentation meaning (see avtp.Message.SegmentNumber/ReadSize), so
+// acf.FlagMoreSegments is clear, ReadSizeOrSegment reverts to its ordinary,
+// non-fragmentation meaning (see acf.Message.SegmentNumber/ReadSize), so
 // Add cannot check a terminal segment's position the way it checks every
 // non-terminal one. A sender that ends a sequence early (sends a terminal
 // segment where a non-terminal one was expected) is therefore
@@ -123,7 +124,7 @@ func concatBodies(bodies [][]byte) []byte {
 // segment number) is detectable and rejected as ErrOutOfOrderSegment.
 //
 // This package runs no goroutine and sends nothing on the wire, the same
-// posture crcsafe.Supervisor's watchdog takes: Sweep is a caller-driven,
+// posture e2e.Supervisor's watchdog takes: Sweep is a caller-driven,
 // on-demand cleanup pass, not a background timer. All exported methods are
 // safe for concurrent use.
 type Reassembler struct {
@@ -145,7 +146,7 @@ func NewReassembler(cfg Config) *Reassembler {
 // NewReassemblerWithClock is like NewReassembler but accepts a custom clock
 // function, used in tests to avoid real-time sleeps when exercising
 // Config.Timeout — the same injectable-clock pattern
-// crcsafe.NewSupervisorWithClock establishes.
+// e2e.NewSupervisorWithClock establishes.
 func NewReassemblerWithClock(cfg Config, now func() time.Time) *Reassembler {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = DefaultReassemblyTimeout
@@ -173,10 +174,10 @@ func NewReassemblerWithClock(cfg Config, now func() time.Time) *Reassembler {
 // tolerated duplicate abandons the sequence entirely, so a caller must
 // treat the whole logical message as failed rather than retry just the
 // rejected segment.
-func (r *Reassembler) Add(stream avtp.StreamID, m avtp.Message) (bool, error) {
+func (r *Reassembler) Add(stream avtp.StreamID, m acf.Message) (bool, error) {
 	key := KeyOf(stream, m)
 	now := r.now()
-	isSeg := m.Control.Has(avtp.FlagMoreSegments)
+	isSeg := m.Control.Has(acf.FlagMoreSegments)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -203,7 +204,7 @@ func (r *Reassembler) Add(stream avtp.StreamID, m avtp.Message) (bool, error) {
 		r.seqs[key] = &sequence{
 			kind:        m.Kind,
 			timestamp:   m.Timestamp,
-			baseControl: m.Control &^ avtp.FlagMoreSegments,
+			baseControl: m.Control &^ acf.FlagMoreSegments,
 			bodies:      [][]byte{append([]byte(nil), m.Body...)},
 			updated:     now,
 		}
@@ -259,16 +260,16 @@ func (r *Reassembler) Add(stream avtp.StreamID, m avtp.Message) (bool, error) {
 // ErrUnknownSequence when key names no sequence this Reassembler currently
 // holds, and ErrIncomplete when that sequence has not yet received its
 // terminal segment.
-func (r *Reassembler) Finish(key Key) (avtp.Message, error) {
+func (r *Reassembler) Finish(key Key) (acf.Message, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	seq, ok := r.seqs[key]
 	if !ok {
-		return avtp.Message{}, ErrUnknownSequence
+		return acf.Message{}, ErrUnknownSequence
 	}
 	if !seq.ready {
-		return avtp.Message{}, ErrIncomplete
+		return acf.Message{}, ErrIncomplete
 	}
 	out := seq.messageFor(key)
 	out.Body = concatBodies(seq.bodies)
@@ -278,28 +279,28 @@ func (r *Reassembler) Finish(key Key) (avtp.Message, error) {
 
 // FinishProtected is Finish's CRC-aware counterpart (ROADMAP.md Milestone
 // 52's third named integration point): it treats key's terminal segment's
-// trailing crcsafe.Len bytes as a CRC32 safe point covering the whole
-// combined message, verified via crcsafe.ComputeFragmented over this
+// trailing e2e.Len bytes as a CRC32 safe point covering the whole
+// combined message, verified via e2e.ComputeFragmented over this
 // sequence's own per-segment Body slices — the exact function
-// crcsafe/crc.go's own doc comment names as the one a fragmentation-aware
+// e2e/crc.go's own doc comment names as the one a fragmentation-aware
 // reassembly path is meant to call. On success it returns the reassembled
-// Message with that trailing field stripped, exactly as crcsafe.Verify
+// Message with that trailing field stripped, exactly as e2e.Verify
 // does for an already-whole (unfragmented) message. It returns
 // ErrUnknownSequence/ErrIncomplete under the same conditions Finish does,
-// crcsafe.ErrShortSafePoint when the terminal segment's Body is too short
-// to contain a safe point, and (wrapping) crcsafe.ErrCRCMismatch when the
+// e2e.ErrShortSafePoint when the terminal segment's Body is too short
+// to contain a safe point, and (wrapping) e2e.ErrCRCMismatch when the
 // recomputed CRC does not match — either way removing key's sequence from
-// this Reassembler, the same fail-closed posture crcsafe.Guard takes.
-func (r *Reassembler) FinishProtected(stream avtp.StreamID, key Key) (avtp.Message, error) {
+// this Reassembler, the same fail-closed posture e2e.Guard takes.
+func (r *Reassembler) FinishProtected(stream avtp.StreamID, key Key) (acf.Message, error) {
 	r.mu.Lock()
 	seq, ok := r.seqs[key]
 	if !ok {
 		r.mu.Unlock()
-		return avtp.Message{}, ErrUnknownSequence
+		return acf.Message{}, ErrUnknownSequence
 	}
 	if !seq.ready {
 		r.mu.Unlock()
-		return avtp.Message{}, ErrIncomplete
+		return acf.Message{}, ErrIncomplete
 	}
 
 	bodies := make([][]byte, len(seq.bodies))
@@ -309,16 +310,16 @@ func (r *Reassembler) FinishProtected(stream avtp.StreamID, key Key) (avtp.Messa
 	r.mu.Unlock()
 
 	last := bodies[len(bodies)-1]
-	if len(last) < crcsafe.Len {
-		return avtp.Message{}, crcsafe.ErrShortSafePoint
+	if len(last) < e2e.Len {
+		return acf.Message{}, e2e.ErrShortSafePoint
 	}
-	n := len(last) - crcsafe.Len
+	n := len(last) - e2e.Len
 	got := binary.BigEndian.Uint32(last[n:])
 	bodies[len(bodies)-1] = last[:n]
 
-	want := crcsafe.ComputeFragmented(stream, header, bodies)
+	want := e2e.ComputeFragmented(stream, header, bodies)
 	if got != want {
-		return avtp.Message{}, fmt.Errorf("%w: got 0x%08x, want 0x%08x", crcsafe.ErrCRCMismatch, got, want)
+		return acf.Message{}, fmt.Errorf("%w: got 0x%08x, want 0x%08x", e2e.ErrCRCMismatch, got, want)
 	}
 
 	out := header

@@ -1,21 +1,22 @@
 //fusa:test REQ-CRC-009
 
-package crcsafe_test
+package e2e_test
 
 import (
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 	"github.com/SoundMatt/go-RCP/gpio"
 	"github.com/SoundMatt/go-RCP/request"
 	"github.com/SoundMatt/go-RCP/server"
 )
 
 // newGPIOEndpoint mirrors request_test's own helper of the same name
-// (crcsafe_test is a separate external test package and cannot reuse it).
+// (e2e_test is a separate external test package and cannot reuse it).
 func newGPIOEndpoint(t *testing.T, cfg gpio.Config) (*gpio.Endpoint, avtp.StreamID, avtp.ByteBusID) {
 	t.Helper()
 	root := testStream()
@@ -34,7 +35,7 @@ func newGPIOEndpoint(t *testing.T, cfg gpio.Config) (*gpio.Endpoint, avtp.Stream
 	return ep, root, addr
 }
 
-// TestIntegration_WatchdogDrivenSafeStateAndPurge wires a crcsafe.Supervisor
+// TestIntegration_WatchdogDrivenSafeStateAndPurge wires a e2e.Supervisor
 // into a request.Dispatcher via SetSafeStateCheck/PurgeNonSafety — the
 // integration pattern doc.go documents — and checks the end-to-end
 // behavior ROADMAP.md Milestone 50 describes: an ordinary pending request
@@ -48,7 +49,7 @@ func TestIntegration_WatchdogDrivenSafeStateAndPurge(t *testing.T) {
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
 	d.SetSafeStateCheck(sup.CheckFunc())
 
 	// Establish a normal, recent arrival: the watchdog has not tripped yet.
@@ -57,15 +58,15 @@ func TestIntegration_WatchdogDrivenSafeStateAndPurge(t *testing.T) {
 	}
 
 	// An ordinary Timed ticket, not yet due.
-	timedBody := request.EncodeTimed(1_000_000, avtp.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	timedID, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 1, Control: avtp.FlagWrite | avtp.FlagExtended, Body: timedBody})
+	timedBody := request.EncodeTimed(1_000_000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	timedID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: timedBody})
 	if err != nil {
 		t.Fatalf("Submit(timed): %v", err)
 	}
 
 	// A safety-request CompoundWaitSafety ticket.
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 1}
-	safeID, err := d.Submit(root, avtp.Message{Kind: avtp.KindShort, ByteBusID: addr, TransactionNum: 2, Control: avtp.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond)})
+	safeID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond)})
 	if err != nil {
 		t.Fatalf("Submit(safety): %v", err)
 	}

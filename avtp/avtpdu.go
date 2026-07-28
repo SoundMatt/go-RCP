@@ -15,6 +15,14 @@ const (
 // ProtocolVersion is the only AVTPDU header version this package accepts.
 const ProtocolVersion uint8 = 0
 
+// MaxDataLength is the largest value Header.DataLength can hold: the AVTPDU
+// header's data-length field is 11 bits wide. Exported so a caller building
+// a Frame from a separately-encoded acf message (see the acf package) can
+// guard against an oversized message the same way EncodeHeader itself would
+// reject — checked against the message's true pre-truncation byte count,
+// not against a uint16 already wrapped modulo 65536.
+const MaxDataLength = dataLengthMask
+
 const (
 	// untimedHeaderLen is the wire size of an NTSCF header: subtype(1) +
 	// flags(1) + sequence_num(1) + data_length(2) + stream_id(8).

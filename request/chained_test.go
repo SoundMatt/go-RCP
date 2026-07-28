@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/request"
 )
 
@@ -17,9 +17,9 @@ import (
 // truncated buffer (REQ-REQ-008).
 func TestChained_EncodeDecodeRoundTrip(t *testing.T) {
 	segs := []request.ChainedSegment{
-		{Control: avtp.FlagWrite, Body: []byte{0x01, 0x02}},
-		{Control: avtp.FlagRead, Body: nil},
-		{Control: avtp.FlagWrite, Body: []byte{0x03}},
+		{Control: acf.FlagWrite, Body: []byte{0x01, 0x02}},
+		{Control: acf.FlagRead, Body: nil},
+		{Control: acf.FlagWrite, Body: []byte{0x03}},
 	}
 	body, err := request.EncodeChained(segs)
 	if err != nil {

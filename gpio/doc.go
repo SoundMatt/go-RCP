@@ -8,7 +8,7 @@
 // configuration (Config) is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint exactly like any
 // other endpoint's FunctionalBlock, and Endpoint.HandleRequest decodes and
-// answers a plain avtp.Message request the same request-descriptor header
+// answers a plain acf.Message request the same request-descriptor header
 // every endpoint type shares. GPIO and SPI were chosen to ship first because
 // they have the simplest request/response payload shapes of the roughly
 // dozen TC18 endpoint types, exercising the generic read/write/reconfigure
@@ -29,7 +29,7 @@
 // # Explicit non-goal
 //
 // Per ROADMAP.md Milestone 47, this package ships against the plain,
-// unconditional avtp.Message request kind only. Compound/triggered/chained/
+// unconditional acf.Message request kind only. Compound/triggered/chained/
 // timed request variants are Phase 15's job (ROADMAP.md Milestone 49) and
 // are retrofitted onto every endpoint type there, not decided here.
 //

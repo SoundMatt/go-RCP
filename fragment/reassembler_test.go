@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/fragment"
 )
 
 // splitBody returns the 3-segment split (segment bodies only) of msg at
 // maxBody, failing the test on any error.
-func splitOrFatal(t *testing.T, msg avtp.Message, maxBody int) []avtp.Message {
+func splitOrFatal(t *testing.T, msg acf.Message, maxBody int) []acf.Message {
 	t.Helper()
 	segs, err := fragment.Split(msg, maxBody)
 	if err != nil {
@@ -34,7 +34,7 @@ func splitOrFatal(t *testing.T, msg avtp.Message, maxBody int) []avtp.Message {
 func TestReassembler_UnfragmentedMessageIsImmediatelyComplete(t *testing.T) {
 	re := fragment.NewReassembler(fragment.Config{})
 	stream := testStream()
-	msg := avtp.Message{ByteBusID: 1, TransactionNum: 5, Control: avtp.FlagWrite, Body: []byte{0xAA, 0xBB}}
+	msg := acf.Message{ByteBusID: 1, TransactionNum: 5, Control: acf.FlagWrite, Body: []byte{0xAA, 0xBB}}
 
 	complete, err := re.Add(stream, msg)
 	if err != nil || !complete {
@@ -58,11 +58,11 @@ func TestReassembler_UnfragmentedMessageIsImmediatelyComplete(t *testing.T) {
 // original logical Message Split was given (REQ-FRAG-007).
 func TestReassembler_HappyPath(t *testing.T) {
 	body := bytes.Repeat([]byte{0x5A}, 25)
-	original := avtp.Message{
-		Kind:              avtp.KindLong,
+	original := acf.Message{
+		Kind:              acf.KindLong,
 		ByteBusID:         2,
 		TransactionNum:    11,
-		Control:           avtp.FlagResponse,
+		Control:           acf.FlagResponse,
 		ReadSizeOrSegment: 0,
 		Timestamp:         0xCAFEBABE,
 		Body:              body,
@@ -112,7 +112,7 @@ func TestReassembler_HappyPath(t *testing.T) {
 // recently accepted segment (and of a completed sequence's terminal
 // segment) is tolerated (REQ-FRAG-004).
 func TestReassembler_OutOfOrderAndDuplicateSegments(t *testing.T) {
-	original := avtp.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x01}, 25)}
+	original := acf.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x01}, 25)}
 	segs := splitOrFatal(t, original, 10)
 	if len(segs) != 3 {
 		t.Fatalf("test setup: want 3 segments, got %d", len(segs))
@@ -124,12 +124,12 @@ func TestReassembler_OutOfOrderAndDuplicateSegments(t *testing.T) {
 	// three segments total) so a skipped non-terminal segment number is
 	// actually detectable: per Reassembler's own doc comment, the terminal
 	// segment carries no segment number of its own on the wire once
-	// avtp.FlagMoreSegments is clear (avtp.Message.ReadSizeOrSegment
+	// acf.FlagMoreSegments is clear (acf.Message.ReadSizeOrSegment
 	// reverts to its ordinary, non-fragmentation meaning), so a gap
 	// immediately before the terminal segment is not distinguishable from
 	// a legitimately shorter sequence — only a gap among non-terminal
 	// segments is.
-	gapOriginal := avtp.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x02}, 35)}
+	gapOriginal := acf.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x02}, 35)}
 	gapSegs := splitOrFatal(t, gapOriginal, 10)
 	if len(gapSegs) != 4 {
 		t.Fatalf("test setup: want 4 segments, got %d", len(gapSegs))
@@ -208,7 +208,7 @@ func TestReassembler_OutOfOrderAndDuplicateSegments(t *testing.T) {
 // descriptor fields disagree with the sequence's first segment abandons the
 // sequence (REQ-FRAG-005).
 func TestReassembler_HeaderMismatch(t *testing.T) {
-	original := avtp.Message{ByteBusID: 1, TransactionNum: 1, Timestamp: 100, Body: bytes.Repeat([]byte{0x01}, 25)}
+	original := acf.Message{ByteBusID: 1, TransactionNum: 1, Timestamp: 100, Body: bytes.Repeat([]byte{0x01}, 25)}
 	segs := splitOrFatal(t, original, 10)
 	stream := testStream()
 
@@ -229,7 +229,7 @@ func TestReassembler_HeaderMismatch(t *testing.T) {
 // TestReassembler_MaxSegments checks a sequence exceeding Config.MaxSegments
 // before completion is abandoned (REQ-FRAG-006).
 func TestReassembler_MaxSegments(t *testing.T) {
-	original := avtp.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x01}, 50)}
+	original := acf.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x01}, 50)}
 	segs := splitOrFatal(t, original, 10)
 	if len(segs) < 3 {
 		t.Fatalf("test setup: want at least 3 segments, got %d", len(segs))
@@ -257,13 +257,13 @@ func TestReassembler_Sweep(t *testing.T) {
 	re := fragment.NewReassemblerWithClock(fragment.Config{Timeout: time.Second}, clock)
 	stream := testStream()
 
-	incomplete := avtp.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x01}, 25)}
+	incomplete := acf.Message{ByteBusID: 1, TransactionNum: 1, Body: bytes.Repeat([]byte{0x01}, 25)}
 	incompleteSegs := splitOrFatal(t, incomplete, 10)
 	if _, err := re.Add(stream, incompleteSegs[0]); err != nil {
 		t.Fatalf("Add(incomplete): %v", err)
 	}
 
-	complete := avtp.Message{ByteBusID: 2, TransactionNum: 2, Body: []byte{0x01}}
+	complete := acf.Message{ByteBusID: 2, TransactionNum: 2, Body: []byte{0x01}}
 	if _, err := re.Add(stream, complete); err != nil {
 		t.Fatalf("Add(complete): %v", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
 
@@ -16,7 +17,7 @@ import (
 // path onto the request-lifecycle state machine (ROADMAP.md Milestone 49):
 // by wrapping, not editing.
 type Handler interface {
-	HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error)
+	HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error)
 }
 
 // TriggerPump is a caller-supplied adapter reporting how many new trigger
@@ -40,11 +41,11 @@ type TriggerPump func() int
 // condition every safety-request ("MSB-set") Kind adds on top of its base
 // kind's own readiness rule: Dispatcher.Pump never lets a safety-request
 // ticket advance past StateStarted while this reports false. A caller
-// normally backs this with a crcsafe.Supervisor's InSafeState method — this
+// normally backs this with a e2e.Supervisor's InSafeState method — this
 // package has no wall-clock or sequence-monotonicity tracking of its own
 // (see doc.go). It takes the requester rather than being a single endpoint-
 // wide bool because the watchdog condition driving safe-state entry is
-// tracked per stream, not per endpoint (see crcsafe.Supervisor).
+// tracked per stream, not per endpoint (see e2e.Supervisor).
 type SafeStateCheck func(requester avtp.StreamID) bool
 
 // AccessCheck is an optional caller-supplied gate Dispatcher.Submit runs for
@@ -58,7 +59,7 @@ type SafeStateCheck func(requester avtp.StreamID) bool
 type AccessCheck func(requester avtp.StreamID) error
 
 // Dispatcher is the request-lifecycle state machine for one endpoint
-// (ROADMAP.md Milestone 49): it decodes every inbound avtp.Message —
+// (ROADMAP.md Milestone 49): it decodes every inbound acf.Message —
 // plain or conditional — into a ticket, advances that ticket through
 // StateQueued -> StateStarted -> StateExecuting -> StateFinalized, and
 // applies the fixed cross-type execution-priority ordering (Kind.Priority)
@@ -126,7 +127,7 @@ func (d *Dispatcher) SetSafeStateCheck(check SafeStateCheck) {
 // AccessCheck first if one was configured. It does not itself advance the
 // ticket past StateQueued — call Pump (directly, or via Dispatch) to make
 // progress. Submit returns the assigned TicketID once admission succeeds.
-func (d *Dispatcher) Submit(requester avtp.StreamID, req avtp.Message) (TicketID, error) {
+func (d *Dispatcher) Submit(requester avtp.StreamID, req acf.Message) (TicketID, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -138,7 +139,7 @@ func (d *Dispatcher) Submit(requester avtp.StreamID, req avtp.Message) (TicketID
 
 	t := &ticket{id: d.nextID, requester: requester, original: req, state: StateQueued}
 
-	if !req.Control.Has(avtp.FlagExtended) {
+	if !req.Control.Has(acf.FlagExtended) {
 		t.kind = KindPlain
 		t.innerControl = req.Control
 		t.innerBody = req.Body
@@ -329,17 +330,17 @@ func (d *Dispatcher) safeStateReadyLocked(requester avtp.StreamID) bool {
 // always resolve immediately (everything except a not-yet-satisfied
 // KindTriggered/KindTimed) the same synchronous shape Phase 14 endpoints'
 // own HandleRequest already has. A Triggered/Timed ticket not yet due
-// returns (avtp.Message{}, ErrPending) wrapping the TicketID for later
+// returns (acf.Message{}, ErrPending) wrapping the TicketID for later
 // polling — see Response.
-func (d *Dispatcher) Dispatch(requester avtp.StreamID, req avtp.Message, now uint64) (avtp.Message, error) {
+func (d *Dispatcher) Dispatch(requester avtp.StreamID, req acf.Message, now uint64) (acf.Message, error) {
 	id, err := d.Submit(requester, req)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	d.Pump(now)
 	resp, err := d.Response(id)
 	if err == ErrPending {
-		return avtp.Message{}, fmt.Errorf("%w (ticket %d)", ErrPending, id)
+		return acf.Message{}, fmt.Errorf("%w (ticket %d)", ErrPending, id)
 	}
 	return resp, err
 }
@@ -347,15 +348,15 @@ func (d *Dispatcher) Dispatch(requester avtp.StreamID, req avtp.Message, now uin
 // Response returns ticket id's outcome. It reports ErrUnknownTicket if id
 // was never issued (or has been Forgotten), and ErrPending if the ticket
 // exists but has not yet reached StateFinalized.
-func (d *Dispatcher) Response(id TicketID) (avtp.Message, error) {
+func (d *Dispatcher) Response(id TicketID) (acf.Message, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	t, ok := d.tickets[id]
 	if !ok {
-		return avtp.Message{}, ErrUnknownTicket
+		return acf.Message{}, ErrUnknownTicket
 	}
 	if t.state != StateFinalized {
-		return avtp.Message{}, ErrPending
+		return acf.Message{}, ErrPending
 	}
 	return t.response, t.err
 }
@@ -406,13 +407,13 @@ func (d *Dispatcher) Pending() int {
 	return n
 }
 
-// innerMessage rebuilds the plain avtp.Message a Phase 14 endpoint's own
+// innerMessage rebuilds the plain acf.Message a Phase 14 endpoint's own
 // HandleRequest expects, from t's original request-descriptor fields plus
 // the given inner Control/Body — used for every kind that ultimately calls
 // d.handler.HandleRequest (Plain, a matched Compound, Triggered, Timed, and
 // each Chained segment).
-func innerMessage(t *ticket, control avtp.ControlFlags, body []byte) avtp.Message {
-	return avtp.Message{
+func innerMessage(t *ticket, control acf.ControlFlags, body []byte) acf.Message {
+	return acf.Message{
 		Kind:              t.original.Kind,
 		ByteBusID:         t.original.ByteBusID,
 		TransactionNum:    t.original.TransactionNum,
@@ -425,13 +426,13 @@ func innerMessage(t *ticket, control avtp.ControlFlags, body []byte) avtp.Messag
 
 // responseFor builds t's outer response Message: same Kind/ByteBusID/
 // TransactionNum as the original request for correlation, FlagResponse
-// always set, avtp.FlagExtended set for every kind whose response body is
+// always set, acf.FlagExtended set for every kind whose response body is
 // this package's own envelope shape (everything except KindPlain,
 // KindTriggered, and KindTimed, whose responses are the wrapped Handler
 // call's own response verbatim — see execute).
-func responseFor(t *ticket, body []byte) avtp.Message {
-	control := avtp.FlagResponse | avtp.FlagExtended | (t.innerControl & (avtp.FlagRead | avtp.FlagWrite))
-	return avtp.Message{
+func responseFor(t *ticket, body []byte) acf.Message {
+	control := acf.FlagResponse | acf.FlagExtended | (t.innerControl & (acf.FlagRead | acf.FlagWrite))
+	return acf.Message{
 		Kind:           t.original.Kind,
 		ByteBusID:      t.original.ByteBusID,
 		TransactionNum: t.original.TransactionNum,
@@ -561,7 +562,7 @@ func (d *Dispatcher) finalizeWhereLocked(finalErr error, match func(*ticket) boo
 // This Dispatcher never calls PurgeNonSafety on its own: it has no wall-
 // clock or per-stream sequence-monotonicity tracking of its own (see
 // SafeStateCheck's doc comment) to decide when a purge is warranted. A
-// caller wires a crcsafe.Supervisor's watchdog trip to this method — the
+// caller wires a e2e.Supervisor's watchdog trip to this method — the
 // same asymmetry SafeStateCheck has, where this package only ever consumes
 // the watchdog's verdict, never computes it.
 func (d *Dispatcher) PurgeNonSafety() []TicketID {

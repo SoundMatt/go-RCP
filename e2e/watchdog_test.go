@@ -2,7 +2,7 @@
 //fusa:test REQ-CRC-007
 //fusa:test REQ-CRC-008
 
-package crcsafe_test
+package e2e_test
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 )
 
 // fakeClock is a manually-advanced clock for deterministic Supervisor tests,
@@ -28,7 +28,7 @@ func (c *fakeClock) advance(d time.Duration) { c.t = c.t.Add(d) }
 func TestSupervisor_MonotonicSequence(t *testing.T) {
 	stream := testStream()
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{
 		Timeout:                  time.Hour,
 		RequireMonotonicSequence: true,
 		SequenceOverflowWraps:    true,
@@ -44,7 +44,7 @@ func TestSupervisor_MonotonicSequence(t *testing.T) {
 		t.Fatalf("InSafeState = true after two well-formed increasing arrivals, want false")
 	}
 
-	if err := sup.Observe(stream, 2); !errors.Is(err, crcsafe.ErrSequenceViolation) {
+	if err := sup.Observe(stream, 2); !errors.Is(err, e2e.ErrSequenceViolation) {
 		t.Errorf("Observe(repeat) err = %v, want ErrSequenceViolation", err)
 	}
 	if !sup.InSafeState(stream) {
@@ -84,7 +84,7 @@ func TestSupervisor_MonotonicSequence(t *testing.T) {
 func TestSupervisor_TimeoutAndNeverObserved(t *testing.T) {
 	stream := testStream()
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: 100 * time.Millisecond}, clock.now)
 
 	if !sup.InSafeState(stream) {
 		t.Errorf("InSafeState(never observed) = false, want true")
@@ -122,7 +122,7 @@ func TestSupervisor_TimeoutAndNeverObserved(t *testing.T) {
 func TestSupervisor_CheckFuncMatchesInSafeState(t *testing.T) {
 	stream := testStream()
 	clock := &fakeClock{t: time.Unix(0, 0)}
-	sup := crcsafe.NewSupervisorWithClock(crcsafe.StreamConfig{Timeout: time.Hour}, clock.now)
+	sup := e2e.NewSupervisorWithClock(e2e.StreamConfig{Timeout: time.Hour}, clock.now)
 	check := sup.CheckFunc()
 
 	if check(stream) != sup.InSafeState(stream) {

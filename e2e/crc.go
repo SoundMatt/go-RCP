@@ -1,4 +1,4 @@
-package crcsafe
+package e2e
 
 import (
 	"encoding/binary"
@@ -6,6 +6,7 @@ import (
 	"hash/crc32"
 	"io"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
 
@@ -14,14 +15,19 @@ import (
 const Len = 4
 
 // Compute returns the CRC32 (IEEE polynomial 0xEDB88320, the standard
-// library's crc32.IEEE — a deliberately different polynomial from the old
-// e2e package's CRC-16/CCITT-FALSE, per ROADMAP.md Milestone 50) safe-point
-// checksum for m as carried by the AVTPDU addressed to/from stream. Unlike
-// the old e2e package's payload-only coverage, this spans:
+// library's crc32.IEEE — a deliberately different polynomial from the
+// retired legacy `e2e` package's CRC-16/CCITT-FALSE, per ROADMAP.md
+// Milestone 50) safe-point checksum for m as carried by the AVTPDU addressed
+// to/from stream. (That legacy package — the pre-TC18 bespoke Zone/Command
+// protocol's own CRC mechanism — was retired outright at Milestone 53,
+// v0.66.0; this package, originally built under the name `crcsafe`, later
+// took over the now-vacant `e2e` name per RELAY spec v1.14 §13.7.2's
+// cross-language module-naming registry — the two are otherwise unrelated.)
+// Unlike that legacy package's payload-only coverage, this spans:
 //
 //   - stream (the enclosing AVTPDU's addressing — the frame-level field the
-//     old scheme never covered at all, since e2e operated purely on the old
-//     bespoke Command.Payload);
+//     old scheme never covered at all, since the legacy package operated
+//     purely on the old bespoke Command.Payload);
 //   - m.ByteBusID and m.TransactionNum (the message's own addressing/
 //     correlation fields);
 //   - m.Timestamp (always included, even when m.Kind is KindShort and the
@@ -32,7 +38,7 @@ const Len = 4
 //     Body — i.e. "the whole message", not just its payload.
 //
 // Compute never mutates m.
-func Compute(stream avtp.StreamID, m avtp.Message) uint32 {
+func Compute(stream avtp.StreamID, m acf.Message) uint32 {
 	h := crc32.NewIEEE()
 	writeCovered(h, stream, m)
 	return h.Sum32()
@@ -42,7 +48,7 @@ func Compute(stream avtp.StreamID, m avtp.Message) uint32 {
 // fixed field order so two calls with equal (stream, m) always hash
 // identical bytes: stream, then Kind, ByteBusID, TransactionNum, Control,
 // ReadSizeOrSegment, Timestamp, and finally Body.
-func writeCovered(w io.Writer, stream avtp.StreamID, m avtp.Message) {
+func writeCovered(w io.Writer, stream avtp.StreamID, m acf.Message) {
 	var hdr [8 + 1 + 1 + 2 + 1 + 2 + 8]byte
 	n := copy(hdr[:], stream[:])
 	hdr[n] = byte(m.Kind)
@@ -81,7 +87,7 @@ func writeCovered(w io.Writer, stream avtp.StreamID, m avtp.Message) {
 // ComputeFragmented(stream, header, [][]byte{combined}) always equals
 // Compute(stream, header-with-Body-combined) for a single-segment
 // (unfragmented) message, by construction — see crc_test.go.
-func ComputeFragmented(stream avtp.StreamID, header avtp.Message, bodies [][]byte) uint32 {
+func ComputeFragmented(stream avtp.StreamID, header acf.Message, bodies [][]byte) uint32 {
 	total := 0
 	for _, b := range bodies {
 		total += len(b)
@@ -100,7 +106,7 @@ func ComputeFragmented(stream avtp.StreamID, header avtp.Message, bodies [][]byt
 // before that trailing field exists) — the explicit per-endpoint opt-in
 // wire encoding ROADMAP.md Milestone 50 calls for. Protect never mutates m
 // or m.Body's backing array.
-func Protect(stream avtp.StreamID, m avtp.Message) avtp.Message {
+func Protect(stream avtp.StreamID, m acf.Message) acf.Message {
 	crc := Compute(stream, m)
 	out := m
 	out.Body = make([]byte, len(m.Body)+Len)
@@ -119,9 +125,9 @@ func Protect(stream avtp.StreamID, m avtp.Message) avtp.Message {
 // surface this as a dedicated, distinguishable error rather than attempt
 // any recovery, per Milestone 50's explicit failure-handling rule. Verify
 // never mutates m or m.Body's backing array.
-func Verify(stream avtp.StreamID, m avtp.Message) (avtp.Message, error) {
+func Verify(stream avtp.StreamID, m acf.Message) (acf.Message, error) {
 	if len(m.Body) < Len {
-		return avtp.Message{}, ErrShortSafePoint
+		return acf.Message{}, ErrShortSafePoint
 	}
 	n := len(m.Body) - Len
 	inner := m
@@ -129,7 +135,7 @@ func Verify(stream avtp.StreamID, m avtp.Message) (avtp.Message, error) {
 	got := binary.BigEndian.Uint32(m.Body[n:])
 	want := Compute(stream, inner)
 	if got != want {
-		return avtp.Message{}, fmt.Errorf("%w: got 0x%08x, want 0x%08x", ErrCRCMismatch, got, want)
+		return acf.Message{}, fmt.Errorf("%w: got 0x%08x, want 0x%08x", ErrCRCMismatch, got, want)
 	}
 	return inner, nil
 }

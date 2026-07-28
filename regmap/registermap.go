@@ -1,4 +1,4 @@
-package server
+package regmap
 
 import (
 	"encoding/binary"
@@ -43,7 +43,7 @@ type GeneralBlock struct {
 	//
 	// EncodeRegisterMap always recomputes these four fields from the
 	// tables it is actually given — a caller-supplied value is never
-	// trusted at encode time, the same posture avtp.EncodeFrame takes with
+	// trusted at encode time, the same posture acf.EncodeFrame takes with
 	// Header.DataLength.
 	PinMapPointer        uint16
 	StreamConfigPointer  uint16
@@ -246,6 +246,69 @@ func (m *RegisterMap) Addresses() []avtp.ByteBusID {
 	return out
 }
 
+// HasEndpoint reports whether an endpoint is already declared at addr.
+func (m *RegisterMap) HasEndpoint(addr avtp.ByteBusID) bool {
+	_, ok := m.endpoints[addr]
+	return ok
+}
+
+// DeclareEndpoint declares a new, enabled endpoint of type t at addr, with
+// an empty FunctionalBlock. The caller (server.Server.AddEndpoint) is
+// responsible for every precondition this package itself has no way to
+// check from inside RegisterMap alone: that addr is not the reserved EP0
+// address, that no endpoint is already declared there (see HasEndpoint),
+// and that the caller holds whatever access the surrounding lifecycle/
+// access-control rules require.
+func (m *RegisterMap) DeclareEndpoint(addr avtp.ByteBusID, t EndpointType) {
+	m.endpoints[addr] = &EndpointRegisters{
+		Generic: GenericEndpointBlock{Address: addr, Type: t, Enabled: true},
+	}
+}
+
+// Encode serializes ep's generic block followed by its functional block —
+// the same per-endpoint byte layout EncodeRegisterMap's endpoint table
+// uses — for a caller (server.Server.ReadEndpoint) that needs just one
+// endpoint's bytes rather than the whole map.
+func (ep *EndpointRegisters) Encode() []byte {
+	out := encodeGenericEndpointBlock(ep.Generic)
+	out = append(out, encodeFunctionalBlock(ep.Functional)...)
+	return out
+}
+
+// SameGeneralIdentity reports whether a and b agree on every field of
+// GeneralBlock that is genuinely server-owned identity/capability data.
+// MaxStreams (a mirror of StreamLimits.MaxRequestStreams) and the four
+// table pointers are deliberately excluded: both are recomputed by
+// EncodeRegisterMap from the rest of the map's actual content, so they
+// legitimately differ across an otherwise-permitted configuration write —
+// they are not identity fields a client could "change" independently of
+// the tables they describe. server.Server.WriteEP0 uses this to reject a
+// whole-map write that alters the read-only general block
+// (ErrGeneralBlockReadOnly).
+func SameGeneralIdentity(a, b GeneralBlock) bool {
+	return sameGeneralIdentity(a, b)
+}
+
+// SameEndpointGenerics reports whether a and b declare exactly the same set
+// of endpoint addresses with exactly the same GenericEndpointBlock at each
+// one. Endpoint declaration (address/type/enabled) is locked in alongside
+// the pin-mapping table once the server leaves StateUnconfigured; only each
+// endpoint's FunctionalBlock, and the stream/queue tables, may still
+// change. server.Server.WriteEP0 uses this to detect an attempted change to
+// the locked endpoint topology once the server has left StateUnconfigured.
+func SameEndpointGenerics(a, b *RegisterMap) bool {
+	if len(a.endpoints) != len(b.endpoints) {
+		return false
+	}
+	for addr, ea := range a.endpoints {
+		eb, ok := b.endpoints[addr]
+		if !ok || ea.Generic != eb.Generic {
+			return false
+		}
+	}
+	return true
+}
+
 func encodePinMap(p *PinMap) []byte {
 	entries := p.Entries()
 	buf := make([]byte, 2+4*len(entries))
@@ -392,7 +455,7 @@ func EncodeRegisterMap(m *RegisterMap) []byte {
 // GeneralBlock's own table pointers to locate each section. It never
 // panics on malformed input, and rejects a buffer with any bytes left over
 // once the endpoint table's own declared entry count is exhausted, the same
-// posture avtp.DecodeFrame takes on a length mismatch.
+// posture acf.DecodeFrame takes on a length mismatch.
 func DecodeRegisterMap(b []byte) (*RegisterMap, error) {
 	general, _, err := DecodeGeneralBlock(b)
 	if err != nil {

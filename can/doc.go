@@ -11,13 +11,13 @@
 // is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint, and
 // Endpoint.HandleRequest implements the same request.Handler shape
-// (avtp.StreamID, avtp.Message) (avtp.Message, error) every other endpoint
+// (avtp.StreamID, acf.Message) (acf.Message, error) every other endpoint
 // type does, so it drops into request.Dispatcher unmodified.
 //
 // # Scope
 //
 // One CAN endpoint is controller-only and models a single bus, matching
-// server/types.go's CAN signal list (TX/RX, not a per-channel selector).
+// regmap/types.go's CAN signal list (TX/RX, not a per-channel selector).
 // Per ROADMAP.md Milestone 51, the frame format — Classical CAN, CAN FD, or
 // CAN XL — is selected per request via Frame.Format (see Frame and
 // Format.Valid), not fixed at Configure time, since a controller's

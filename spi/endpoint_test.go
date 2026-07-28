@@ -11,16 +11,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/spi"
 )
 
-func transferReq(ch spi.Channel, tx []byte) avtp.Message {
-	return avtp.Message{
-		Kind:      avtp.KindShort,
+func transferReq(ch spi.Channel, tx []byte) acf.Message {
+	return acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      spi.EncodeTransferRequest(ch, tx),
 	}
 }
@@ -74,7 +75,7 @@ func TestHandleRequest_RequiresWriteWrongEndpointOrAccess(t *testing.T) {
 		t.Fatalf("SetChannelConfig: %v", err)
 	}
 
-	noWrite := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Body: spi.EncodeTransferRequest(spi.Channel0, nil)}
+	noWrite := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Body: spi.EncodeTransferRequest(spi.Channel0, nil)}
 	if _, err := ep.HandleRequest(root, noWrite); !errors.Is(err, spi.ErrRequestMustWrite) {
 		t.Errorf("HandleRequest(no write flag) err = %v, want ErrRequestMustWrite", err)
 	}
@@ -86,8 +87,8 @@ func TestHandleRequest_RequiresWriteWrongEndpointOrAccess(t *testing.T) {
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	if _, err := ep.HandleRequest(stranger, transferReq(spi.Channel0, nil)); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	if _, err := ep.HandleRequest(stranger, transferReq(spi.Channel0, nil)); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/server"
 	"github.com/SoundMatt/go-RCP/spi"
 )
@@ -97,7 +98,7 @@ func TestSetChannelConfig_LeavesOtherChannelsUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadEP0: %v", err)
 	}
-	m, err := server.DecodeRegisterMap(raw)
+	m, err := regmap.DecodeRegisterMap(raw)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap: %v", err)
 	}

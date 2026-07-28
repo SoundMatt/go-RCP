@@ -6,8 +6,8 @@ import "encoding/binary"
 // models a single commander-only bus (see doc.go's Scope section), its baud
 // rate, and the minimum time the commander waits after one frame's
 // transfer completes before starting the next. It is stored as an
-// endpoint's server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// endpoint's regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint's bus is configured for use. A
 	// transfer request against a disabled bus is rejected with

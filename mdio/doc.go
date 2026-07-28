@@ -11,13 +11,13 @@
 // (Config) is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint, and
 // Endpoint.HandleRequest implements the same request.Handler shape
-// (avtp.StreamID, avtp.Message) (avtp.Message, error) every other endpoint
+// (avtp.StreamID, acf.Message) (acf.Message, error) every other endpoint
 // type does, so it drops into request.Dispatcher unmodified.
 //
 // # Scope
 //
 // One MDIO endpoint is minimal pass-through management-interface access —
-// matching server/types.go's two-signal MDC/MDIO list (clock plus the
+// matching regmap/types.go's two-signal MDC/MDIO list (clock plus the
 // bidirectional data line an IEEE 802.3 Clause 22/45-style transaction
 // drives). Per ROADMAP.md Milestone 51, this package does no PHY-specific
 // interpretation of register content: it forwards an addressed
@@ -44,7 +44,7 @@
 // # Explicit non-goal
 //
 // Per ROADMAP.md Milestone 48/51, this package's Endpoint.HandleRequest
-// answers the plain, unconditional avtp.Message request shape only.
+// answers the plain, unconditional acf.Message request shape only.
 // Compound/triggered/chained/timed request variants are provided by
 // wrapping this package's Endpoint (a request.Handler) in a
 // request.Dispatcher exactly as every other endpoint type is, rather than

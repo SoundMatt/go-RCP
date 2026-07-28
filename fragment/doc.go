@@ -20,10 +20,10 @@
 //
 // # Two independent halves
 //
-// Split (segment.go) is the send-side half: given one logical avtp.Message
+// Split (segment.go) is the send-side half: given one logical acf.Message
 // whose Body exceeds a caller-chosen per-segment byte budget, it returns the
-// ordered avtp.Message segments to transmit, each a real, independently
-// encodable AVTPDU-carried message via avtp.EncodeMessage/avtp.EncodeFrame
+// ordered acf.Message segments to transmit, each a real, independently
+// encodable AVTPDU-carried message via acf.EncodeMessage/acf.EncodeFrame
 // — this package adds no wire format of its own, only a splitting/
 // recombination policy layered on the one avtp already ships.
 //
@@ -40,14 +40,14 @@
 //
 // # The E2E-CRC interaction rule
 //
-// crcsafe/crc.go's ComputeFragmented function — shipped ahead of this
+// e2e/crc.go's ComputeFragmented function — shipped ahead of this
 // milestone specifically so this package could depend on it, per its own
 // doc comment — already pins down the rule this package's
 // Reassembler.FinishProtected wires in: only the final segment of a
 // fragmented message carries a trailing CRC32 safe point, and that CRC is
 // computed over the segments' combined Body, not the final segment alone.
 // FinishProtected calls ComputeFragmented directly over this Reassembler's
-// own per-segment Body slices, mirroring crcsafe.Verify's single-message
+// own per-segment Body slices, mirroring e2e.Verify's single-message
 // contract (strip, recompute, compare, return the stripped message) at the
 // segment-sequence level instead of after a caller has already had to
 // concatenate everything itself.
@@ -84,9 +84,9 @@
 // retransmission, or flow control — Split/Gateway.Response take a
 // caller-supplied maxBody, and this package has no concept of a link's
 // actual MTU or congestion state. It does not change avtp, request, or
-// crcsafe's own exported surface at all: every integration point (Message's
+// e2e's own exported surface at all: every integration point (Message's
 // FlagMoreSegments/ReadSizeOrSegment fields, request.Dispatcher.Submit's
-// signature, crcsafe.ComputeFragmented) already existed before this
+// signature, e2e.ComputeFragmented) already existed before this
 // milestone landed, staged there specifically for this package to consume,
 // per every one of those packages' own doc comments. It does not modify
 // can, uart, or server/discovery.go — those packages' own request/response
@@ -103,7 +103,7 @@
 // reassembly policy Reassembler documents are this implementation's own
 // reasoned, self-consistent choices rather than a verified transcription of
 // the source specification's own rules — the same open-item posture
-// avtp/doc.go, server/doc.go, request/doc.go, and crcsafe/doc.go already
+// avtp/doc.go, server/doc.go, request/doc.go, and e2e/doc.go already
 // document for their own packages.
 package fragment
 

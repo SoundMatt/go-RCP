@@ -1,4 +1,4 @@
-package server
+package regmap
 
 // StreamLimits is the request-stream configuration table: the capacity
 // bounds a client negotiates against when opening request streams against

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/prioqueue"
 	"github.com/SoundMatt/go-RCP/request"
@@ -27,15 +28,15 @@ func TestQueue_PushRejectsInvalidKind(t *testing.T) {
 	q := prioqueue.NewQueue()
 	stream := testStream()
 
-	if err := q.Push(request.KindPlain, stream, avtp.Message{}); err != nil {
+	if err := q.Push(request.KindPlain, stream, acf.Message{}); err != nil {
 		t.Errorf("Push(KindPlain) = %v, want nil (explicitly accepted, see doc)", err)
 	}
-	if err := q.Push(request.KindCompound, stream, avtp.Message{}); err != nil {
+	if err := q.Push(request.KindCompound, stream, acf.Message{}); err != nil {
 		t.Errorf("Push(KindCompound) = %v, want nil", err)
 	}
 
 	invalid := request.Kind(200) // well past kindCount, and not the safety-tag bit either
-	if err := q.Push(invalid, stream, avtp.Message{}); !errors.Is(err, prioqueue.ErrInvalidKind) {
+	if err := q.Push(invalid, stream, acf.Message{}); !errors.Is(err, prioqueue.ErrInvalidKind) {
 		t.Errorf("Push(invalid) = %v, want ErrInvalidKind", err)
 	}
 	if q.Len() != 2 {
@@ -61,7 +62,7 @@ func TestQueue_PopOrdersByKindPriority(t *testing.T) {
 		request.KindCancelAll,
 	}
 	for _, k := range kinds {
-		if err := q.Push(k, stream, avtp.Message{}); err != nil {
+		if err := q.Push(k, stream, acf.Message{}); err != nil {
 			t.Fatalf("Push(%v): %v", k, err)
 		}
 	}
@@ -96,7 +97,7 @@ func TestQueue_FIFOWithinEqualPriority(t *testing.T) {
 	stream := testStream()
 
 	for txn := avtp.TransactionNum(1); txn <= 3; txn++ {
-		msg := avtp.Message{TransactionNum: txn}
+		msg := acf.Message{TransactionNum: txn}
 		if err := q.Push(request.KindCompound, stream, msg); err != nil {
 			t.Fatalf("Push(%d): %v", txn, err)
 		}
@@ -117,16 +118,16 @@ func TestQueue_SafetyVariantMatchesBasePriority(t *testing.T) {
 	q := prioqueue.NewQueue()
 	stream := testStream()
 
-	if err := q.Push(request.KindCompound, stream, avtp.Message{TransactionNum: 1}); err != nil {
+	if err := q.Push(request.KindCompound, stream, acf.Message{TransactionNum: 1}); err != nil {
 		t.Fatalf("Push(base): %v", err)
 	}
-	if err := q.Push(request.KindCompoundSafety, stream, avtp.Message{TransactionNum: 2}); err != nil {
+	if err := q.Push(request.KindCompoundSafety, stream, acf.Message{TransactionNum: 2}); err != nil {
 		t.Fatalf("Push(safety): %v", err)
 	}
 	// Both should outrank Plain and be released in the FIFO order they were
 	// pushed, since Priority() is identical for a Kind and its safety
 	// variant.
-	if err := q.Push(request.KindPlain, stream, avtp.Message{TransactionNum: 3}); err != nil {
+	if err := q.Push(request.KindPlain, stream, acf.Message{TransactionNum: 3}); err != nil {
 		t.Fatalf("Push(plain): %v", err)
 	}
 
@@ -155,9 +156,9 @@ func TestQueue_PopAllDrainsInPriorityOrder(t *testing.T) {
 		t.Fatalf("PopAll() on empty queue = %v, want nil", got)
 	}
 
-	_ = q.Push(request.KindPlain, stream, avtp.Message{TransactionNum: 1})
-	_ = q.Push(request.KindCancelAll, stream, avtp.Message{TransactionNum: 2})
-	_ = q.Push(request.KindTimed, stream, avtp.Message{TransactionNum: 3})
+	_ = q.Push(request.KindPlain, stream, acf.Message{TransactionNum: 1})
+	_ = q.Push(request.KindCancelAll, stream, acf.Message{TransactionNum: 2})
+	_ = q.Push(request.KindTimed, stream, acf.Message{TransactionNum: 3})
 
 	items := q.PopAll()
 	if len(items) != 3 {
@@ -185,7 +186,7 @@ func TestQueue_ConcurrentUse(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_ = q.Push(request.KindPlain, stream, avtp.Message{TransactionNum: avtp.TransactionNum(i)})
+			_ = q.Push(request.KindPlain, stream, acf.Message{TransactionNum: avtp.TransactionNum(i)})
 		}(i)
 	}
 	wg.Wait()

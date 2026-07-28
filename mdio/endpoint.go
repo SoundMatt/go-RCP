@@ -3,6 +3,7 @@ package mdio
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -104,59 +105,59 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message request
+// HandleRequest answers one plain, unconditional acf.Message request
 // addressed to this endpoint (see doc.go's "Explicit non-goal" section for
 // the conditional-request kinds this deliberately leaves to
-// request.Dispatcher). req must set exactly one of avtp.FlagRead or
-// avtp.FlagWrite; a request with neither is rejected with
+// request.Dispatcher). req must set exactly one of acf.FlagRead or
+// acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite. A read request's body is an encoded Request
 // (see EncodeReadRequest); the response is the 16-bit register value (see
 // EncodeResponse). A write request's body is an encoded Request plus the
 // 16-bit value to write (see EncodeWriteRequest); the response echoes the
 // written value back.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	e.mu.Lock()
 	cfg := e.cfg
 	e.mu.Unlock()
 	if !cfg.Enabled {
-		return avtp.Message{}, ErrNotConfigured
+		return acf.Message{}, ErrNotConfigured
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		r, data, err := DecodeWriteRequest(req.Body)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if err := r.Validate(); err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if err := e.write(r, data); err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
-		return responseFor(req, avtp.FlagWrite, EncodeResponse(data)), nil
-	case req.Control.Has(avtp.FlagRead):
+		return responseFor(req, acf.FlagWrite, EncodeResponse(data)), nil
+	case req.Control.Has(acf.FlagRead):
 		r, err := DecodeReadRequest(req.Body)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if verr := r.Validate(); verr != nil {
-			return avtp.Message{}, verr
+			return acf.Message{}, verr
 		}
 		data, err := e.read(r)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
-		return responseFor(req, avtp.FlagRead, EncodeResponse(data)), nil
+		return responseFor(req, acf.FlagRead, EncodeResponse(data)), nil
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -215,12 +216,12 @@ func (e *Endpoint) write(r Request, data uint16) error {
 // the originating Read/Write flag preserved so a caller can tell which
 // request shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, rw avtp.ControlFlags, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, rw acf.ControlFlags, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | rw,
+		Control:        acf.FlagResponse | rw,
 		Body:           body,
 	}
 }

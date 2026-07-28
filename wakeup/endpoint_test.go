@@ -9,20 +9,21 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/wakeup"
 )
 
-func readReq() avtp.Message {
-	return avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead}
+func readReq() acf.Message {
+	return acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
 }
 
-func writeReq(target wakeup.PowerState) avtp.Message {
-	return avtp.Message{
-		Kind:      avtp.KindShort,
+func writeReq(target wakeup.PowerState) acf.Message {
+	return acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      wakeup.EncodePowerStateRequest(target),
 	}
 }
@@ -37,7 +38,7 @@ func TestHandleRequest_RequiresReadOrWriteWrongEndpointOrAccess(t *testing.T) {
 		t.Fatalf("Configure: %v", err)
 	}
 
-	neither := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	neither := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1)}
 	if _, err := ep.HandleRequest(root, neither); !errors.Is(err, wakeup.ErrRequestMustReadOrWrite) {
 		t.Errorf("HandleRequest(neither flag) err = %v, want ErrRequestMustReadOrWrite", err)
 	}
@@ -49,8 +50,8 @@ func TestHandleRequest_RequiresReadOrWriteWrongEndpointOrAccess(t *testing.T) {
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x07, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	if _, err := ep.HandleRequest(stranger, readReq()); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	if _, err := ep.HandleRequest(stranger, readReq()); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 }
 

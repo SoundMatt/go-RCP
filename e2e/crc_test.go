@@ -3,26 +3,27 @@
 //fusa:test REQ-CRC-003
 //fusa:test REQ-CRC-004
 
-package crcsafe_test
+package e2e_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 )
 
 func testStream() avtp.StreamID {
 	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 7)
 }
 
-func baseMessage() avtp.Message {
-	return avtp.Message{
-		Kind:              avtp.KindLong,
+func baseMessage() acf.Message {
+	return acf.Message{
+		Kind:              acf.KindLong,
 		ByteBusID:         avtp.ByteBusID(3),
 		TransactionNum:    avtp.TransactionNum(9),
-		Control:           avtp.FlagWrite,
+		Control:           acf.FlagWrite,
 		ReadSizeOrSegment: 0,
 		Timestamp:         0x1122334455667788,
 		Body:              []byte{0xAA, 0xBB, 0xCC},
@@ -37,21 +38,21 @@ func baseMessage() avtp.Message {
 func TestCompute_CoversEveryDeclaredField(t *testing.T) {
 	stream := testStream()
 	base := baseMessage()
-	baseCRC := crcsafe.Compute(stream, base)
+	baseCRC := e2e.Compute(stream, base)
 
-	if got := crcsafe.Compute(stream, base); got != baseCRC {
+	if got := e2e.Compute(stream, base); got != baseCRC {
 		t.Fatalf("Compute is not deterministic: got %#08x and %#08x for identical input", got, baseCRC)
 	}
 
 	otherStream := avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x56}, 7)
-	mutations := map[string]func() (avtp.StreamID, avtp.Message){
-		"stream":            func() (avtp.StreamID, avtp.Message) { return otherStream, base },
-		"ByteBusID":         func() (avtp.StreamID, avtp.Message) { m := base; m.ByteBusID++; return stream, m },
-		"TransactionNum":    func() (avtp.StreamID, avtp.Message) { m := base; m.TransactionNum++; return stream, m },
-		"Control":           func() (avtp.StreamID, avtp.Message) { m := base; m.Control |= avtp.FlagRead; return stream, m },
-		"ReadSizeOrSegment": func() (avtp.StreamID, avtp.Message) { m := base; m.ReadSizeOrSegment = 42; return stream, m },
-		"Timestamp":         func() (avtp.StreamID, avtp.Message) { m := base; m.Timestamp++; return stream, m },
-		"Body": func() (avtp.StreamID, avtp.Message) {
+	mutations := map[string]func() (avtp.StreamID, acf.Message){
+		"stream":            func() (avtp.StreamID, acf.Message) { return otherStream, base },
+		"ByteBusID":         func() (avtp.StreamID, acf.Message) { m := base; m.ByteBusID++; return stream, m },
+		"TransactionNum":    func() (avtp.StreamID, acf.Message) { m := base; m.TransactionNum++; return stream, m },
+		"Control":           func() (avtp.StreamID, acf.Message) { m := base; m.Control |= acf.FlagRead; return stream, m },
+		"ReadSizeOrSegment": func() (avtp.StreamID, acf.Message) { m := base; m.ReadSizeOrSegment = 42; return stream, m },
+		"Timestamp":         func() (avtp.StreamID, acf.Message) { m := base; m.Timestamp++; return stream, m },
+		"Body": func() (avtp.StreamID, acf.Message) {
 			m := base
 			m.Body = append([]byte(nil), base.Body...)
 			m.Body[0]++
@@ -60,7 +61,7 @@ func TestCompute_CoversEveryDeclaredField(t *testing.T) {
 	}
 	for name, mutate := range mutations {
 		s, m := mutate()
-		if got := crcsafe.Compute(s, m); got == baseCRC {
+		if got := e2e.Compute(s, m); got == baseCRC {
 			t.Errorf("mutating %s did not change Compute's CRC32 (still %#08x): field not covered", name, got)
 		}
 	}
@@ -73,12 +74,12 @@ func TestProtectVerify_RoundTrip(t *testing.T) {
 	stream := testStream()
 	m := baseMessage()
 
-	protected := crcsafe.Protect(stream, m)
-	if len(protected.Body) != len(m.Body)+crcsafe.Len {
-		t.Fatalf("Protect(Body) length = %d, want %d", len(protected.Body), len(m.Body)+crcsafe.Len)
+	protected := e2e.Protect(stream, m)
+	if len(protected.Body) != len(m.Body)+e2e.Len {
+		t.Fatalf("Protect(Body) length = %d, want %d", len(protected.Body), len(m.Body)+e2e.Len)
 	}
 
-	inner, err := crcsafe.Verify(stream, protected)
+	inner, err := e2e.Verify(stream, protected)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
@@ -98,17 +99,17 @@ func TestProtectVerify_RoundTrip(t *testing.T) {
 func TestVerify_RejectsShortAndMismatched(t *testing.T) {
 	stream := testStream()
 	m := baseMessage()
-	protected := crcsafe.Protect(stream, m)
+	protected := e2e.Protect(stream, m)
 
-	if _, err := crcsafe.Verify(stream, avtp.Message{Body: []byte{0x01, 0x02}}); !errors.Is(err, crcsafe.ErrShortSafePoint) {
+	if _, err := e2e.Verify(stream, acf.Message{Body: []byte{0x01, 0x02}}); !errors.Is(err, e2e.ErrShortSafePoint) {
 		t.Errorf("Verify(short body) err = %v, want ErrShortSafePoint", err)
 	}
 
 	corrupted := protected
 	corrupted.Body = append([]byte(nil), protected.Body...)
 	corrupted.Body[len(corrupted.Body)-1] ^= 0xFF
-	got, err := crcsafe.Verify(stream, corrupted)
-	if !errors.Is(err, crcsafe.ErrCRCMismatch) {
+	got, err := e2e.Verify(stream, corrupted)
+	if !errors.Is(err, e2e.ErrCRCMismatch) {
 		t.Errorf("Verify(corrupted CRC) err = %v, want ErrCRCMismatch", err)
 	}
 	if got.Body != nil {
@@ -118,7 +119,7 @@ func TestVerify_RejectsShortAndMismatched(t *testing.T) {
 	tampered := protected
 	tampered.Body = append([]byte(nil), protected.Body...)
 	tampered.Body[0] ^= 0xFF // flip a covered payload byte, leave the trailing CRC as-is
-	if _, err := crcsafe.Verify(stream, tampered); !errors.Is(err, crcsafe.ErrCRCMismatch) {
+	if _, err := e2e.Verify(stream, tampered); !errors.Is(err, e2e.ErrCRCMismatch) {
 		t.Errorf("Verify(tampered body) err = %v, want ErrCRCMismatch", err)
 	}
 }
@@ -140,10 +141,10 @@ func TestComputeFragmented_MatchesSingleMessage(t *testing.T) {
 		combined = append(combined, seg...)
 	}
 
-	got := crcsafe.ComputeFragmented(stream, header, segments)
+	got := e2e.ComputeFragmented(stream, header, segments)
 	single := header
 	single.Body = combined
-	want := crcsafe.Compute(stream, single)
+	want := e2e.Compute(stream, single)
 
 	if got != want {
 		t.Errorf("ComputeFragmented = %#08x, want %#08x (must equal Compute over the reassembled single message)", got, want)
@@ -151,7 +152,7 @@ func TestComputeFragmented_MatchesSingleMessage(t *testing.T) {
 
 	// A no-op single-segment "fragmentation" must be a true no-op relative
 	// to calling Compute directly.
-	if got := crcsafe.ComputeFragmented(stream, header, [][]byte{combined}); got != want {
+	if got := e2e.ComputeFragmented(stream, header, [][]byte{combined}); got != want {
 		t.Errorf("ComputeFragmented(single segment) = %#08x, want %#08x", got, want)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/gpio"
 )
@@ -71,10 +72,10 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	cfg := gpio.Config{PinCount: 8, Direction: 0x000000FF}
 	ep, root := newConfiguredEndpoint(t, cfg)
 
-	req := avtp.Message{
-		Kind:      avtp.KindShort,
+	req := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      goldenWriteRequest,
 	}
 	resp, err := ep.HandleRequest(root, req)

@@ -5,8 +5,8 @@ import "encoding/binary"
 // Config is a PWM endpoint's functional (type-specific) configuration: which
 // Role it plays, and (for RoleOutput) the waveform it starts up driving
 // before any write request arrives. It is stored as an endpoint's
-// server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint is configured for use. A request
 	// against a disabled endpoint is rejected with ErrNotConfigured.

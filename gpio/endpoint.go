@@ -3,6 +3,7 @@ package gpio
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -101,40 +102,40 @@ func (e *Endpoint) recordChangeLocked(before, after uint32) {
 	e.triggers = append(e.triggers, TriggerEvent{ChangedMask: changed, Value: after})
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message request
+// HandleRequest answers one plain, unconditional acf.Message request
 // addressed to this endpoint. Per ROADMAP.md Milestone 47's explicit scope,
 // this is the read/write/reconfigure request shape only — compound/
 // triggered/chained/timed request kinds are Phase 15's job (ROADMAP.md
 // Milestone 49) and are not decoded here. req must set exactly one of
-// avtp.FlagRead or avtp.FlagWrite; a request with neither is rejected with
+// acf.FlagRead or acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite, since a GPIO endpoint has nothing else to do
 // with it at this milestone.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		sem, operand, err := DecodeWriteRequest(req.Body)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		result, err := e.applyWrite(requester, sem, operand)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		return responseFor(req, EncodeValue(result)), nil
-	case req.Control.Has(avtp.FlagRead):
+	case req.Control.Has(acf.FlagRead):
 		e.mu.Lock()
 		v := e.value
 		e.mu.Unlock()
 		return responseFor(req, EncodeValue(v)), nil
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -176,12 +177,12 @@ func (e *Endpoint) applyWrite(requester avtp.StreamID, sem WriteSemantic, operan
 // originating Read/Write flag preserved so a caller can tell which request
 // shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | (req.Control & (avtp.FlagRead | avtp.FlagWrite)),
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
 		Body:           body,
 	}
 }

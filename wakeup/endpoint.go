@@ -3,6 +3,7 @@ package wakeup
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -134,43 +135,43 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message request
+// HandleRequest answers one plain, unconditional acf.Message request
 // addressed to this endpoint (see doc.go's "Explicit non-goal" section for
 // the conditional-request kinds this deliberately leaves to
-// request.Dispatcher). req must set exactly one of avtp.FlagRead or
-// avtp.FlagWrite; a request with neither is rejected with
+// request.Dispatcher). req must set exactly one of acf.FlagRead or
+// acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite. A write request's body is the target
 // PowerState (see EncodePowerStateRequest); the response echoes the newly
 // applied state back. A read request returns the current PowerState.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	e.mu.Lock()
 	cfg := e.cfg
 	e.mu.Unlock()
 	if !cfg.Enabled {
-		return avtp.Message{}, ErrNotConfigured
+		return acf.Message{}, ErrNotConfigured
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		target, err := DecodePowerStateRequest(req.Body)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if err := e.transitionTo(target); err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
-		return responseFor(req, avtp.FlagWrite, EncodePowerStateResponse(target)), nil
-	case req.Control.Has(avtp.FlagRead):
-		return responseFor(req, avtp.FlagRead, EncodePowerStateResponse(e.State())), nil
+		return responseFor(req, acf.FlagWrite, EncodePowerStateResponse(target)), nil
+	case req.Control.Has(acf.FlagRead):
+		return responseFor(req, acf.FlagRead, EncodePowerStateResponse(e.State())), nil
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -223,12 +224,12 @@ func (e *Endpoint) transitionTo(target PowerState) error {
 // the originating Read/Write flag preserved so a caller can tell which
 // request shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, rw avtp.ControlFlags, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, rw acf.ControlFlags, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | rw,
+		Control:        acf.FlagResponse | rw,
 		Body:           body,
 	}
 }

@@ -6,8 +6,8 @@ import "encoding/binary"
 // models a single controller-only bus (see doc.go's Scope section), its
 // arbitration-phase (nominal) bit rate, and its data-phase bit rate used by
 // FD/XL frames with Frame.BitRateSwitch set. It is stored as an endpoint's
-// server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint's bus is configured for use. A
 	// request against a disabled bus is rejected with ErrBusNotConfigured.

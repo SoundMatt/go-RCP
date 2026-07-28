@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/powerstate"
 	"github.com/SoundMatt/go-RCP/server"
@@ -25,11 +26,11 @@ func testStream() avtp.StreamID {
 // failing the test on any error.
 func writePowerState(t *testing.T, ep *wakeup.Endpoint, root avtp.StreamID, addr avtp.ByteBusID, target wakeup.PowerState, txn avtp.TransactionNum) {
 	t.Helper()
-	_, err := ep.HandleRequest(root, avtp.Message{
-		Kind:           avtp.KindShort,
+	_, err := ep.HandleRequest(root, acf.Message{
+		Kind:           acf.KindShort,
 		ByteBusID:      addr,
 		TransactionNum: txn,
-		Control:        avtp.FlagWrite,
+		Control:        acf.FlagWrite,
 		Body:           wakeup.EncodePowerStateRequest(target),
 	})
 	if err != nil {

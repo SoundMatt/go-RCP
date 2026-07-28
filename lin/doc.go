@@ -11,14 +11,14 @@
 // is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint, and
 // Endpoint.HandleRequest implements the same request.Handler shape
-// (avtp.StreamID, avtp.Message) (avtp.Message, error) every other endpoint
+// (avtp.StreamID, acf.Message) (acf.Message, error) every other endpoint
 // type does, so it drops into request.Dispatcher unmodified.
 //
 // # Scope
 //
 // One LIN endpoint is commander-only (the LIN "master" role) and models a
 // single bus, the same one-bus-no-sub-channel shape i2c/doc.go's Scope
-// section documents for I2C, matching server/types.go's LIN signal list
+// section documents for I2C, matching regmap/types.go's LIN signal list
 // (TX/RX, not a per-channel selector).
 //
 // Per ROADMAP.md Milestone 51's explicit instruction, this package is raw
@@ -37,7 +37,7 @@
 // # Explicit non-goal
 //
 // Per ROADMAP.md Milestone 48/51, this package's Endpoint.HandleRequest
-// answers the plain, unconditional avtp.Message request shape only.
+// answers the plain, unconditional acf.Message request shape only.
 // Compound/triggered/chained/timed request variants are provided by
 // wrapping this package's Endpoint (a request.Handler) in a
 // request.Dispatcher exactly as every other endpoint type is, rather than

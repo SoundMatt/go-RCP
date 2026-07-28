@@ -9,14 +9,14 @@ var (
 	ErrInvalidMaxSegmentBody = errors.New("rcp/fragment: maxBody must be positive")
 
 	// ErrAlreadyFragmented is returned by Split when the Message it was
-	// asked to split already carries avtp.FlagMoreSegments — Split's
+	// asked to split already carries acf.FlagMoreSegments — Split's
 	// contract is to fragment one complete logical message, not to
 	// re-fragment a segment that is itself already part of a sequence.
 	ErrAlreadyFragmented = errors.New("rcp/fragment: message already carries FlagMoreSegments")
 
 	// ErrTooManySegments is returned by Split when a Message's Body would
 	// require more segments than fit the wire's 16-bit segment-number field
-	// (avtp.Message.ReadSizeOrSegment), and by Reassembler.Add when an
+	// (acf.Message.ReadSizeOrSegment), and by Reassembler.Add when an
 	// in-progress sequence's configured Config.MaxSegments bound is
 	// exceeded before a terminal segment arrives.
 	ErrTooManySegments = errors.New("rcp/fragment: message requires more segments than this package supports")

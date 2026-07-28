@@ -5,7 +5,7 @@ package fragment_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/fragment"
 )
 
@@ -20,14 +20,14 @@ import (
 // simpler first-segment path.
 func FuzzReassemblerAdd(f *testing.F) {
 	f.Add(byte(0), uint16(0), []byte{0x01, 0x02}, byte(0), uint16(0), []byte{0x03})
-	f.Add(byte(avtp.FlagMoreSegments), uint16(0), []byte{0x01}, byte(0), uint16(1), []byte{0x02})
-	f.Add(byte(avtp.FlagMoreSegments), uint16(5), []byte{}, byte(avtp.FlagMoreSegments), uint16(0), []byte{})
+	f.Add(byte(acf.FlagMoreSegments), uint16(0), []byte{0x01}, byte(0), uint16(1), []byte{0x02})
+	f.Add(byte(acf.FlagMoreSegments), uint16(5), []byte{}, byte(acf.FlagMoreSegments), uint16(0), []byte{})
 
 	f.Fuzz(func(t *testing.T, ctrl1 byte, seg1 uint16, body1 []byte, ctrl2 byte, seg2 uint16, body2 []byte) {
 		re := fragment.NewReassembler(fragment.Config{})
 		stream := testStream()
-		m1 := avtp.Message{ByteBusID: 1, TransactionNum: 1, Control: avtp.ControlFlags(ctrl1), ReadSizeOrSegment: seg1, Body: body1}
-		m2 := avtp.Message{ByteBusID: 1, TransactionNum: 1, Control: avtp.ControlFlags(ctrl2), ReadSizeOrSegment: seg2, Body: body2}
+		m1 := acf.Message{ByteBusID: 1, TransactionNum: 1, Control: acf.ControlFlags(ctrl1), ReadSizeOrSegment: seg1, Body: body1}
+		m2 := acf.Message{ByteBusID: 1, TransactionNum: 1, Control: acf.ControlFlags(ctrl2), ReadSizeOrSegment: seg2, Body: body2}
 
 		complete, err := re.Add(stream, m1) // must not panic
 		if err == nil && complete {
@@ -49,7 +49,7 @@ func FuzzSplit(f *testing.F) {
 	f.Add(1, []byte{})
 
 	f.Fuzz(func(t *testing.T, maxBody int, body []byte) {
-		msg := avtp.Message{ByteBusID: 1, TransactionNum: 1, Body: body}
+		msg := acf.Message{ByteBusID: 1, TransactionNum: 1, Body: body}
 		segs, err := fragment.Split(msg, maxBody) // must not panic
 		if err != nil {
 			return
