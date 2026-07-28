@@ -4527,6 +4527,110 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-022",
+      "title": "Kind safety-request tagging (IsSafety/Base/Valid/Priority) is correct",
+      "text": "request.Kind.IsSafety and Kind.Base shall round-trip losslessly for KindCompoundSafety/KindCompoundWaitSafety/KindTriggeredSafety against their respective base Kind; Kind.Valid shall accept exactly those three safety-tagged values and reject KindSafetyFlag applied to any other base Kind; Kind.Priority shall rank a safety-request Kind identically to its Base kind.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-023",
+      "title": "Safety-request envelope encoders share their base kind's Decode function",
+      "text": "request.EncodeCompoundSafety, EncodeCompoundWaitSafety, and EncodeTriggeredSafety shall produce envelopes with an identical body layout to their base-kind Encode counterpart differing only in the leading Kind byte, decodable by the same DecodeCompound/DecodeCompoundWait/DecodeTriggered function as the base kind, with PeekKind reporting the safety-tagged Kind value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-024",
+      "title": "Dispatcher gates safety-request Kinds on a configured SafeStateCheck",
+      "text": "request.Dispatcher.Submit shall reject a safety-request Kind with ErrSafeStateNotConfigured when no SafeStateCheck is configured, and Dispatcher.Pump shall leave a safety-request ticket in StateStarted on every call for which SetSafeStateCheck's configured function reports false for that ticket's requester, advancing it only once that function reports true.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REQ-025",
+      "title": "Dispatcher.PurgeNonSafety clears only non-safety pending tickets",
+      "text": "request.Dispatcher.PurgeNonSafety shall finalize every not-yet-finalized ticket whose Kind is not a safety-request variant with ErrPurgedByWatchdog, and shall leave every safety-request ticket's state and pending status completely unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-001",
+      "title": "Compute covers stream addressing, message addressing/timestamp fields, and the whole message",
+      "text": "crcsafe.Compute shall be deterministic for a given (stream, Message) pair, and shall produce a different CRC32 value when the stream, ByteBusID, TransactionNum, Control, ReadSizeOrSegment, Timestamp, or Body of its input changes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-002",
+      "title": "Protect/Verify round-trip a message through a trailing CRC32 safe point",
+      "text": "crcsafe.Protect shall append a Len-byte trailing CRC32 safe point to a Message's Body computed by Compute over the message as given, and crcsafe.Verify shall strip and validate that trailing field, returning a Message with Body restored to its original contents when the safe point is valid.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-003",
+      "title": "Verify rejects a short or mismatched safe point without exposing a usable message",
+      "text": "crcsafe.Verify shall report ErrShortSafePoint when a message's Body is shorter than Len, and shall report ErrCRCMismatch without returning a usable inner message when the trailing CRC32 does not match the CRC recomputed over any covered field, including a tampered payload byte with an otherwise-intact trailing CRC.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-004",
+      "title": "ComputeFragmented matches Compute over an equivalent reassembled single message",
+      "text": "crcsafe.ComputeFragmented, given a shared header and a slice of per-segment Body byte slices, shall produce exactly the CRC32 that crcsafe.Compute would produce for a single message carrying the same header with Body set to every segment's Body concatenated in order.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-005",
+      "title": "Guard skips the wrapped Handler on a CRC failure and re-Protects a successful response",
+      "text": "crcsafe.Guard.HandleRequest shall not call its wrapped request.Handler and shall return ErrCRCMismatch when the inbound message's safe point fails Verify, and shall call the wrapped Handler with the Verify-recovered inner message and return that Handler's response re-Protected with a fresh safe point when the inbound safe point is valid.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-006",
+      "title": "Supervisor.Observe enforces configured sequence monotonicity and overflow wraparound",
+      "text": "crcsafe.Supervisor.Observe shall report an error wrapping ErrSequenceViolation and sticky-trip that stream when StreamConfig.RequireMonotonicSequence is set and an arrival's sequence number does not strictly follow the previous one, shall accept a wraparound from the maximum uint32 value to zero when SequenceOverflowWraps is also set, and shall always rearm the stream's inter-arrival timeout clock regardless of whether a violation was recorded.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-007",
+      "title": "Supervisor.InSafeState reflects inter-arrival Timeout on its injectable clock",
+      "text": "crcsafe.Supervisor.InSafeState shall report true for a stream Observe has never been called for, false immediately after a qualifying Observe call, and true again once the stream's configured Timeout has elapsed since its last Observe call, all measured against the Supervisor's injectable clock function.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-008",
+      "title": "Supervisor.CheckFunc matches InSafeState and Reset clears a sticky trip",
+      "text": "crcsafe.Supervisor.CheckFunc's returned request.SafeStateCheck shall report exactly the same boolean InSafeState reports for the same stream at the same call, and Supervisor.Reset shall clear a stream's sticky monotonicity-violation trip and rearm its timeout clock from the moment Reset is called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CRC-009",
+      "title": "Supervisor-driven safe-state gating and watchdog purge integrate correctly with Dispatcher",
+      "text": "Wiring a crcsafe.Supervisor's CheckFunc into a request.Dispatcher's SetSafeStateCheck, and calling Dispatcher.PurgeNonSafety once Supervisor.InSafeState reports true for a stream, shall finalize that Dispatcher's ordinary pending tickets for that stream with ErrPurgedByWatchdog while leaving a submitted safety-request ticket pending until InSafeState itself reports true, at which point that surviving ticket shall execute normally on the next Pump call.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

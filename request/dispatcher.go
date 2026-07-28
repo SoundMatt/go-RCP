@@ -34,6 +34,19 @@ type Handler interface {
 // first, one event per satisfied ticket.
 type TriggerPump func() int
 
+// SafeStateCheck is an optional caller-supplied gate reporting whether the
+// endpoint a Dispatcher wraps is currently in its configured safe state, for
+// the given requester stream (ROADMAP.md Milestone 50). It is the readiness
+// condition every safety-request ("MSB-set") Kind adds on top of its base
+// kind's own readiness rule: Dispatcher.Pump never lets a safety-request
+// ticket advance past StateStarted while this reports false. A caller
+// normally backs this with a crcsafe.Supervisor's InSafeState method — this
+// package has no wall-clock or sequence-monotonicity tracking of its own
+// (see doc.go). It takes the requester rather than being a single endpoint-
+// wide bool because the watchdog condition driving safe-state entry is
+// tracked per stream, not per endpoint (see crcsafe.Supervisor).
+type SafeStateCheck func(requester avtp.StreamID) bool
+
 // AccessCheck is an optional caller-supplied gate Dispatcher.Submit runs for
 // every request, before any kind-specific decoding or handling: it must
 // return nil for the request to be admitted at all. A caller normally adapts
@@ -56,12 +69,13 @@ type AccessCheck func(requester avtp.StreamID) error
 // package's Endpoint is already one-per-declared-endpoint. All exported
 // methods are safe for concurrent use.
 type Dispatcher struct {
-	mu      sync.Mutex
-	handler Handler
-	addr    avtp.ByteBusID
-	seq     *Sequencer
-	access  AccessCheck
-	pumps   map[avtp.ByteBusID]TriggerPump
+	mu        sync.Mutex
+	handler   Handler
+	addr      avtp.ByteBusID
+	seq       *Sequencer
+	access    AccessCheck
+	safeState SafeStateCheck
+	pumps     map[avtp.ByteBusID]TriggerPump
 
 	tickets map[TicketID]*ticket
 	order   []TicketID
@@ -95,6 +109,19 @@ func (d *Dispatcher) RegisterTriggerSource(source avtp.ByteBusID, pump TriggerPu
 	d.pumps[source] = pump
 }
 
+// SetSafeStateCheck wires check as this Dispatcher's SafeStateCheck
+// (ROADMAP.md Milestone 50), replacing any previous registration. Pass nil
+// to withdraw a Dispatcher's opt-in to the safety-request Kinds — once
+// withdrawn, Submit rejects every new safety-request Kind with
+// ErrSafeStateNotConfigured again, though any already-admitted safety
+// ticket stays pending exactly as if the check were still configured but
+// permanently false, rather than being silently discarded.
+func (d *Dispatcher) SetSafeStateCheck(check SafeStateCheck) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.safeState = check
+}
+
 // Submit decodes req into a new ticket and admits it (StateQueued), running
 // AccessCheck first if one was configured. It does not itself advance the
 // ticket past StateQueued — call Pump (directly, or via Dispatch) to make
@@ -119,6 +146,10 @@ func (d *Dispatcher) Submit(requester avtp.StreamID, req avtp.Message) (TicketID
 		return 0, err
 	}
 
+	if t.kind.IsSafety() && d.safeState == nil {
+		return 0, ErrSafeStateNotConfigured
+	}
+
 	d.nextID++
 	d.tickets[t.id] = t
 	d.order = append(d.order, t.id)
@@ -126,14 +157,18 @@ func (d *Dispatcher) Submit(requester avtp.StreamID, req avtp.Message) (TicketID
 }
 
 // decodeInto decodes req's extended-request envelope into t's kind-specific
-// fields.
+// fields. It dispatches on k.Base() throughout: a safety-request ("MSB-set")
+// envelope shares its base kind's exact body layout (see envelope.go's
+// EncodeXxxSafety functions), so decoding never needs to special-case the
+// tag bit — only readiness evaluation and execution eligibility do (see
+// Dispatcher.Pump and Dispatcher.Submit).
 func decodeInto(t *ticket, body []byte) error {
 	k, err := PeekKind(body)
 	if err != nil {
 		return err
 	}
 	t.kind = k
-	switch k {
+	switch k.Base() {
 	case KindCompound:
 		c, ic, ib, err := DecodeCompound(body)
 		if err != nil {
@@ -190,12 +225,17 @@ func decodeInto(t *ticket, body []byte) error {
 // StateStarted tickets are ready to execute given now (a caller-supplied
 // monotonic microsecond clock — its epoch and units are a matter of caller/
 // Dispatcher agreement, since real time synchronization is out of this
-// package's scope, per avtp/doc.go's own posture on the subject) and each
-// registered TriggerPump's current count, executes every ready ticket in
-// fixed cross-type priority order (Kind.Priority, FIFO within a rank), and
-// returns the TicketIDs that reached StateFinalized during this call —
-// including any a cancellation ticket in the same batch cleared before its
-// own turn to execute.
+// package's scope, per avtp/doc.go's own posture on the subject), each
+// registered TriggerPump's current count, and — for a safety-request
+// ("MSB-set") ticket — the configured SafeStateCheck's current answer for
+// that ticket's requester, executes every ready ticket in fixed cross-type
+// priority order (Kind.Priority, FIFO within a rank), and returns the
+// TicketIDs that reached StateFinalized during this call — including any a
+// cancellation ticket in the same batch cleared before its own turn to
+// execute. A safety-request ticket whose SafeStateCheck currently reports
+// false simply stays in StateStarted, re-evaluated on every later Pump call,
+// the same way an unmet KindTimed target time or an empty KindTriggered
+// source does.
 func (d *Dispatcher) Pump(now uint64) []TicketID {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -207,10 +247,15 @@ func (d *Dispatcher) Pump(now uint64) []TicketID {
 	}
 
 	// Call each distinct trigger source's pump at most once this call.
+	// A safety-request KindTriggeredSafety ticket that is not (yet) ready
+	// per the safe-state gate below still counts toward this: the pump is
+	// still called so the source's event count stays accurate, it simply
+	// isn't consumed from `available` until the ticket also clears the
+	// safe-state check.
 	available := make(map[avtp.ByteBusID]int)
 	for _, id := range d.order {
 		t := d.tickets[id]
-		if t.state != StateStarted || t.kind != KindTriggered {
+		if t.state != StateStarted || t.kind.Base() != KindTriggered {
 			continue
 		}
 		if _, seen := available[t.triggerSource]; seen {
@@ -229,7 +274,10 @@ func (d *Dispatcher) Pump(now uint64) []TicketID {
 		if t.state != StateStarted {
 			continue
 		}
-		switch t.kind {
+		if t.kind.IsSafety() && !d.safeStateReadyLocked(t.requester) {
+			continue
+		}
+		switch t.kind.Base() {
 		case KindTriggered:
 			if available[t.triggerSource] > 0 {
 				available[t.triggerSource]--
@@ -262,6 +310,18 @@ func (d *Dispatcher) Pump(now uint64) []TicketID {
 		finalized = append(finalized, cancelled...)
 	}
 	return finalized
+}
+
+// safeStateReadyLocked reports whether a safety-request ticket submitted by
+// requester is currently allowed to advance to StateExecuting. Callers must
+// hold d.mu. It only ever returns true when a SafeStateCheck is configured
+// and reports true — Submit already refuses to admit a safety-request Kind
+// at all when d.safeState is nil (see ErrSafeStateNotConfigured), but
+// SetSafeStateCheck(nil) can withdraw that configuration later while a
+// safety ticket it already admitted is still pending, so this stays
+// defensive rather than assuming non-nil.
+func (d *Dispatcher) safeStateReadyLocked(requester avtp.StreamID) bool {
+	return d.safeState != nil && d.safeState(requester)
 }
 
 // Dispatch is the synchronous convenience path: Submit followed by one Pump
@@ -382,9 +442,14 @@ func responseFor(t *ticket, body []byte) avtp.Message {
 
 // execute runs t's kind-specific StateExecuting action, populating
 // t.response/t.err. Callers must hold d.mu. It returns the TicketIDs of any
-// other tickets a cancellation kind finalized as a side effect.
+// other tickets a cancellation kind finalized as a side effect. It switches
+// on t.kind.Base() throughout: a safety-request ticket's execution behavior
+// is identical to its base kind's once Pump has already gated it on the
+// safe-state readiness check (see safeStateReadyLocked) — the safety tag
+// only changes when a ticket is allowed to reach this method, never what it
+// does once it's here.
 func (d *Dispatcher) execute(t *ticket) []TicketID {
-	switch t.kind {
+	switch t.kind.Base() {
 	case KindPlain:
 		t.response, t.err = d.handler.HandleRequest(t.requester, innerMessage(t, t.innerControl, t.innerBody))
 		return nil
@@ -458,18 +523,51 @@ func (d *Dispatcher) execute(t *ticket) []TicketID {
 // already reached StateFinalized, returning their TicketIDs. Callers must
 // hold d.mu.
 func (d *Dispatcher) cancelWhereLocked(exclude TicketID, match func(*ticket) bool) []TicketID {
-	var cancelled []TicketID
+	return d.finalizeWhereLocked(ErrTicketCancelled, func(other *ticket) bool {
+		return other.id != exclude && match(other)
+	})
+}
+
+// finalizeWhereLocked finalizes (as StateFinalized/finalErr) every
+// not-yet-finalized ticket for which match reports true, returning their
+// TicketIDs. Callers must hold d.mu. It is the shared mechanism behind both
+// a client's own cancellation requests (cancelWhereLocked, finalErr
+// ErrTicketCancelled) and this Dispatcher's own watchdog-driven purge
+// (PurgeNonSafety, finalErr ErrPurgedByWatchdog) — the two are kept as
+// distinct errors precisely because they are semantically different events
+// for a caller polling Response to distinguish (a client asked for the
+// first; this Dispatcher's own fault response produced the second).
+func (d *Dispatcher) finalizeWhereLocked(finalErr error, match func(*ticket) bool) []TicketID {
+	var cleared []TicketID
 	for _, id := range d.order {
-		if id == exclude {
+		t := d.tickets[id]
+		if t.state == StateFinalized || !match(t) {
 			continue
 		}
-		other := d.tickets[id]
-		if other.state == StateFinalized || !match(other) {
-			continue
-		}
-		other.state = StateFinalized
-		other.err = ErrTicketCancelled
-		cancelled = append(cancelled, id)
+		t.state = StateFinalized
+		t.err = finalErr
+		cleared = append(cleared, id)
 	}
-	return cancelled
+	return cleared
+}
+
+// PurgeNonSafety finalizes (as StateFinalized/ErrPurgedByWatchdog) every
+// not-yet-finalized ticket whose Kind is not a safety-request ("MSB-set")
+// variant, leaving every safety-request ticket untouched regardless of its
+// current state or readiness (ROADMAP.md Milestone 50's "watchdog-driven
+// purge of ordinary pending requests"). It returns the TicketIDs it
+// finalized.
+//
+// This Dispatcher never calls PurgeNonSafety on its own: it has no wall-
+// clock or per-stream sequence-monotonicity tracking of its own (see
+// SafeStateCheck's doc comment) to decide when a purge is warranted. A
+// caller wires a crcsafe.Supervisor's watchdog trip to this method — the
+// same asymmetry SafeStateCheck has, where this package only ever consumes
+// the watchdog's verdict, never computes it.
+func (d *Dispatcher) PurgeNonSafety() []TicketID {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.finalizeWhereLocked(ErrPurgedByWatchdog, func(t *ticket) bool {
+		return !t.kind.IsSafety()
+	})
 }

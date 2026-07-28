@@ -67,12 +67,69 @@ const (
 	kindCount
 )
 
-// Valid reports whether k is a wire-representable envelope Kind — every
-// value strictly between KindPlain and kindCount. KindPlain itself is
-// excluded: it is never encoded as an envelope's leading byte, so a decoded
-// envelope claiming KindPlain is exactly as malformed as one claiming
-// kindCount or higher.
+// KindSafetyFlag is the "MSB-set" tag ROADMAP.md Milestone 50 adds on top
+// of the base Kind byte: set on a request envelope's leading byte, it marks
+// that request as the safety-request variant of whichever base Kind the
+// remaining bits (see Base) identify. It is a strict superset encoding, not
+// a fourth taxonomy alongside conditional/cancellation/plain — every
+// safety-request Kind value is some base Kind ORed with this bit, and
+// Base/IsSafety round-trip losslessly against each other. Only three base
+// kinds have a defined safety counterpart (see the KindXxxSafety constants
+// below and Valid); KindSafetyFlag set on any other base Kind byte is not a
+// wire-representable value.
+const KindSafetyFlag Kind = 0x80
+
+// The safety-request ("MSB-set") variants of the three request kinds
+// ROADMAP.md Milestone 50 calls out by name. Each is only ever executed by
+// Dispatcher.Pump once the requester's addressed endpoint reports its
+// configured safe state (see Dispatcher.SetSafeStateCheck) is currently
+// active — a readiness gate layered on top of each kind's own existing
+// readiness condition, the same way KindTimed's target-time gate composes
+// with Kind.Priority rather than replacing it. Unlike every other pending
+// ticket, these specifically survive Dispatcher.PurgeNonSafety, the
+// watchdog-driven purge this milestone introduces (see doc.go's "Safety
+// requests and the watchdog-driven purge" section). KindChained, KindTimed,
+// and every cancellation variant have no safety counterpart: chained and
+// timed requests already have their own scheduling gate, and a cancellation
+// request's purpose is to retire other tickets, not to be gated on one
+// itself.
+const (
+	KindCompoundSafety     Kind = KindCompound | KindSafetyFlag
+	KindCompoundWaitSafety Kind = KindCompoundWait | KindSafetyFlag
+	KindTriggeredSafety    Kind = KindTriggered | KindSafetyFlag
+)
+
+// IsSafety reports whether k carries KindSafetyFlag — i.e. is the
+// safety-request variant of its Base kind.
+func (k Kind) IsSafety() bool {
+	return k&KindSafetyFlag != 0
+}
+
+// Base returns k with KindSafetyFlag cleared: the underlying conditional-
+// request kind a safety-request variant is tagging. Base is a no-op on a
+// Kind that was never safety-tagged in the first place, so callers that
+// don't care about the safety distinction can always switch on Base(k)
+// rather than k itself.
+func (k Kind) Base() Kind {
+	return k &^ KindSafetyFlag
+}
+
+// Valid reports whether k is a wire-representable envelope Kind: every
+// non-safety value strictly between KindPlain and kindCount, plus exactly
+// the three safety-tagged values KindCompoundSafety, KindCompoundWaitSafety,
+// and KindTriggeredSafety. KindPlain itself is excluded (safety-tagged or
+// not): it is never encoded as an envelope's leading byte, so a decoded
+// envelope claiming KindPlain — or KindPlain|KindSafetyFlag — is exactly as
+// malformed as one claiming kindCount or higher.
 func (k Kind) Valid() bool {
+	if k.IsSafety() {
+		switch k.Base() {
+		case KindCompound, KindCompoundWait, KindTriggered:
+			return true
+		default:
+			return false
+		}
+	}
 	return k > KindPlain && k < kindCount
 }
 
@@ -103,6 +160,12 @@ func (k Kind) String() string {
 		return "CancelTransaction"
 	case KindCancelSequencer:
 		return "CancelSequencer"
+	case KindCompoundSafety:
+		return "CompoundSafety"
+	case KindCompoundWaitSafety:
+		return "CompoundWaitSafety"
+	case KindTriggeredSafety:
+		return "TriggeredSafety"
 	default:
 		return "Unknown"
 	}
@@ -148,10 +211,14 @@ var priorityRank = map[Kind]int{
 }
 
 // Priority returns k's fixed cross-type execution-priority rank (lower runs
-// first). See priorityRank's doc comment for the full ordering and its
-// rationale.
+// first). A safety-request variant ranks identically to its Base kind — this
+// milestone's roadmap text distinguishes safety requests from their base
+// kind purely by the configured-safe-state readiness gate and their
+// immunity to Dispatcher.PurgeNonSafety (see doc.go), not by a separate
+// priority tier, so this implementation does not invent one. See
+// priorityRank's doc comment for the full base ordering and its rationale.
 func (k Kind) Priority() int {
-	return priorityRank[k]
+	return priorityRank[k.Base()]
 }
 
 // CompareOp is the comparison a Compound or CompoundWait request evaluates
