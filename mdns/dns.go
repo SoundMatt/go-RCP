@@ -1,4 +1,33 @@
-// Package mdns provides zero-configuration zone-controller discovery via mDNS/DNS-SD.
+// Package mdns provides zero-configuration RC Server rendezvous via
+// mDNS/DNS-SD for the OPEN Alliance TC18 Remote Control Protocol (RCP), as
+// described by the "OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 54 (v0.67.0)'s REPLACE-flagged (role-
+// narrowed) rebuild: per Phase 17's disposition table, the specification
+// "defines its own mandatory, self-contained discovery mechanism (Phase
+// 13) that every conformant server must answer in any lifecycle state" —
+// already built as discovery/server's HandleDiscoveryRequest (ROADMAP.md
+// Milestone 46, v0.59.0) and reachable over this repo's own transport via
+// udp.Controller.Discover — so this package is no longer "the" discovery
+// mechanism a caller relies on to learn what an RC Server's register map
+// looks like. What survives, per the disposition table's own framing, is
+// its narrower role as "an optional secondary IP-rendezvous helper": a
+// caller with no prior knowledge of an RC Server's UDP address still needs
+// some way to learn candidate addresses to point udp.Controller.Discover
+// at in the first place, and this package's DNS-SD announce/browse
+// machinery — genuinely orthogonal to RCP's own wire format — remains a
+// reasonable, generic way to do that on a local network.
+//
+// The one behavioral change this narrower role forces is in what an
+// announcement carries: DNS-SD's zone-ID-as-service-instance model
+// (ServiceInfo.Zone, a small closed uint8 enum) has no mapping onto the
+// TC18 addressing model, which identifies an RC Server by its own
+// avtp.StreamID, not a Zone. Announcer/Browser now advertise/discover a
+// StreamID (encoded as a fixed-width hex TXT value) instead — see
+// ServiceInfo.Stream — while the DNS-SD wire mechanics themselves
+// (encodeName/decodeName, the PTR/SRV/TXT/A record shapes, Transport) are
+// completely generic and unchanged by this milestone.
 package mdns
 
 //fusa:req REQ-MDNS-001
@@ -253,19 +282,74 @@ func parseOneRR(msg []byte, off int) (dnsRR, int, error) {
 	return dnsRR{name: name, typ: typ, class: class, ttl: ttl, rdata: rdata}, off + rdLen, nil
 }
 
-// extractServiceInfo parses PTR/SRV/TXT/A records into a ServiceInfo.
+// streamTXTKey is the TXT record key an announcement's avtp.StreamID value
+// is carried under, replacing the retired "zone=" key (see this file's
+// package doc comment).
+const streamTXTKey = "stream="
+
+// streamHexLen is the number of hex characters an 8-byte avtp.StreamID
+// encodes to.
+const streamHexLen = 16
+
+// ServiceInfo is one parsed DNS-SD service instance: the avtp.StreamID a
+// candidate RC Server announced, and the UDP address to point
+// udp.Controller.Discover at to actually query it.
 type ServiceInfo struct {
 	Instance string
-	Zone     uint8
-	Addr     string // "ip:port"
+	Stream   [8]byte // raw avtp.StreamID bytes; see mdns.DecodeStreamID
+	Addr     string  // "ip:port"
 }
 
+// encodeStreamHex renders an 8-byte avtp.StreamID as lowercase hex, for the
+// TXT record. mdns does not import the avtp package itself (this package
+// is a generic DNS-SD helper Phase 13 does not depend on), so it works with
+// the raw [8]byte representation rather than avtp.StreamID directly; a
+// caller converts at its own call site.
+func encodeStreamHex(stream [8]byte) string {
+	const hexDigits = "0123456789abcdef"
+	out := make([]byte, 0, streamHexLen)
+	for _, b := range stream {
+		out = append(out, hexDigits[b>>4], hexDigits[b&0x0F])
+	}
+	return string(out)
+}
+
+// decodeStreamHex parses a streamHexLen-character lowercase hex string back
+// into its 8 raw bytes. It never panics on malformed input.
+func decodeStreamHex(s string) ([8]byte, bool) {
+	var out [8]byte
+	if len(s) != streamHexLen {
+		return out, false
+	}
+	for i := 0; i < 8; i++ {
+		hi, ok1 := hexNibble(s[i*2])
+		lo, ok2 := hexNibble(s[i*2+1])
+		if !ok1 || !ok2 {
+			return [8]byte{}, false
+		}
+		out[i] = hi<<4 | lo
+	}
+	return out, true
+}
+
+func hexNibble(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	default:
+		return 0, false
+	}
+}
+
+// extractServices parses PTR/SRV/TXT/A records into ServiceInfo values.
 func extractServices(rrs []dnsRR, msg []byte) []ServiceInfo {
 	ptrTargets := map[string]bool{}
 	srvPorts := map[string]uint16{}
 	srvHosts := map[string]string{}
 	aRecords := map[string]string{}
-	txtZones := map[string]uint8{}
+	txtStreams := map[string][8]byte{}
 
 	for _, rr := range rrs {
 		switch rr.typ {
@@ -295,10 +379,9 @@ func extractServices(rrs []dnsRR, msg []byte) []ServiceInfo {
 				}
 				kv := string(rr.rdata[off : off+l])
 				off += l
-				if strings.HasPrefix(kv, "zone=") {
-					var z uint8
-					if _, err := fmt.Sscanf(kv[5:], "%d", &z); err == nil {
-						txtZones[rr.name] = z
+				if strings.HasPrefix(kv, streamTXTKey) {
+					if stream, ok := decodeStreamHex(kv[len(streamTXTKey):]); ok {
+						txtStreams[rr.name] = stream
 					}
 				}
 			}
@@ -323,13 +406,13 @@ func extractServices(rrs []dnsRR, msg []byte) []ServiceInfo {
 		if !ok {
 			continue
 		}
-		zone, ok := txtZones[inst]
+		stream, ok := txtStreams[inst]
 		if !ok {
 			continue
 		}
 		out = append(out, ServiceInfo{
 			Instance: inst,
-			Zone:     zone,
+			Stream:   stream,
 			Addr:     fmt.Sprintf("%s:%d", ip, port),
 		})
 	}

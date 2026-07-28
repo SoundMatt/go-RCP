@@ -3,93 +3,62 @@ package udp
 import (
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 )
 
-// ZoneServer simulates a zone controller over UDP for testing and integration.
-// It handles Command frames, publishes Status to all registered subscribers,
-// and manages Subscribe/Unsubscribe control frames.
-type ZoneServer struct {
-	zone    rcp.Zone
-	conn    *net.UDPConn
-	done    chan struct{}
-	closed  atomic.Bool
-	seq     atomic.Uint32
-	healthy atomic.Bool
-
-	mu      sync.Mutex
-	handler func(*rcp.Command) *rcp.Response
-	subs    map[string]*net.UDPAddr
+// Server is the listening side of this package's AVTPDU/ACF-over-UDP/IP
+// transport: it decodes each inbound datagram into an avtp.Header +
+// acf.Message, hands the pair to a Router, and — unless Router.Route
+// reports the request should be dropped outright (see Router.Route) —
+// replies with the Router's response, framed in an untimed (NTSCF) header
+// presenting streamID as this Server's own identity.
+type Server struct {
+	streamID avtp.StreamID
+	conn     *net.UDPConn
+	router   *Router
+	seq      atomic.Uint32
+	closed   atomic.Bool
+	done     chan struct{}
 }
 
-// NewZoneServer listens on addr (e.g. "127.0.0.1:0") and serves the given zone.
-func NewZoneServer(zone rcp.Zone, addr string) (*ZoneServer, error) {
+// NewServer listens on addr (e.g. "127.0.0.1:0") and serves router, replying
+// with streamID as its own AVTPDU identity.
+func NewServer(streamID avtp.StreamID, addr string, router *Router) (*Server, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("rcp/udp: zone server %s: resolve: %w", zone, err)
+		return nil, fmt.Errorf("rcp/udp: server stream %s: resolve: %w", streamID, err)
 	}
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		return nil, fmt.Errorf("rcp/udp: zone server %s: listen: %w", zone, err)
+		return nil, fmt.Errorf("rcp/udp: server stream %s: listen: %w", streamID, err)
 	}
-	s := &ZoneServer{
-		zone: zone,
-		conn: conn,
-		done: make(chan struct{}),
-		subs: make(map[string]*net.UDPAddr),
+	s := &Server{
+		streamID: streamID,
+		conn:     conn,
+		router:   router,
+		done:     make(chan struct{}),
 	}
-	s.healthy.Store(true)
 	go s.serve()
 	return s, nil
 }
 
 // Addr returns the local UDP address the server is listening on.
-func (s *ZoneServer) Addr() *net.UDPAddr {
+func (s *Server) Addr() *net.UDPAddr {
 	a, ok := s.conn.LocalAddr().(*net.UDPAddr)
 	if !ok {
-		panic("rcp/udp: ZoneServer.Addr: underlying conn is not UDP")
+		panic("rcp/udp: Server.Addr: underlying conn is not UDP")
 	}
 	return a
 }
 
-// SetHandler installs a command handler. If nil, the server returns StatusOK.
-func (s *ZoneServer) SetHandler(h func(*rcp.Command) *rcp.Response) {
-	s.mu.Lock()
-	s.handler = h
-	s.mu.Unlock()
-}
-
-// SetHealthy controls the Healthy field in published Status frames.
-func (s *ZoneServer) SetHealthy(v bool) { s.healthy.Store(v) }
-
-// Publish sends a Status frame to all current subscribers.
-func (s *ZoneServer) Publish(payload []byte) {
-	seq := s.seq.Add(1)
-	var p []byte
-	if len(payload) > 0 {
-		p = make([]byte, len(payload))
-		copy(p, payload)
-	}
-	st := &rcp.Status{Zone: s.zone, Seq: seq, Healthy: s.healthy.Load(), Payload: p}
-	frame := encodeStatus(st)
-
-	s.mu.Lock()
-	addrs := make([]*net.UDPAddr, 0, len(s.subs))
-	for _, a := range s.subs {
-		addrs = append(addrs, a)
-	}
-	s.mu.Unlock()
-
-	for _, a := range addrs {
-		_, _ = s.conn.WriteToUDP(frame, a)
-	}
-}
+// StreamID returns this Server's own avtp.StreamID identity.
+func (s *Server) StreamID() avtp.StreamID { return s.streamID }
 
 // Close shuts down the server.
-func (s *ZoneServer) Close() error {
+func (s *Server) Close() error {
 	if !s.closed.CompareAndSwap(false, true) {
 		return nil
 	}
@@ -98,44 +67,34 @@ func (s *ZoneServer) Close() error {
 	return err
 }
 
-func (s *ZoneServer) serve() {
+func (s *Server) serve() {
 	defer close(s.done)
-	buf := make([]byte, headerLen+MaxPayload)
+	buf := make([]byte, MaxFrameLen)
 	for {
 		n, clientAddr, err := s.conn.ReadFromUDP(buf)
 		if err != nil {
 			return
 		}
-		frame := buf[:n]
-		if len(frame) < headerLen {
+		frame, err := acf.DecodeFrame(buf[:n])
+		if err != nil {
 			continue
 		}
-		switch frame[3] {
-		case typeCommand:
-			cmd, err := decodeCommand(frame)
-			if err != nil {
-				continue
-			}
-			s.mu.Lock()
-			h := s.handler
-			s.mu.Unlock()
-			var resp *rcp.Response
-			if h != nil {
-				resp = h(cmd)
-			} else {
-				resp = &rcp.Response{CommandID: cmd.ID, Zone: s.zone, Status: rcp.StatusOK}
-			}
-			_, _ = s.conn.WriteToUDP(encodeResponse(resp), clientAddr)
 
-		case typeSubscribe:
-			s.mu.Lock()
-			s.subs[clientAddr.String()] = clientAddr
-			s.mu.Unlock()
-
-		case typeUnsubscribe:
-			s.mu.Lock()
-			delete(s.subs, clientAddr.String())
-			s.mu.Unlock()
+		resp, shouldReply := s.router.Route(frame.Header, frame.Message)
+		if !shouldReply {
+			continue
 		}
+
+		respHdr := avtp.Header{
+			Timed:         false,
+			StreamIDValid: true,
+			SequenceNum:   uint8(s.seq.Add(1)),
+			StreamID:      s.streamID,
+		}
+		out, err := acf.EncodeFrame(respHdr, resp)
+		if err != nil {
+			continue
+		}
+		_, _ = s.conn.WriteToUDP(out, clientAddr)
 	}
 }

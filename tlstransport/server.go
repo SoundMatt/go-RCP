@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/wire"
 )
 
 // ZoneServer is a mutual-TLS TCP server simulating a zone controller.
@@ -66,7 +65,7 @@ func (s *ZoneServer) Publish(payload []byte) {
 		copy(p, payload)
 	}
 	st := &rcp.Status{Zone: s.zone, Seq: seq, Healthy: s.healthy.Load(), Payload: p}
-	frame := wire.EncodeStatus(st)
+	frame := legacyEncodeStatus(st)
 
 	s.mu.Lock()
 	for conn := range s.conns {
@@ -104,12 +103,12 @@ func (s *ZoneServer) handleConn(conn net.Conn) {
 		_ = conn.Close()
 	}()
 
-	hdr := make([]byte, wire.HeaderLen)
+	hdr := make([]byte, legacyHeaderLen)
 	for {
 		if _, err := io.ReadFull(conn, hdr); err != nil {
 			return
 		}
-		if hdr[0] != wire.MagicByte0 || hdr[1] != wire.MagicByte1 || hdr[2] != wire.ProtoVer {
+		if hdr[0] != legacyMagicByte0 || hdr[1] != legacyMagicByte1 || hdr[2] != legacyProtoVer {
 			return
 		}
 		bodyLen := uint32(hdr[12])<<24 | uint32(hdr[13])<<16 | uint32(hdr[14])<<8 | uint32(hdr[15])
@@ -120,11 +119,11 @@ func (s *ZoneServer) handleConn(conn net.Conn) {
 				return
 			}
 		}
-		frame := append(hdr[:wire.HeaderLen:wire.HeaderLen], body...)
+		frame := append(hdr[:legacyHeaderLen:legacyHeaderLen], body...)
 
 		switch hdr[3] {
-		case wire.TypeCommand:
-			cmd, err := wire.DecodeCommand(frame)
+		case legacyTypeCommand:
+			cmd, err := legacyDecodeCommand(frame)
 			if err != nil {
 				continue
 			}
@@ -137,14 +136,14 @@ func (s *ZoneServer) handleConn(conn net.Conn) {
 			} else {
 				resp = &rcp.Response{CommandID: cmd.ID, Zone: s.zone, Status: rcp.StatusOK}
 			}
-			_, _ = conn.Write(wire.EncodeResponse(resp))
+			_, _ = conn.Write(legacyEncodeResponse(resp))
 
-		case wire.TypeSubscribe:
+		case legacyTypeSubscribe:
 			s.mu.Lock()
 			s.conns[conn] = true
 			s.mu.Unlock()
 
-		case wire.TypeUnsubscribe:
+		case legacyTypeUnsubscribe:
 			s.mu.Lock()
 			delete(s.conns, conn)
 			s.mu.Unlock()

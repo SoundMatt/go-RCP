@@ -1,10 +1,32 @@
-// Package shmem provides a zero-copy intra-host command transport using
-// shared in-process memory with sync.Pool buffer reuse.
+// Package shmem provides a zero-copy intra-host transport for the OPEN
+// Alliance TC18 Remote Control Protocol (RCP), as described by the "OPEN
+// Alliance TC18 Remote Control Protocol Specification v0.5.1_RC", using
+// shared in-process memory in place of a real socket.
 //
-// Within a single process (or two goroutines sharing the same address space)
-// shmem avoids the serialisation overhead of UDP/TLS by passing *rcp.Command
-// and *rcp.Response pointers through buffered channels, copying payload bytes
-// exactly once into a pooled buffer on the Send path.
+// This is ROADMAP.md Milestone 54 (v0.67.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "zero-copy intra-host IPC is a
+// transport-layer optimization independent of frame shape," so this
+// package keeps the Bus pattern and only retargets what travels across it
+// — acf.Message request/response pairs instead of *rcp.Command/
+// *rcp.Response — and, since Message dispatch by avtp.ByteBusID is exactly
+// what udp.Router already does and this package's whole point is that
+// frame shape shouldn't matter to it, shmem reuses *udp.Router directly
+// rather than re-implementing EP0/endpoint-Handler routing a second time.
+//
+// Within a single process (or two goroutines sharing the same address
+// space) shmem avoids the serialization overhead of a real UDP/TLS socket
+// by passing acf.Message values through buffered channels, copying a
+// request's body bytes exactly once onto the bus (see copyBody) so a
+// caller's later mutation of its own buffer is never visible on the other
+// side. The retired shmem package additionally pooled that copy's backing
+// array via sync.Pool (poolAlloc); this rebuild does not carry that over —
+// poolAlloc's own implementation never actually reused a popped buffer's
+// backing array for the new copy (see the git history this replaces), so
+// it bought no real benefit, and pooling a buffer that outlives the copying
+// call (as Router.Route's Handler may still be holding req.Body when this
+// function would otherwise recycle it) is only safe with the loan
+// package's own explicit-release tracking, not silently inside a plain
+// copy helper.
 package shmem
 
 //fusa:req REQ-SHMEM-001
@@ -13,8 +35,6 @@ package shmem
 //fusa:req REQ-SHMEM-004
 //fusa:req REQ-SHMEM-005
 //fusa:req REQ-SHMEM-006
-//fusa:req REQ-SHMEM-007
-//fusa:req REQ-SHMEM-008
 
 import (
 	"context"
@@ -22,353 +42,245 @@ import (
 	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// bufPool is the shared buffer pool used to minimise allocations on the hot path.
-var bufPool = sync.Pool{New: func() any { b := make([]byte, 0, 256); return &b }}
-
-func poolAlloc(n int) []byte {
-	if n == 0 {
+// copyBody returns a fresh copy of src, or nil for an empty src.
+func copyBody(src []byte) []byte {
+	if len(src) == 0 {
 		return nil
 	}
-	bp, _ := bufPool.Get().(*[]byte)
-	var old []byte
-	if bp != nil {
-		old = *bp
-	}
-	buf := make([]byte, n)
-	if bp != nil && cap(old) >= n {
-		bufPool.Put(bp)
-	}
+	buf := make([]byte, len(src))
+	copy(buf, src)
 	return buf
 }
 
-// pendingOp is an in-flight Send waiting for its response.
+// pendingOp is an in-flight Request waiting for its response.
 type pendingOp struct {
-	cmd  *rcp.Command
-	resp chan *rcp.Response
+	hdr  avtp.Header
+	req  acf.Message
+	resp chan acf.Message
 }
 
-// subscriptionEntry is a subscriber registered with the ZoneServer.
-type subscriptionEntry struct {
-	ch   chan *rcp.Status
-	once sync.Once
-}
-
-func (s *subscriptionEntry) close() { s.once.Do(func() { close(s.ch) }) }
-
-// Bus is the shared in-memory transport channel between a Controller and a ZoneServer.
+// Bus is the shared in-memory transport channel between a Controller and an
+// Endpoint.
 type Bus struct {
-	zone    rcp.Zone
-	cmdCh   chan pendingOp   // Controller → ZoneServer
-	statCh  chan *rcp.Status // ZoneServer → all subscribers (broadcast via fan-out goroutine)
+	reqCh   chan pendingOp
 	closed  atomic.Bool
 	closeCh chan struct{}
 }
 
-func newBus(zone rcp.Zone) *Bus {
+func newBus() *Bus {
 	return &Bus{
-		zone:    zone,
-		cmdCh:   make(chan pendingOp, 64),
-		statCh:  make(chan *rcp.Status, 64),
+		reqCh:   make(chan pendingOp, 64),
 		closeCh: make(chan struct{}),
 	}
 }
 
-// ZoneServer is the server side of the shmem bus, analogous to a zone controller process.
-type ZoneServer struct {
-	bus     *Bus
-	healthy atomic.Bool
-	seq     atomic.Uint32
-
-	mu      sync.Mutex
-	handler func(*rcp.Command) *rcp.Response
-	subs    []*subscriptionEntry
-	done    chan struct{}
+// Endpoint is the server side of the shmem bus: it drains Bus.reqCh and
+// answers each request through a *udp.Router, the same dispatch logic
+// (EP0/registered-Handler routing, avtp.Header.Disposition drop rule) the
+// networked udp.Server applies.
+type Endpoint struct {
+	bus      *Bus
+	router   *udp.Router
+	streamID avtp.StreamID
+	done     chan struct{}
 }
 
-// newZoneServer creates a ZoneServer attached to the given Bus and starts its serve goroutine.
-func newZoneServer(bus *Bus) *ZoneServer {
-	s := &ZoneServer{bus: bus, done: make(chan struct{})}
-	s.healthy.Store(true)
-	go s.serve()
-	return s
+// newEndpoint creates an Endpoint attached to bus, answering through
+// router and presenting streamID as its own AVTPDU identity, and starts its
+// serve goroutine.
+func newEndpoint(bus *Bus, router *udp.Router, streamID avtp.StreamID) *Endpoint {
+	e := &Endpoint{bus: bus, router: router, streamID: streamID, done: make(chan struct{})}
+	go e.serve()
+	return e
 }
 
-// SetHandler installs a command handler. nil returns StatusOK.
-func (s *ZoneServer) SetHandler(h func(*rcp.Command) *rcp.Response) {
-	s.mu.Lock()
-	s.handler = h
-	s.mu.Unlock()
-}
-
-// SetHealthy controls the Healthy flag in published Status frames.
-func (s *ZoneServer) SetHealthy(v bool) { s.healthy.Store(v) }
-
-// Publish broadcasts a Status to all current subscribers.
-func (s *ZoneServer) Publish(payload []byte) {
-	seq := s.seq.Add(1)
-	var p []byte
-	if len(payload) > 0 {
-		p = poolAlloc(len(payload))
-		copy(p, payload)
-	}
-	st := &rcp.Status{Zone: s.bus.zone, Seq: seq, Healthy: s.healthy.Load(), Payload: p}
-
-	s.mu.Lock()
-	subs := make([]*subscriptionEntry, len(s.subs))
-	copy(subs, s.subs)
-	s.mu.Unlock()
-
-	for _, sub := range subs {
-		select {
-		case sub.ch <- st:
-		default:
-		}
-	}
-}
-
-// subscribe registers a subscriber channel and returns it.
-func (s *ZoneServer) subscribe(ctx context.Context) <-chan *rcp.Status {
-	sub := &subscriptionEntry{ch: make(chan *rcp.Status, 16)}
-	s.mu.Lock()
-	s.subs = append(s.subs, sub)
-	s.mu.Unlock()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-s.bus.closeCh:
-		}
-		s.removeSub(sub)
-		sub.close()
-	}()
-	return sub.ch
-}
-
-func (s *ZoneServer) removeSub(sub *subscriptionEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i, e := range s.subs {
-		if e == sub {
-			s.subs = append(s.subs[:i], s.subs[i+1:]...)
-			return
-		}
-	}
-}
-
-func (s *ZoneServer) serve() {
-	defer close(s.done)
+func (e *Endpoint) serve() {
+	defer close(e.done)
 	for {
 		select {
-		case op, ok := <-s.bus.cmdCh:
+		case op, ok := <-e.bus.reqCh:
 			if !ok {
 				return
 			}
-			s.mu.Lock()
-			h := s.handler
-			s.mu.Unlock()
-			var resp *rcp.Response
-			if h != nil {
-				resp = h(op.cmd)
-			} else {
-				resp = &rcp.Response{CommandID: op.cmd.ID, Zone: s.bus.zone, Status: rcp.StatusOK}
+			resp, shouldReply := e.router.Route(op.hdr, op.req)
+			if shouldReply {
+				select {
+				case op.resp <- resp:
+				default:
+				}
 			}
-			select {
-			case op.resp <- resp:
-			default:
-			}
-		case <-s.bus.closeCh:
+		case <-e.bus.closeCh:
 			return
 		}
 	}
 }
 
-// Controller is an rcp.Controller backed by a shared in-process Bus.
+// Controller is the client side of the shmem bus: it presents streamID as
+// its own identity and correlates requests to responses by
+// acf.Message.TransactionNum, mirroring udp.Controller's own API shape so
+// callers can swap between the two transports with minimal change.
 type Controller struct {
-	bus    *Bus
-	server *ZoneServer
-	nextID atomic.Uint32
-	closed atomic.Bool
+	streamID avtp.StreamID
+	bus      *Bus
+	endpoint *Endpoint
+	nextTxn  atomic.Uint32
+	closed   atomic.Bool
 }
 
-func newController(bus *Bus, server *ZoneServer) *Controller {
-	return &Controller{bus: bus, server: server}
+func newController(streamID avtp.StreamID, bus *Bus, endpoint *Endpoint) *Controller {
+	return &Controller{streamID: streamID, bus: bus, endpoint: endpoint}
 }
 
-// Zone implements rcp.Controller.
-func (c *Controller) Zone() rcp.Zone { return c.bus.zone }
+// StreamID returns this Controller's own avtp.StreamID identity.
+func (c *Controller) StreamID() avtp.StreamID { return c.streamID }
 
-// Send implements rcp.Controller.
-func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
+// Request sends one plain (KindShort) request to addr and blocks for the
+// matching response or ctx's expiry, whichever comes first.
+func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
 	if c.closed.Load() || c.bus.closed.Load() {
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrClosed)
+		return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrClosed)
 	}
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrTimeout)
+		return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrTimeout)
 	default:
 	}
-	if cmd.Zone != c.bus.zone {
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrZoneMismatch)
-	}
 
-	id := c.nextID.Add(1)
-	safe := rcp.Command{
-		ID:       id,
-		Zone:     cmd.Zone,
-		Type:     cmd.Type,
-		Priority: cmd.Priority,
+	txn := avtp.TransactionNum(uint16(c.nextTxn.Add(1)))
+	req := acf.Message{
+		Kind:           acf.KindShort,
+		ByteBusID:      addr,
+		TransactionNum: txn,
+		Control:        control,
+		Body:           copyBody(body),
 	}
-	if len(cmd.Payload) > 0 {
-		safe.Payload = poolAlloc(len(cmd.Payload))
-		copy(safe.Payload, cmd.Payload)
-	}
+	hdr := avtp.Header{StreamIDValid: true, StreamID: c.streamID}
 
-	respCh := make(chan *rcp.Response, 1)
-	op := pendingOp{cmd: &safe, resp: respCh}
+	respCh := make(chan acf.Message, 1)
+	op := pendingOp{hdr: hdr, req: req, resp: respCh}
 
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrTimeout)
-	case c.bus.cmdCh <- op:
+		return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrTimeout)
+	case c.bus.reqCh <- op:
 	case <-c.bus.closeCh:
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrClosed)
+		return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrClosed)
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrTimeout)
+		return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrTimeout)
 	case resp, ok := <-respCh:
 		if !ok {
-			return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrClosed)
+			return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrClosed)
 		}
 		return resp, nil
 	case <-c.bus.closeCh:
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrClosed)
+		return acf.Message{}, fmt.Errorf("rcp/shmem: stream %s: %w", c.streamID, udp.ErrClosed)
 	}
 }
 
-// Subscribe implements rcp.Controller.
-func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	if c.closed.Load() || c.bus.closed.Load() {
-		return nil, fmt.Errorf("rcp/shmem: zone %s: %w", c.bus.zone, rcp.ErrClosed)
-	}
-	return c.server.subscribe(ctx), nil
+// Read is Request with acf.FlagRead set and no body.
+func (c *Controller) Read(ctx context.Context, addr avtp.ByteBusID) (acf.Message, error) {
+	return c.Request(ctx, addr, acf.FlagRead, nil)
 }
 
-// Close implements rcp.Controller.
+// Write is Request with acf.FlagWrite set and the given body.
+func (c *Controller) Write(ctx context.Context, addr avtp.ByteBusID, body []byte) (acf.Message, error) {
+	return c.Request(ctx, addr, acf.FlagWrite, body)
+}
+
+// Close marks the Controller closed. It does not close the underlying Bus.
 func (c *Controller) Close() error {
 	c.closed.Store(true)
 	return nil
 }
 
-// Registry is an rcp.Registry backed by shmem buses.
+// Registry is a caller-keyed collection of shmem buses, mirroring
+// udp.Registry's own re-keying rationale (see udp/registry.go).
 type Registry struct {
-	mu      sync.RWMutex
-	buses   map[rcp.Zone]*Bus
-	servers map[rcp.Zone]*ZoneServer
-	ctrls   map[rcp.Zone]*Controller
-	closed  bool
+	mu        sync.RWMutex
+	buses     map[string]*Bus
+	endpoints map[string]*Endpoint
+	ctrls     map[string]*Controller
+	closed    bool
 }
 
 // NewRegistry returns an empty shmem Registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		buses:   make(map[rcp.Zone]*Bus),
-		servers: make(map[rcp.Zone]*ZoneServer),
-		ctrls:   make(map[rcp.Zone]*Controller),
+		buses:     make(map[string]*Bus),
+		endpoints: make(map[string]*Endpoint),
+		ctrls:     make(map[string]*Controller),
 	}
 }
 
-// Open creates a Bus + ZoneServer + Controller for zone and registers it.
-// Returns (ZoneServer, Controller) for test-side access to handler and publish.
-// Returns ErrAlreadyExists if zone is already registered.
-func (r *Registry) Open(zone rcp.Zone) (*ZoneServer, *Controller, error) {
+// Open creates a Bus + Endpoint + Controller under key, with the Endpoint
+// answering through router and presenting serverStream as its identity, and
+// the Controller presenting clientStream as its own. Returns (Endpoint,
+// Controller) for test-side/caller-side access. Returns ErrAlreadyExists if
+// key is already registered.
+func (r *Registry) Open(key string, router *udp.Router, serverStream, clientStream avtp.StreamID) (*Endpoint, *Controller, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
-		return nil, nil, fmt.Errorf("rcp/shmem: registry: %w", rcp.ErrClosed)
+		return nil, nil, fmt.Errorf("rcp/shmem: registry: %w", udp.ErrClosed)
 	}
-	if _, ok := r.ctrls[zone]; ok {
-		return nil, nil, fmt.Errorf("rcp/shmem: registry zone %s: %w", zone, rcp.ErrAlreadyExists)
+	if _, ok := r.ctrls[key]; ok {
+		return nil, nil, fmt.Errorf("rcp/shmem: registry key %s: %w", key, udp.ErrAlreadyExists)
 	}
-	bus := newBus(zone)
-	srv := newZoneServer(bus)
-	ctrl := newController(bus, srv)
-	r.buses[zone] = bus
-	r.servers[zone] = srv
-	r.ctrls[zone] = ctrl
-	return srv, ctrl, nil
+	bus := newBus()
+	ep := newEndpoint(bus, router, serverStream)
+	ctrl := newController(clientStream, bus, ep)
+	r.buses[key] = bus
+	r.endpoints[key] = ep
+	r.ctrls[key] = ctrl
+	return ep, ctrl, nil
 }
 
-// Register implements rcp.Registry (accepts only *shmem.Controller).
-func (r *Registry) Register(ctrl rcp.Controller) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return fmt.Errorf("rcp/shmem: registry: %w", rcp.ErrClosed)
-	}
-	if _, ok := r.ctrls[ctrl.Zone()]; ok {
-		return fmt.Errorf("rcp/shmem: registry zone %s: %w", ctrl.Zone(), rcp.ErrAlreadyExists)
-	}
-	sc, ok := ctrl.(*Controller)
-	if !ok {
-		return fmt.Errorf("rcp/shmem: registry: only *shmem.Controller may be registered")
-	}
-	r.ctrls[ctrl.Zone()] = sc
-	return nil
-}
-
-// Deregister implements rcp.Registry.
-func (r *Registry) Deregister(zone rcp.Zone) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	ctrl, ok := r.ctrls[zone]
-	if !ok {
-		return fmt.Errorf("rcp/shmem: registry zone %s: %w", zone, rcp.ErrNotFound)
-	}
-	delete(r.ctrls, zone)
-	_ = ctrl.Close()
-	if bus, ok := r.buses[zone]; ok {
-		bus.closed.Store(true)
-		close(bus.closeCh)
-		delete(r.buses, zone)
-	}
-	if srv, ok := r.servers[zone]; ok {
-		<-srv.done
-		delete(r.servers, zone)
-	}
-	return nil
-}
-
-// Lookup implements rcp.Registry.
-func (r *Registry) Lookup(zone rcp.Zone) (rcp.Controller, error) {
+// Lookup returns the Controller registered under key.
+func (r *Registry) Lookup(key string) (*Controller, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.closed {
-		return nil, fmt.Errorf("rcp/shmem: registry: %w", rcp.ErrClosed)
+		return nil, fmt.Errorf("rcp/shmem: registry: %w", udp.ErrClosed)
 	}
-	ctrl, ok := r.ctrls[zone]
+	ctrl, ok := r.ctrls[key]
 	if !ok {
-		return nil, fmt.Errorf("rcp/shmem: registry zone %s: %w", zone, rcp.ErrNotFound)
+		return nil, fmt.Errorf("rcp/shmem: registry key %s: %w", key, udp.ErrNotFound)
 	}
 	return ctrl, nil
 }
 
-// Controllers implements rcp.Registry.
-func (r *Registry) Controllers() []rcp.Controller {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := make([]rcp.Controller, 0, len(r.ctrls))
-	for _, c := range r.ctrls {
-		out = append(out, c)
+// Deregister closes and removes the Bus/Endpoint/Controller registered
+// under key.
+func (r *Registry) Deregister(key string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ctrl, ok := r.ctrls[key]
+	if !ok {
+		return fmt.Errorf("rcp/shmem: registry key %s: %w", key, udp.ErrNotFound)
 	}
-	return out
+	delete(r.ctrls, key)
+	_ = ctrl.Close()
+	if bus, ok := r.buses[key]; ok {
+		bus.closed.Store(true)
+		close(bus.closeCh)
+		delete(r.buses, key)
+	}
+	if ep, ok := r.endpoints[key]; ok {
+		<-ep.done
+		delete(r.endpoints, key)
+	}
+	return nil
 }
 
-// Close implements rcp.Registry.
+// Close closes every registered Bus/Endpoint/Controller.
 func (r *Registry) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -376,17 +288,17 @@ func (r *Registry) Close() error {
 		return nil
 	}
 	r.closed = true
-	for zone, bus := range r.buses {
+	for key, bus := range r.buses {
 		bus.closed.Store(true)
 		close(bus.closeCh)
-		delete(r.buses, zone)
+		delete(r.buses, key)
 	}
-	for zone, srv := range r.servers {
-		<-srv.done
-		delete(r.servers, zone)
+	for key, ep := range r.endpoints {
+		<-ep.done
+		delete(r.endpoints, key)
 	}
-	for zone := range r.ctrls {
-		delete(r.ctrls, zone)
+	for key := range r.ctrls {
+		delete(r.ctrls, key)
 	}
 	return nil
 }

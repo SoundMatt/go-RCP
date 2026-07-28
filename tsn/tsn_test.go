@@ -13,127 +13,167 @@ import (
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	rcptsn "github.com/SoundMatt/go-RCP/tsn"
-	rcpudp "github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/tsn"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-func newTSNPair(t *testing.T, zone rcp.Zone) (*rcpudp.ZoneServer, *rcptsn.Controller) {
+func tsnClientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 2)
+}
+
+func tsnServerStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 2)
+}
+
+// newTSNTestServer starts a udp.Server whose root client is tsnClientStream,
+// with endpoint 1 declared and answered by a fixed-response stub Handler.
+func newTSNTestServer(t *testing.T) (*udp.Server, *stubHandler) {
 	t.Helper()
-	srv, err := rcpudp.NewZoneServer(zone, "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	root := tsnClientStream()
+	srv := server.NewServer()
+	if err := srv.ClaimRoot(root); err != nil {
+		t.Fatalf("ClaimRoot: %v", err)
 	}
-	ctrl, err := rcptsn.NewController(zone, srv.Addr().String(), rcptsn.DefaultTSNConfig())
-	if err != nil {
-		_ = srv.Close()
-		t.Fatal(err)
+	router := udp.NewRouter(udp.NewEP0Handler(srv), true)
+	h := &stubHandler{body: []byte{0x2A}}
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = ctrl.Close()
-		_ = srv.Close()
-	})
-	return srv, ctrl
+	us, err := udp.NewServer(tsnServerStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = us.Close() })
+	return us, h
 }
 
-// TestTSN_DefaultPCPMap verifies PCP mapping values (REQ-TSN-001).
-func TestTSN_DefaultPCPMap(t *testing.T) {
-	m := rcptsn.DefaultPCPMap()
-	if m.PCPFor(rcp.PriorityNormal) != 2 {
-		t.Errorf("Normal PCP = %d, want 2", m.PCPFor(rcp.PriorityNormal))
-	}
-	if m.PCPFor(rcp.PriorityHigh) != 5 {
-		t.Errorf("High PCP = %d, want 5", m.PCPFor(rcp.PriorityHigh))
-	}
-	if m.PCPFor(rcp.PriorityCritical) != 7 {
-		t.Errorf("Critical PCP = %d, want 7", m.PCPFor(rcp.PriorityCritical))
+// stubHandler answers every request with a fixed body.
+type stubHandler struct {
+	body []byte
+}
+
+func (h *stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           h.body,
+	}, nil
+}
+
+// TestDefaultPCPMap_MapsRanksToDescendingPCP verifies the default map
+// assigns strictly descending PCP values from rank 0 (highest priority,
+// cancellation) to rank 6 (lowest, plain) (REQ-TSN-001).
+func TestDefaultPCPMap_MapsRanksToDescendingPCP(t *testing.T) {
+	m := tsn.DefaultPCPMap()
+	prev := uint8(8)
+	for rank := 0; rank < 7; rank++ {
+		pcp := m[rank]
+		if pcp >= prev {
+			t.Errorf("rank %d PCP = %d, want strictly less than previous rank's %d", rank, pcp, prev)
+		}
+		prev = pcp
 	}
 }
 
-// TestTSN_PCPFor_AllPriorities verifies Controller.PCPFor delegates to config (REQ-TSN-002).
-func TestTSN_PCPFor_AllPriorities(t *testing.T) {
-	cfg := rcptsn.TSNConfig{
-		PCPMap: rcptsn.PCPMap{Normal: 1, High: 4, Critical: 6},
-	}
-	ctrl, err := rcptsn.NewController(rcp.ZoneFrontLeft, "127.0.0.1:9999", cfg)
+// TestController_PCPFor_ReturnsConfiguredPCP verifies PCPFor reflects the
+// configured PCPMap for a representative set of request.Kind values
+// (REQ-TSN-002).
+func TestController_PCPFor_ReturnsConfiguredPCP(t *testing.T) {
+	cfg := tsn.DefaultConfig()
+	ctrl, err := tsn.NewController(tsnClientStream(), "127.0.0.1:1", cfg)
 	if err != nil {
-		t.Skip("cannot create controller (likely port in use):", err)
+		t.Fatalf("NewController: %v", err)
 	}
 	defer func() { _ = ctrl.Close() }()
 
-	if got := ctrl.PCPFor(rcp.PriorityNormal); got != 1 {
-		t.Errorf("Normal PCP = %d, want 1", got)
+	if got := ctrl.PCPFor(request.KindPlain); got != cfg.PCPMap[request.KindPlain.Priority()] {
+		t.Errorf("PCPFor(KindPlain) = %d, want %d", got, cfg.PCPMap[request.KindPlain.Priority()])
 	}
-	if got := ctrl.PCPFor(rcp.PriorityHigh); got != 4 {
-		t.Errorf("High PCP = %d, want 4", got)
-	}
-	if got := ctrl.PCPFor(rcp.PriorityCritical); got != 6 {
-		t.Errorf("Critical PCP = %d, want 6", got)
+	if got := ctrl.PCPFor(request.KindCancelAll); got != cfg.PCPMap[request.KindCancelAll.Priority()] {
+		t.Errorf("PCPFor(KindCancelAll) = %d, want %d", got, cfg.PCPMap[request.KindCancelAll.Priority()])
 	}
 }
 
-// TestTSN_Send_RoundTrip verifies TSN controller can send commands (REQ-TSN-003).
-func TestTSN_Send_RoundTrip(t *testing.T) {
-	_, ctrl := newTSNPair(t, rcp.ZoneFrontLeft)
+// TestController_Read_DeliversViaUDP verifies a TSN Controller's Read
+// reaches the registered Handler and returns its response (REQ-TSN-003).
+func TestController_Read_DeliversViaUDP(t *testing.T) {
+	us, _ := newTSNTestServer(t)
+	ctrl, err := tsn.NewController(tsnClientStream(), us.Addr().String(), tsn.DefaultConfig())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	defer func() { _ = ctrl.Close() }()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop, Priority: rcp.PriorityNormal})
+	resp, err := ctrl.Read(ctx, 1)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Read: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("status = %v, want OK", resp.Status)
+	if len(resp.Body) != 1 || resp.Body[0] != 0x2A {
+		t.Errorf("Body = % X, want [2A]", resp.Body)
 	}
 }
 
-// TestTSN_Send_CriticalPriority verifies PriorityCritical commands are delivered (REQ-TSN-004).
-func TestTSN_Send_CriticalPriority(t *testing.T) {
-	_, ctrl := newTSNPair(t, rcp.ZoneFrontRight)
+// TestController_Write_HighPriorityRequest verifies a Write issued with the
+// highest-priority Kind (cancellation) still delivers successfully — i.e.
+// setSocketPriority never breaks the send path even on platforms where it
+// is a no-op (REQ-TSN-004).
+func TestController_Write_HighPriorityRequest(t *testing.T) {
+	us, _ := newTSNTestServer(t)
+	ctrl, err := tsn.NewController(tsnClientStream(), us.Addr().String(), tsn.DefaultConfig())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	defer func() { _ = ctrl.Close() }()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontRight, Type: rcp.CmdWatchdog, Priority: rcp.PriorityCritical})
+	resp, err := ctrl.Request(ctx, 1, acf.FlagWrite, []byte{0x01}, request.KindCancelAll)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Request: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("status = %v, want OK", resp.Status)
+	if !resp.Control.Has(acf.FlagResponse) {
+		t.Errorf("response missing FlagResponse")
 	}
 }
 
-// TestTSN_Send_ZoneMismatch verifies ErrZoneMismatch (REQ-TSN-005).
-func TestTSN_Send_ZoneMismatch(t *testing.T) {
-	_, ctrl := newTSNPair(t, rcp.ZoneRearLeft)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+// TestController_Close_RejectsFurtherRequests verifies a closed Controller
+// rejects a subsequent request (REQ-TSN-005).
+func TestController_Close_RejectsFurtherRequests(t *testing.T) {
+	us, _ := newTSNTestServer(t)
+	ctrl, err := tsn.NewController(tsnClientStream(), us.Addr().String(), tsn.DefaultConfig())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	_ = ctrl.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrZoneMismatch) {
-		t.Errorf("error = %v, want ErrZoneMismatch", err)
+	_, err = ctrl.Read(ctx, 1)
+	if !errors.Is(err, udp.ErrClosed) {
+		t.Errorf("error = %v, want ErrClosed", err)
 	}
 }
 
-// TestTSN_Config_CycleAndVLAN verifies TSNConfig fields are accessible (REQ-TSN-006).
-func TestTSN_Config_CycleAndVLAN(t *testing.T) {
-	cfg := rcptsn.DefaultTSNConfig()
-	if cfg.VLAN != 100 {
-		t.Errorf("VLAN = %d, want 100", cfg.VLAN)
-	}
-	if cfg.CycleNs != 500_000 {
-		t.Errorf("CycleNs = %d, want 500000", cfg.CycleNs)
-	}
-	ctrl, err := rcptsn.NewController(rcp.ZoneRearRight, "127.0.0.1:9998", cfg)
+// TestConfig_PreservesVLANAndCycle verifies Config.VLAN/CycleNs survive
+// unmodified through NewController/Config (REQ-TSN-006).
+func TestConfig_PreservesVLANAndCycle(t *testing.T) {
+	cfg := tsn.Config{VLAN: 42, CycleNs: 123456, PCPMap: tsn.DefaultPCPMap()}
+	ctrl, err := tsn.NewController(tsnClientStream(), "127.0.0.1:1", cfg)
 	if err != nil {
-		t.Skip("cannot create controller:", err)
+		t.Fatalf("NewController: %v", err)
 	}
 	defer func() { _ = ctrl.Close() }()
 
 	got := ctrl.Config()
-	if got.VLAN != cfg.VLAN {
-		t.Errorf("Config.VLAN = %d, want %d", got.VLAN, cfg.VLAN)
-	}
-	if got.CycleNs != cfg.CycleNs {
-		t.Errorf("Config.CycleNs = %d, want %d", got.CycleNs, cfg.CycleNs)
+	if got.VLAN != 42 || got.CycleNs != 123456 {
+		t.Errorf("Config() = %+v, want VLAN=42 CycleNs=123456", got)
 	}
 }

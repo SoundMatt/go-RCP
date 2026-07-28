@@ -4,8 +4,6 @@
 //fusa:test REQ-SHMEM-004
 //fusa:test REQ-SHMEM-005
 //fusa:test REQ-SHMEM-006
-//fusa:test REQ-SHMEM-007
-//fusa:test REQ-SHMEM-008
 
 package shmem_test
 
@@ -13,186 +11,192 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/server"
 	"github.com/SoundMatt/go-RCP/shmem"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-func openZone(t *testing.T, zone rcp.Zone) (*shmem.ZoneServer, *shmem.Controller) {
+type echoHandler struct{}
+
+func (echoHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+func serverID() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 3)
+}
+
+func clientID() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 3)
+}
+
+func newBus(t *testing.T) (*udp.Router, *shmem.Registry, *shmem.Controller) {
 	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	if err := router.Register(1, echoHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 	reg := shmem.NewRegistry()
-	srv, ctrl, err := reg.Open(zone)
+	t.Cleanup(func() { _ = reg.Close() })
+	_, ctrl, err := reg.Open("bus", router, serverID(), clientID())
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { _ = reg.Close() })
-	return srv, ctrl
+	return router, reg, ctrl
 }
 
-// TestShmem_Send_RoundTrip verifies Send + Response over shared memory (REQ-SHMEM-001).
-func TestShmem_Send_RoundTrip(t *testing.T) {
-	_, ctrl := openZone(t, rcp.ZoneFrontLeft)
+// TestController_Request_RoundTrips verifies a request reaches the
+// Router-registered Handler over the shared bus and its response is
+// returned to the caller (REQ-SHMEM-001).
+func TestController_Request_RoundTrips(t *testing.T) {
+	_, _, ctrl := newBus(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
+	resp, err := ctrl.Read(ctx, 1)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Read: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("status = %v, want OK", resp.Status)
+	if !resp.Control.Has(acf.FlagResponse) {
+		t.Errorf("response missing FlagResponse")
 	}
 }
 
-// TestShmem_Send_CustomHandler verifies handler invocation (REQ-SHMEM-002).
-func TestShmem_Send_CustomHandler(t *testing.T) {
-	srv, ctrl := openZone(t, rcp.ZoneFrontRight)
-	srv.SetHandler(func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusError}
+// TestController_Request_HandlerInvoked verifies the registered Handler
+// actually observes each request routed to it (REQ-SHMEM-002).
+func TestController_Request_HandlerInvoked(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	var mu sync.Mutex
+	calls := 0
+	h := handlerFunc(func(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return acf.Message{Kind: req.Kind, ByteBusID: req.ByteBusID, TransactionNum: req.TransactionNum, Control: acf.FlagResponse}, nil
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontRight, Type: rcp.CmdSet})
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	reg := shmem.NewRegistry()
+	defer func() { _ = reg.Close() }()
+	_, ctrl, err := reg.Open("bus", router, serverID(), clientID())
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
-	if resp.Status != rcp.StatusError {
-		t.Errorf("status = %v, want Error", resp.Status)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := ctrl.Write(ctx, 1, []byte{0x01}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 1 {
+		t.Errorf("handler called %d times, want 1", calls)
 	}
 }
 
-// TestShmem_Send_PayloadIsolation verifies that mutating payload after Send is safe (REQ-SHMEM-003).
-func TestShmem_Send_PayloadIsolation(t *testing.T) {
-	original := []byte{0xAA, 0xBB, 0xCC}
-	want := []byte{0xAA, 0xBB, 0xCC}
+type handlerFunc func(avtp.StreamID, acf.Message) (acf.Message, error)
 
-	srv, ctrl := openZone(t, rcp.ZoneRearLeft)
-	captured := make(chan []byte, 1)
-	srv.SetHandler(func(cmd *rcp.Command) *rcp.Response {
-		cp := make([]byte, len(cmd.Payload))
-		copy(cp, cmd.Payload)
-		captured <- cp
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
+func (f handlerFunc) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return f(requester, req)
+}
+
+// TestController_Request_CopiesPayload verifies the caller's body slice is
+// copied before being handed to the bus, so mutating it after the call
+// does not affect what the Handler observed (REQ-SHMEM-003).
+func TestController_Request_CopiesPayload(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	var observed []byte
+	h := handlerFunc(func(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+		observed = append([]byte(nil), req.Body...)
+		return acf.Message{Kind: req.Kind, ByteBusID: req.ByteBusID, TransactionNum: req.TransactionNum, Control: acf.FlagResponse}, nil
 	})
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	reg := shmem.NewRegistry()
+	defer func() { _ = reg.Close() }()
+	_, ctrl, err := reg.Open("bus", router, serverID(), clientID())
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	body := []byte{0xDE, 0xAD}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
-	payload := make([]byte, len(original))
-	copy(payload, original)
-	if _, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneRearLeft, Type: rcp.CmdSet, Payload: payload}); err != nil {
-		t.Fatalf("Send: %v", err)
+	if _, err := ctrl.Write(ctx, 1, body); err != nil {
+		t.Fatalf("Write: %v", err)
 	}
-	// Mutate original after send — server must have received original bytes
-	payload[0] = 0xFF
+	body[0] = 0xFF // mutate after send
 
-	select {
-	case got := <-captured:
-		if !bytes.Equal(got, want) {
-			t.Errorf("server payload = %v, want %v (isolation failed)", got, want)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("handler not called")
+	if !bytes.Equal(observed, []byte{0xDE, 0xAD}) {
+		t.Errorf("observed body = % X, want DE AD (post-send mutation must not be visible)", observed)
 	}
 }
 
-// TestShmem_Send_ZoneMismatch verifies ErrZoneMismatch (REQ-SHMEM-004).
-func TestShmem_Send_ZoneMismatch(t *testing.T) {
-	_, ctrl := openZone(t, rcp.ZoneRearRight)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrZoneMismatch) {
-		t.Errorf("error = %v, want ErrZoneMismatch", err)
-	}
-}
-
-// TestShmem_Send_ContextCancelled verifies ErrTimeout (REQ-SHMEM-005).
-func TestShmem_Send_ContextCancelled(t *testing.T) {
-	_, ctrl := openZone(t, rcp.ZoneCentral)
+// TestController_Request_ContextExpired verifies ErrTimeout is returned for
+// an already-cancelled context (REQ-SHMEM-004).
+func TestController_Request_ContextExpired(t *testing.T) {
+	_, _, ctrl := newBus(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneCentral, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrTimeout) {
+	_, err := ctrl.Read(ctx, 1)
+	if !errors.Is(err, udp.ErrTimeout) {
 		t.Errorf("error = %v, want ErrTimeout", err)
 	}
 }
 
-// TestShmem_Subscribe_ReceivesStatus verifies Publish → Subscribe fan-out (REQ-SHMEM-006).
-func TestShmem_Subscribe_ReceivesStatus(t *testing.T) {
-	srv, ctrl := openZone(t, rcp.ZoneFrontLeft)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+// TestController_Request_AfterClose verifies ErrClosed is returned once the
+// Controller has been closed (REQ-SHMEM-005).
+func TestController_Request_AfterClose(t *testing.T) {
+	_, _, ctrl := newBus(t)
+	_ = ctrl.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-
-	ch, err := ctrl.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
-	}
-	srv.Publish([]byte{0x01})
-
-	select {
-	case st := <-ch:
-		if st.Zone != rcp.ZoneFrontLeft {
-			t.Errorf("zone = %v, want FrontLeft", st.Zone)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("no Status received within 1s")
+	_, err := ctrl.Read(ctx, 1)
+	if !errors.Is(err, udp.ErrClosed) {
+		t.Errorf("error = %v, want ErrClosed", err)
 	}
 }
 
-// TestShmem_Subscribe_ClosedOnContextCancel verifies channel closes on ctx cancel (REQ-SHMEM-007).
-func TestShmem_Subscribe_ClosedOnContextCancel(t *testing.T) {
-	_, ctrl := openZone(t, rcp.ZoneRearLeft)
-	ctx, cancel := context.WithCancel(context.Background())
-
-	ch, err := ctrl.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
-	}
-	cancel()
-
-	select {
-	case _, ok := <-ch:
-		if ok {
-			t.Error("channel should be closed after context cancel")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("channel not closed within 1s")
-	}
-}
-
-// TestShmem_Send_Concurrent verifies concurrent Sends are safe (REQ-SHMEM-008).
-func TestShmem_Send_Concurrent(t *testing.T) {
-	_, ctrl := openZone(t, rcp.ZoneFrontLeft)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+// TestController_Request_ConcurrentCallers verifies many goroutines can
+// issue requests over the same Controller/Bus concurrently without races
+// or lost responses (REQ-SHMEM-006).
+func TestController_Request_ConcurrentCallers(t *testing.T) {
+	_, _, ctrl := newBus(t)
 	const n = 50
 	var wg sync.WaitGroup
-	errs := make(chan error, n)
+	errs := make([]error, n)
 	for i := 0; i < n; i++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
-			resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-			if err != nil {
-				errs <- err
-				return
-			}
-			if resp.Status != rcp.StatusOK {
-				errs <- fmt.Errorf("status = %v", resp.Status)
-			}
-		}()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_, err := ctrl.Read(ctx, 1)
+			errs[i] = err
+		}(i)
 	}
 	wg.Wait()
-	close(errs)
-	for err := range errs {
-		t.Error(err)
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("caller %d: %v", i, err)
+		}
 	}
 }

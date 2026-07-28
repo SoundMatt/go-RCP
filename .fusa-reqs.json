@@ -681,166 +681,6 @@
       "asil": "ASIL-B"
     },
     {
-      "id": "REQ-UDP-001",
-      "title": "UDP transport encodes and decodes Command frames correctly",
-      "text": "The UDP transport shall encode a Command into a 16-byte header plus payload and decode an identical Command at the receiver. All fields (Zone, Type, Priority, ID, Payload) shall round-trip without loss.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-002",
-      "title": "UDP Controller routes Response to correct pending Send",
-      "text": "The UDP Controller.readLoop shall match incoming Response frames to outstanding Send calls by CommandID and deliver them. Unmatched responses shall be silently discarded.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-003",
-      "title": "UDP transport encodes and decodes Response payload correctly",
-      "text": "The UDP transport shall encode a Response payload into the wire frame and the receiving Controller shall decode an identical payload. Payload bytes shall survive the round-trip unmodified.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-004",
-      "title": "UDP Controller rejects zone-mismatched Send",
-      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not match the Controller's zone, consistent with REQ-CTRL-025.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-005",
-      "title": "UDP Controller.Send returns ErrTimeout on context expiry",
-      "text": "Controller.Send shall return a non-nil error wrapping ErrTimeout when the provided context is cancelled or its deadline expires before a response is received.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-006",
-      "title": "UDP Controller.Send returns ErrClosed after Close",
-      "text": "Controller.Send shall return a non-nil error wrapping ErrClosed when called after Controller.Close has been called.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-007",
-      "title": "UDP Subscribe receives Status published by ZoneServer",
-      "text": "A Controller that has called Subscribe shall receive Status frames on the returned channel when the ZoneServer calls Publish. The Status Zone field shall match the controller's zone.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-008",
-      "title": "UDP ZoneServer fans out Status to all subscribers",
-      "text": "When multiple Controllers have subscribed, a single ZoneServer.Publish call shall deliver one Status frame to every subscriber.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-009",
-      "title": "UDP Subscribe channel closes on context cancellation",
-      "text": "The Status channel returned by Subscribe shall be closed when the subscriber's context is cancelled, allowing callers to range over it safely.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-010",
-      "title": "UDP Registry.Dial resolves address and registers controller",
-      "text": "Registry.Dial shall resolve the server address, dial a Controller, and register it so that Registry.Lookup returns the same controller for the given zone.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-011",
-      "title": "UDP Registry.Dial returns ErrAlreadyExists on duplicate zone",
-      "text": "A second Registry.Dial call for the same zone shall return a non-nil error wrapping ErrAlreadyExists and shall not replace the existing registration.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-UDP-012",
-      "title": "UDP Registry.Lookup returns ErrNotFound for unregistered zone",
-      "text": "Registry.Lookup for a zone that has not been registered shall return a non-nil error wrapping ErrNotFound.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-001",
-      "title": "mDNS Transport delivers packets reliably on loopback",
-      "text": "The mDNS Transport abstraction shall deliver any packet written by one endpoint to the other endpoint without loss or corruption on loopback interfaces used in testing.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-002",
-      "title": "Announcer.Announce emits a well-formed DNS-SD advertisement packet",
-      "text": "Announcer.Announce shall write a DNS response packet containing at least one PTR record for _rcp._udp.local. onto the transport. The packet shall be at least 12 bytes.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-003",
-      "title": "Browser discovers a zone controller announced on the same bus",
-      "text": "A Browser.Query call shall invoke the Handler callback with the correct Zone value when an Announcer on the same transport calls Announce.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-004",
-      "title": "Browser reports correct IP:port for discovered zone controller",
-      "text": "The addr string passed to the Handler shall equal the IP:port originally provided to NewAnnouncer.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-005",
-      "title": "Browser stops reading when context is cancelled",
-      "text": "Browser.Query shall return when the provided context is cancelled, without closing the underlying Transport.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-006",
-      "title": "Browser ignores non-response DNS packets",
-      "text": "Browser.Query shall not invoke the Handler for packets that are DNS queries (QR bit = 0), avoiding false discovery from loopback query echoes.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-007",
-      "title": "Browser discovers multiple zone controllers from separate announcements",
-      "text": "When N distinct Announcers send announcements onto the same transport, Browser.Query shall invoke the Handler N times with distinct Zone values.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-MDNS-008",
-      "title": "Announcer.Close is idempotent",
-      "text": "Calling Announcer.Close more than once shall not return an error on the second or subsequent calls.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
       "id": "REQ-TLS-001",
       "title": "TLS Controller Send/Response round-trip succeeds over mTLS",
       "text": "A Controller connected to a ZoneServer with mutual TLS shall successfully Send a Command and receive the corresponding Response with StatusOK.",
@@ -916,166 +756,6 @@
       "id": "REQ-TLS-010",
       "title": "TLS minimum protocol version is TLS 1.3",
       "text": "Both ZoneServer and Controller shall negotiate TLS 1.3 or higher. Connections attempting to negotiate TLS 1.2 or lower shall be rejected.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-001",
-      "title": "Shmem Controller.Send delivers commands with StatusOK via shared bus",
-      "text": "A Controller.Send over a shmem Bus shall receive a Response with StatusOK when no handler is installed, without serialisation or network I/O.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-002",
-      "title": "Shmem ZoneServer handler is invoked for each Command",
-      "text": "When a handler is installed via ZoneServer.SetHandler, it shall be called for every Command and its Response shall be delivered to the sender.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-003",
-      "title": "Shmem Controller.Send copies payload before delivery",
-      "text": "Controller.Send shall copy the Command payload into a pooled buffer before dispatching so that mutation of the original slice after Send does not affect the bytes seen by the handler.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-004",
-      "title": "Shmem Controller.Send returns ErrZoneMismatch for wrong zone",
-      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not match the bus zone, consistent with REQ-CTRL-025.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-005",
-      "title": "Shmem Controller.Send returns ErrTimeout on cancelled context",
-      "text": "Controller.Send shall return ErrTimeout when the provided context is cancelled before the command is dispatched.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-006",
-      "title": "Shmem Subscribe receives Status published by ZoneServer",
-      "text": "A Controller.Subscribe channel shall receive a Status frame each time ZoneServer.Publish is called while the subscription is active.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-007",
-      "title": "Shmem Subscribe channel closes on context cancellation",
-      "text": "The Status channel returned by Subscribe shall be closed when the subscriber's context is cancelled.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SHMEM-008",
-      "title": "Shmem Controller.Send is safe under concurrent callers",
-      "text": "Multiple goroutines calling Controller.Send concurrently shall each receive a correct Response without data races or deadlocks.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-LOAN-001",
-      "title": "LoaningController.Loan returns a zeroed buffer of the requested size",
-      "text": "loan.Controller.Loan(size) shall return a *rcp.Loan whose Payload slice has length exactly size and all bytes equal to zero.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-LOAN-002",
-      "title": "LoaningController.SendLoaned delivers the loaned payload via the inner controller",
-      "text": "SendLoaned shall dispatch the command to the inner Controller.Send and return the Response. A StatusOK response shall be returned when no handler overrides it.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-LOAN-003",
-      "title": "Loaned payload reaches the handler unmodified",
-      "text": "Bytes written into a Loan.Payload before SendLoaned shall be byte-for-byte identical to the payload seen by the server-side command handler.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-LOAN-004",
-      "title": "Loan.Return is safe to call and does not panic",
-      "text": "Calling Loan.Return on any Loan obtained from LoaningController.Loan shall not panic and shall return the buffer to the pool.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-LOAN-005",
-      "title": "LoaningController.Loan returns an error for negative size",
-      "text": "loan.Controller.Loan(size) shall return a non-nil error when size is negative, rather than panicking or returning a nil Loan.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-LOAN-006",
-      "title": "LoaningController.Send delegates to the inner controller",
-      "text": "loan.Controller.Send shall delegate to the wrapped inner Controller.Send, preserving all error semantics including ErrZoneMismatch.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TSN-001",
-      "title": "Default PCPMap maps priorities to correct IEEE 802.1p values",
-      "text": "DefaultPCPMap shall return PCP=2 for PriorityNormal, PCP=5 for PriorityHigh, and PCP=7 for PriorityCritical, per IEEE 802.1Q-2022 Table I-1.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TSN-002",
-      "title": "Controller.PCPFor returns the configured PCP for each priority",
-      "text": "tsn.Controller.PCPFor shall return the PCP value from the TSNConfig.PCPMap corresponding to the given rcp.Priority value.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TSN-003",
-      "title": "TSN Controller.Send delivers PriorityNormal commands successfully",
-      "text": "tsn.Controller.Send with PriorityNormal shall receive a StatusOK Response from a ZoneServer over loopback UDP.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TSN-004",
-      "title": "TSN Controller.Send delivers PriorityCritical commands successfully",
-      "text": "tsn.Controller.Send with PriorityCritical shall receive a StatusOK Response, verifying that critical-priority commands are not dropped or demoted.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TSN-005",
-      "title": "TSN Controller.Send returns ErrZoneMismatch for wrong zone",
-      "text": "tsn.Controller.Send shall return ErrZoneMismatch when cmd.Zone does not match the controller's zone, consistent with REQ-CTRL-025.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TSN-006",
-      "title": "TSNConfig VLAN and CycleNs are preserved and accessible",
-      "text": "TSNConfig.VLAN and TSNConfig.CycleNs set during NewController shall be readable via Controller.Config() with the same values.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -3105,78 +2785,6 @@
       "asil": "ASIL-B"
     },
     {
-      "id": "REQ-WIRE-001",
-      "title": "Header validation rejects short frames",
-      "text": "wire.ValidateHeader shall return ErrShortFrame when the supplied buffer is shorter than HeaderLen (16 bytes), so that no transport reads beyond the buffer bounds when parsing a frame header.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-002",
-      "title": "Header validation rejects bad magic bytes",
-      "text": "wire.ValidateHeader shall return ErrBadMagic when the first two bytes of the frame are not the RCP magic bytes (0x52, 0x43), so that foreign or corrupt traffic is rejected before decoding.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-003",
-      "title": "Header validation rejects unsupported protocol version",
-      "text": "wire.ValidateHeader shall return ErrBadVersion when the protocol-version byte does not equal ProtoVer (0x01), so that frames from an incompatible wire revision are not misinterpreted.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-004",
-      "title": "Command frame round-trips all fields without loss",
-      "text": "wire.EncodeCommand followed by wire.DecodeCommand shall reproduce an identical Command. Zone, Type, Priority, ID, and Payload shall survive the round-trip byte-for-byte, including the empty-payload case.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-005",
-      "title": "Response frame round-trips all fields without loss",
-      "text": "wire.EncodeResponse followed by wire.DecodeResponse shall reproduce an identical Response. Zone, Status, CommandID, and Payload shall survive the round-trip byte-for-byte, including the empty-payload case.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-006",
-      "title": "Status frame round-trips all fields without loss",
-      "text": "wire.EncodeStatus followed by wire.DecodeStatus shall reproduce an identical Status. Zone, Healthy, Seq, and Payload shall survive the round-trip byte-for-byte for both the healthy and unhealthy cases.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-007",
-      "title": "Decoders reject truncated frame bodies",
-      "text": "wire.DecodeCommand, DecodeResponse, and DecodeStatus shall return ErrShortFrame when the declared body length in the header exceeds the bytes actually present in the buffer, so a malformed length field can never cause an out-of-bounds slice.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-008",
-      "title": "Control frame encodes a valid header with no payload",
-      "text": "wire.EncodeControlFrame shall produce a HeaderLen-byte frame with valid magic, version, the requested message type, and the requested zone, and no payload, so that Subscribe and Unsubscribe control frames pass ValidateHeader at the receiver.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-WIRE-009",
-      "title": "Decoders never panic on arbitrary input",
-      "text": "wire.DecodeCommand, DecodeResponse, and DecodeStatus shall return an error or a valid value for any arbitrary byte slice and shall never panic, slice out of bounds, or allocate unbounded memory, as verified by fuzz testing of the transport trust boundary.",
-      "standard": "iso21434",
-      "level": "CAL-3",
-      "asil": "ASIL-B"
-    },
-    {
       "id": "REQ-AVTP-001",
       "title": "Untimed (NTSCF) AVTPDU header round-trips all fields",
       "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical untimed (NTSCF) Header. StreamIDValid, SequenceNum, DataLength, and StreamID shall survive the round-trip byte-for-byte.",
@@ -4932,6 +4540,326 @@
       "id": "REQ-PQ-006",
       "title": "Queue is safe for concurrent use",
       "text": "prioqueue.Queue's exported methods (Push, Pop, PopAll, Len) shall be safe to call concurrently from multiple goroutines without data races, panics, or lost/duplicated Items.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-001",
+      "title": "Controller.Discover round-trips an encoded register map",
+      "text": "udp.Controller.Discover shall issue an untimed EP0 read against a udp.Server and return the responder's encoded register map, decodable by regmap.DecodeRegisterMap without loss.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-002",
+      "title": "Router.Route delivers a request to its registered Handler with the correct requester",
+      "text": "udp.Router.Route shall dispatch a non-EP0 request to the request.Handler registered for its ByteBusID, passing the AVTPDU header's StreamID as the requester argument unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-003",
+      "title": "Request/response body bytes survive the AVTPDU/ACF encode/decode round trip",
+      "text": "A request or response body passed through udp.Controller/udp.Server shall be reproduced byte-for-byte on the receiving side after avtp/acf encoding and decoding.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-004",
+      "title": "Router.Route reports a wire-level error response for an unregistered ByteBusID",
+      "text": "udp.Router.Route shall answer a request addressed to a ByteBusID with no registered Handler with a response carrying acf.FlagError set (ErrUnknownEndpoint), not a dropped/lost request.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-005",
+      "title": "Controller.Request returns ErrTimeout on context expiry",
+      "text": "udp.Controller.Request shall return udp.ErrTimeout when ctx is already cancelled or expires before a matching response arrives.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-006",
+      "title": "Controller.Request returns ErrClosed after Close",
+      "text": "udp.Controller.Request shall return udp.ErrClosed for any call made after Controller.Close has completed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-007",
+      "title": "Router.Register rejects a duplicate ByteBusID registration",
+      "text": "udp.Router.Register shall return udp.ErrDuplicateEndpoint when called a second time for a ByteBusID that already has a registered Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-008",
+      "title": "Router.Register rejects registering a Handler at EP0",
+      "text": "udp.Router.Register shall return udp.ErrReservedAddress for addr == regmap.EP0, since EP0 is always answered by the Router's own EP0Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-009",
+      "title": "Router.Route drops a timed AVTPDU when the server has no time-sync support",
+      "text": "udp.Router.Route shall report shouldReply == false, and shall not invoke any Handler, for a request whose avtp.Header.Disposition resolves to avtp.DispositionDrop given the Router's configured time-sync capability.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-010",
+      "title": "Router.Route still dispatches a timed AVTPDU when the server has time-sync support",
+      "text": "udp.Router.Route shall dispatch (immediately, per this milestone's documented non-goal) a request whose avtp.Header.Disposition resolves to avtp.DispositionScheduled given the Router's configured time-sync capability.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-011",
+      "title": "Registry.Dial resolves an address and registers a Controller under a caller-chosen key",
+      "text": "udp.Registry.Dial shall resolve serverAddr, dial a Controller presenting the given avtp.StreamID, and register it under key, retrievable via Registry.Lookup(key).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-012",
+      "title": "Registry.Dial returns ErrAlreadyExists on duplicate key",
+      "text": "udp.Registry.Dial (and Register) shall return udp.ErrAlreadyExists when key is already registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-013",
+      "title": "Registry.Lookup returns ErrNotFound for an unregistered key",
+      "text": "udp.Registry.Lookup shall return udp.ErrNotFound for a key that has never been registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-014",
+      "title": "EP0Handler rejects a timed (TSCF) discovery read",
+      "text": "udp.EP0Handler.HandleRequest shall answer an EP0 read framed in a presentation-timestamped (TSCF) AVTPDU header with a wire-level error, per server.Server.HandleDiscoveryRequest's untimed-only rule, never returning the register map for such a request.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-001",
+      "title": "mDNS Transport delivers packets reliably on loopback",
+      "text": "mdns.Transport implementations shall deliver a WritePacket payload to a peer's ReadPacket call unmodified over a loopback UDP pair.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-002",
+      "title": "Announcer.Announce emits a well-formed DNS-SD advertisement packet",
+      "text": "mdns.Announcer.Announce shall emit a DNS-SD packet containing PTR, SRV, TXT, and A records advertising the RC Server's avtp.StreamID and UDP address.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-003",
+      "title": "Browser discovers an RC Server announced on the same bus",
+      "text": "mdns.Browser.Query shall invoke its Handler with the avtp.StreamID and address of an RC Server whose Announcer emits an announcement on the same bus.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-004",
+      "title": "Browser reports the correct address for a discovered RC Server",
+      "text": "mdns.Browser.Query's Handler callback shall report the exact \"ip:port\" address the corresponding Announcer was constructed with.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-005",
+      "title": "Browser stops reading when context is cancelled",
+      "text": "mdns.Browser.Query shall return once its context is cancelled, without blocking indefinitely on ReadPacket.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-006",
+      "title": "Browser ignores non-response DNS packets",
+      "text": "mdns.Browser.Query shall not invoke its Handler for a DNS packet that is not a response (QR bit clear), e.g. a PTR query.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-007",
+      "title": "Browser discovers multiple RC Servers from separate announcements",
+      "text": "mdns.Browser.Query shall invoke its Handler once per distinct avtp.StreamID announced by separate Announcer.Announce calls on the same bus.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDNS-008",
+      "title": "Announcer.Close is idempotent",
+      "text": "mdns.Announcer.Close shall be safe to call more than once, returning nil on every call.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-001",
+      "title": "Controller.Request round-trips a request over the shared bus",
+      "text": "shmem.Controller.Request shall deliver a request to the Bus's Endpoint, dispatched through the configured udp.Router, and return the Router's response to the caller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-002",
+      "title": "Router-registered Handler is invoked for each request routed over the bus",
+      "text": "A request.Handler registered on the udp.Router backing a shmem.Endpoint shall be invoked exactly once per Controller.Request call addressed to its ByteBusID.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-003",
+      "title": "Controller.Request copies the request body before delivery",
+      "text": "shmem.Controller.Request shall copy its body argument before making it visible to the Bus, so a caller's later mutation of its own buffer is not observed by the Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-004",
+      "title": "Controller.Request returns ErrTimeout on a cancelled context",
+      "text": "shmem.Controller.Request shall return udp.ErrTimeout when ctx is already cancelled before a matching response arrives.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-005",
+      "title": "Controller.Request returns ErrClosed after Close",
+      "text": "shmem.Controller.Request shall return udp.ErrClosed for any call made after Controller.Close has completed, or after the underlying Bus has been closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SHMEM-006",
+      "title": "Controller.Request is safe under concurrent callers",
+      "text": "shmem.Controller.Request shall be safe to call concurrently from multiple goroutines on the same Controller without data races, panics, or lost/misrouted responses.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-001",
+      "title": "Controller.Loan returns a zeroed buffer of the requested size",
+      "text": "loan.Controller.Loan(size) shall return an *rcp.Loan whose Payload has length exactly size and is zero-filled.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-002",
+      "title": "Controller.RequestLoaned delivers the loaned payload via the inner udp.Controller",
+      "text": "loan.Controller.RequestLoaned shall deliver a loaned buffer's contents to the destination Handler unmodified, via the wrapped *udp.Controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-003",
+      "title": "Loaned payload reaches the Handler unmodified",
+      "text": "The bytes a caller writes into a Loan's Payload before calling RequestLoaned shall be exactly the bytes the destination request.Handler observes as the request body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-004",
+      "title": "Loan.Return is safe to call and does not panic",
+      "text": "Calling (*rcp.Loan).Return() on a Loan obtained from loan.Controller.Loan, including a zero-length loan, shall not panic.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-005",
+      "title": "Controller.Loan returns an error for a negative size",
+      "text": "loan.Controller.Loan shall return a non-nil error, and a nil *rcp.Loan, when called with size < 0.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LOAN-006",
+      "title": "Controller.Close rejects further Loan/RequestLoaned calls",
+      "text": "After loan.Controller.Close, subsequent Loan and RequestLoaned calls shall return udp.ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-001",
+      "title": "Default PCPMap assigns strictly descending PCP by priority rank",
+      "text": "tsn.DefaultPCPMap() shall assign a strictly decreasing IEEE 802.1p PCP value from request.Kind.Priority() rank 0 (highest priority) through rank 6 (lowest, KindPlain).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-002",
+      "title": "Controller.PCPFor returns the configured PCP for a given request.Kind",
+      "text": "tsn.Controller.PCPFor(k) shall return cfg.PCPMap.PCPFor(k), the PCP value configured for k's priority rank.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-003",
+      "title": "TSN Controller.Read delivers a request over UDP and returns the Handler's response",
+      "text": "tsn.Controller.Read shall deliver a read request to the destination udp.Server's registered Handler and return its response body unmodified.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-004",
+      "title": "TSN Controller.Request delivers a high-priority (cancellation-ranked) request successfully",
+      "text": "tsn.Controller.Request, given request.KindCancelAll, shall still deliver the request and return a successful response \u2014 applying SO_PRIORITY must never break the send path, including on platforms where it is a no-op.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-005",
+      "title": "TSN Controller.Close causes a subsequent request to return ErrClosed",
+      "text": "tsn.Controller.Close shall cause any subsequent Request/Read/Write call to return udp.ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TSN-006",
+      "title": "Config VLAN and CycleNs are preserved and accessible",
+      "text": "tsn.Controller.Config() shall return the same VLAN and CycleNs values the Controller was constructed with, unmodified.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

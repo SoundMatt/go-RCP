@@ -1,5 +1,25 @@
-// Package loan implements the LoaningController wrapper, extending any rcp.Controller
-// with zero-copy payload loaning via a sync.Pool.
+// Package loan implements a Controller wrapper extending udp.Controller
+// with zero-copy payload loaning via a sync.Pool, for the OPEN Alliance
+// TC18 Remote Control Protocol (RCP).
+//
+// This is ROADMAP.md Milestone 54 (v0.67.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "the sync.Pool-backed zero-copy loaning
+// pattern is not protocol-specific; only the pooled type changes." The
+// retired package wrapped the root module's rcp.Controller interface and
+// implemented rcp.LoaningController — both root-module contracts Phase 17's
+// disposition table explicitly leaves alone ("Root-module files ... are
+// not in this table ... Their replacement is Phases 13-16 (the types
+// themselves) plus Phase 18"). Since udp.Controller does not (and, until
+// Phase 18 defines a TC18-shaped equivalent of rcp.Controller, cannot
+// meaningfully) implement that old interface, this rebuild wraps
+// *udp.Controller concretely instead of an interface, and exposes
+// RequestLoaned/Loan in place of the old SendLoaned/Loan pair. The pooled
+// buffer type itself is unchanged: this package still hands out and
+// recycles *rcp.Loan values (root package's own already-generic Payload +
+// release-func struct — see rcp.NewLoan's doc comment, "intended for use by
+// LoaningController implementations in external packages"), the same "only
+// the pooled type changes" continuity the disposition table calls for,
+// just no longer wrapped by the retired Command/Response-shaped interface.
 package loan
 
 //fusa:req REQ-LOAN-001
@@ -16,27 +36,29 @@ import (
 	"sync/atomic"
 
 	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// Controller wraps any rcp.Controller and implements rcp.LoaningController.
-// Payloads for SendLoaned are obtained from a sync.Pool, avoiding allocation
-// on the hot path when size fits within the pool's typical buffer capacity.
+// Controller wraps a *udp.Controller, adding zero-copy request-body loaning
+// via a sync.Pool.
 type Controller struct {
-	inner  rcp.Controller
+	inner  *udp.Controller
 	pool   sync.Pool
 	closed atomic.Bool
 
-	// loaned tracks buffers currently on loan, keyed by the address of their
-	// first byte, so SendLoaned — which the spec-mandated rcp.LoaningController
-	// signature hands only a bare cmd.Payload []byte, with no reference back to
-	// the pool slot — can still look up and recycle the right *[]byte. Guarded
-	// by mu since Loan/SendLoaned/Loan.Return may be called concurrently.
+	// loaned tracks buffers currently on loan, keyed by the address of
+	// their first byte, so RequestLoaned — which is handed only a bare
+	// []byte body, with no reference back to the pool slot — can still
+	// look up and recycle the right *[]byte. Guarded by mu since
+	// Loan/RequestLoaned/Loan.Return may be called concurrently.
 	mu     sync.Mutex
 	loaned map[*byte]*[]byte
 }
 
-// New wraps inner as a LoaningController.
-func New(inner rcp.Controller) *Controller {
+// New wraps inner as a loaning Controller.
+func New(inner *udp.Controller) *Controller {
 	return &Controller{
 		inner:  inner,
 		pool:   sync.Pool{New: func() any { b := make([]byte, 0, 256); return &b }},
@@ -44,31 +66,26 @@ func New(inner rcp.Controller) *Controller {
 	}
 }
 
-// Zone implements rcp.Controller.
-func (c *Controller) Zone() rcp.Zone { return c.inner.Zone() }
+// StreamID returns the inner Controller's own avtp.StreamID identity.
+func (c *Controller) StreamID() avtp.StreamID { return c.inner.StreamID() }
 
-// Send implements rcp.Controller (delegates to inner).
-func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	return c.inner.Send(ctx, cmd)
+// Request delegates to the inner Controller (no loaning).
+func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
+	return c.inner.Request(ctx, addr, control, body)
 }
 
-// Subscribe implements rcp.Controller (delegates to inner).
-func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	return c.inner.Subscribe(ctx)
-}
-
-// Close implements rcp.Controller (delegates to inner).
+// Close marks this Controller closed and closes the inner Controller.
 func (c *Controller) Close() error {
 	c.closed.Store(true)
 	return c.inner.Close()
 }
 
-// Loan implements rcp.LoaningController. It returns a zeroed buffer of exactly
-// size bytes obtained from the pool. The caller must either pass the buffer to
-// SendLoaned or call rcp.Loan.Return() to release it.
+// Loan returns a zeroed buffer of exactly size bytes obtained from the
+// pool. The caller must either pass the buffer to RequestLoaned or call
+// (*rcp.Loan).Return() to release it.
 func (c *Controller) Loan(size int) (*rcp.Loan, error) {
 	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/loan: zone %s: %w", c.Zone(), rcp.ErrClosed)
+		return nil, fmt.Errorf("rcp/loan: stream %s: %w", c.StreamID(), udp.ErrClosed)
 	}
 	if size < 0 {
 		return nil, fmt.Errorf("rcp/loan: negative size %d", size)
@@ -90,10 +107,11 @@ func (c *Controller) Loan(size int) (*rcp.Loan, error) {
 		buf[i] = 0
 	}
 
-	// Record the loan under the buffer's identity (its first byte's address)
-	// so SendLoaned can find and recycle it. A zero-length buffer has no
-	// addressable byte and is simply not tracked — Return() still frees it
-	// via the closure below, it just isn't recyclable from SendLoaned.
+	// Record the loan under the buffer's identity (its first byte's
+	// address) so RequestLoaned can find and recycle it. A zero-length
+	// buffer has no addressable byte and is simply not tracked — Return()
+	// still frees it via the closure below, it just isn't recyclable from
+	// RequestLoaned.
 	var key *byte
 	if len(buf) > 0 {
 		key = &buf[0]
@@ -110,8 +128,8 @@ func (c *Controller) Loan(size int) (*rcp.Loan, error) {
 	return rcp.NewLoan(buf, release), nil
 }
 
-// untrack removes key from the in-flight loan table, if present. No-op for a
-// nil key (zero-length loans, which are never tracked).
+// untrack removes key from the in-flight loan table, if present. No-op for
+// a nil key (zero-length loans, which are never tracked).
 func (c *Controller) untrack(key *byte) {
 	if key == nil {
 		return
@@ -121,21 +139,21 @@ func (c *Controller) untrack(key *byte) {
 	c.mu.Unlock()
 }
 
-// SendLoaned implements rcp.LoaningController. It sends cmd using cmd.Payload
-// (which must be a buffer obtained via Loan) and returns the buffer to the
-// pool for reuse by a later Loan call. The caller must not access
-// cmd.Payload after this call.
-func (c *Controller) SendLoaned(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
+// RequestLoaned sends a request to addr whose body is a buffer obtained
+// via Loan, and returns the buffer to the pool for reuse once the
+// underlying Controller.Request call returns (which, per udp.Controller's
+// own contract, has by then already copied the body onto the wire — the
+// same "inner controller copies the payload" precondition the retired
+// package's own SendLoaned relied on). The caller must not access body
+// after this call.
+func (c *Controller) RequestLoaned(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
 	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/loan: zone %s: %w", c.Zone(), rcp.ErrClosed)
+		return acf.Message{}, fmt.Errorf("rcp/loan: stream %s: %w", c.StreamID(), udp.ErrClosed)
 	}
-	// Send delegates to the inner controller. The inner controller copies the payload
-	// (as required by REQ-CTRL-026), so we can safely return the loaned buffer now,
-	// regardless of the send outcome.
-	resp, err := c.inner.Send(ctx, cmd)
+	resp, err := c.inner.Request(ctx, addr, control, body)
 
-	if len(cmd.Payload) > 0 {
-		key := &cmd.Payload[0]
+	if len(body) > 0 {
+		key := &body[0]
 		c.mu.Lock()
 		bp, ok := c.loaned[key]
 		if ok {

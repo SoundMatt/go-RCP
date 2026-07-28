@@ -589,7 +589,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred ✅ |
 | **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified ✅ |
 | **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue rebuilt against the new model; e2e retired in favour of crcsafe ✅ |
-| **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire, udp, tsn, shmem, loan adapted; mdns retired in favour of native discovery; tlstransport deprecated |
+| **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire retired (no successor), udp rebuilt on avtp/acf, tsn/shmem/loan adapted; mdns's role narrowed to an optional rendezvous helper; tlstransport deprecated ✅ |
 | **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata |
 | **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge |
 | **Satellite Migration** | v0.70.0 | Tooling & test-double rebuild | mock, sim, capi, codegen, record, observe, faultinject, firmware |
@@ -1261,11 +1261,114 @@ package; `REQ-E2E-*` removed outright with no successor family, since
 `e2e`'s role is now `REQ-CRC-*`'s), 100% traced and tested per `gofusa
 check`/`gofusa trace`.
 
-### 54. Transport & Discovery Migration (v0.67.0)
+### 54. Transport & Discovery Migration (v0.67.0) ✅
 
 - Rebuild `wire`/`udp` against the Phase 13 wire format; adapt `tsn` and
   `shmem`/`loan`; retire `mdns`'s role as primary discovery (Phase 13
   supersedes it); deprecate `tlstransport`
+
+**Done (v0.67.0):** every package the disposition table calls out for this
+milestone is rebuilt/adapted/narrowed/deprecated per its own reasoning
+there:
+
+- **`wire` retired outright, no successor package**, the same "no successor"
+  precedent Milestone 53 (v0.66.0) already established for the old CRC-16
+  `e2e` package: once `avtp.Header`/`acf.Message`/`acf.Frame` (Phase 13)
+  exist, they already are the new wire format, so a separate `wire` package
+  wrapping them would only re-export `acf.EncodeFrame`/`DecodeFrame` under
+  new names for no behavioral benefit. `udp` imports `avtp`/`acf` directly;
+  UDP's own per-datagram framing needs no additional length-prefixing on top
+  of `acf.Frame`'s bytes, since one UDP datagram already carries exactly one
+  AVTPDU.
+- **`udp` rebuilt as an IEEE 1722-over-UDP/IP transport**
+  (`udp/controller.go`, `server.go`, `router.go`, `ep0.go`, `registry.go`,
+  `frame.go`) — the transport variant `avtp/doc.go`'s own "Explicit
+  non-goal" section had already flagged and deferred to this milestone.
+  `udp.Controller` addresses one destination RC Server by UDP address and
+  presents its own `avtp.StreamID` identity, correlating requests to
+  responses by `acf.Message.TransactionNum` in place of the retired
+  `wire`/`udp`'s uint32 `Command.ID`. `udp.Server` decodes each inbound
+  datagram and hands it to a `udp.Router`, which special-cases
+  `regmap.EP0` (configuration/discovery, via `udp.EP0Handler` wrapping a
+  `*server.Server` — the first place in this repo any package turns
+  Milestones 45/46's Go-level `server.Server` calls into on-wire RCP-over-
+  ACF traffic) and otherwise looks up a caller-registered `request.Handler`
+  by `avtp.ByteBusID` — the exact interface every Phase 14/16 endpoint-type
+  package's own `Endpoint.HandleRequest` method already satisfies, so
+  wiring in `gpio.Endpoint`, `spi.Endpoint`, or a `request.Dispatcher`
+  wrapping one, needs no adapter code. `Router.Route` also owns the one
+  dispatch-wide decision every endpoint type shares — computing
+  `avtp.Header.Disposition` against the server's own time-sync capability
+  and dropping (no reply at all) a timestamped AVTPDU a non-time-
+  synchronized server cannot honor — so no registered `Handler` has to
+  reimplement that rule itself. This milestone's `Controller` originates
+  only untimed (NTSCF) requests and executes a `DispositionScheduled`
+  request immediately (identically to best-effort); actual schedule-and-
+  wait-for-the-timestamp behaviour has no clock source to target yet and is
+  left as a documented follow-on, per Guiding Principle 10.
+- **`tsn` adapted, keeping its SO_PRIORITY socket wiring unchanged**
+  (`sockprio_linux.go`/`sockprio_other.go` needed no edits at all — they
+  only ever depended on `udp.Controller.RawConn`, never on the retired
+  framing). `tsn.Controller` now wraps `*udp.Controller` and derives its
+  IEEE 802.1p PCP value from `request.Kind.Priority()`'s fixed cross-type
+  rank (Milestone 49) via `PCPMap`, in place of the retired three-level
+  `rcp.Priority` enum this repo no longer has a `Priority`-tagged request
+  type for.
+- **`shmem` adapted around the same `udp.Router`** the networked transport
+  uses (`shmem.Bus`/`Endpoint`/`Controller`), rather than re-implementing
+  EP0/endpoint-`Handler` routing a second time — since Router's dispatch
+  logic is exactly the frame-shape-independent part the disposition
+  table's own "zero-copy intra-host IPC is independent of frame shape"
+  reasoning calls for reuse of. The retired package's `sync.Pool`-backed
+  `poolAlloc` never actually reused a popped buffer's backing array for its
+  fresh copy and is not carried over; `shmem.Controller.Request` still
+  copies a request body exactly once onto the bus (`copyBody`), just
+  without a pool that would only be safe to recycle from with the `loan`
+  package's own explicit-release tracking.
+- **`loan` adapted to wrap `*udp.Controller` concretely** in place of the
+  retired `rcp.Controller`/`rcp.LoaningController` interface pair — both
+  root-module contracts Phase 17's disposition table explicitly leaves to
+  Phase 18, and which `udp.Controller` cannot meaningfully implement before
+  then. `loan.Controller.Loan`/`RequestLoaned` replace the old
+  `Loan`/`SendLoaned` pair; the pooled buffer type itself is unchanged —
+  still `*rcp.Loan`, the root package's own already wire-agnostic
+  Payload+release-func struct — matching the disposition table's "only the
+  pooled type changes" framing.
+- **`mdns`'s role narrowed, not deleted**: `Announcer`/`Browser` now
+  advertise/discover an `avtp.StreamID` (hex-encoded in a `stream=` TXT
+  value) in place of the retired `Zone` enum's `zone=` value, since DNS-
+  SD's zone-ID-as-service-instance model has no mapping onto TC18
+  addressing — every other DNS-SD wire mechanic (`encodeName`/`decodeName`,
+  the PTR/SRV/TXT/A record shapes, `Transport`) is unchanged, genuinely
+  orthogonal to RCP's own wire format. This package is no longer presented
+  as the discovery mechanism a caller relies on for a server's register
+  map — that is `udp.Controller.Discover` calling into Milestone 46's own
+  `HandleDiscoveryRequest` — and survives only as the disposition table's
+  own "optional secondary IP-rendezvous helper": a way to learn candidate
+  UDP addresses to point `Discover` at in the first place.
+- **`tlstransport` marked `Deprecated` in its package doc**, per the
+  disposition table's "revisit only as a bespoke, clearly-labelled non-spec
+  transport option, not as 'the' secure transport" framing — kept, not
+  deleted, but explicitly never migrated to `avtp`/`acf`/`server`. Since
+  `wire` (the package it depended on) is retired, `tlstransport` now
+  carries its own frozen, package-local copy of the old bespoke frame
+  encode/decode logic (`legacyframe.go`) so it keeps compiling and
+  behaving exactly as before, with no behavioral change and no MACsec
+  implementation attempted here (out of this milestone's scope, per the
+  roadmap's own framing).
+
+`REQ-WIRE-*` removed outright with no successor family, the same
+"no successor" disposition Milestone 53 applied to `REQ-E2E-*`.
+`REQ-UDP-*`, `REQ-TSN-*`, `REQ-SHMEM-*`, `REQ-LOAN-*`, and `REQ-MDNS-*` are
+rewritten in place under their original prefixes to describe the new
+behaviour (`REQ-SHMEM-007`/`008`, the retired Subscribe/Status
+requirements, have no new-model equivalent and are dropped; `REQ-UDP-013`/
+`014` are new). `REQ-TLS-*` is unchanged, since `tlstransport`'s own
+behaviour did not change. 40 requirements total across the five rebuilt/
+adapted packages, 100% traced and tested per `gofusa check`/`gofusa trace`.
+No other package in this repo imported `wire`, `udp`, `tsn`, `shmem`,
+`loan`, `mdns`, or `tlstransport` outside their own test files, so no
+additional call sites needed updating.
 
 ### 55. Control-Plane & Topology Adaptation (v0.68.0)
 
