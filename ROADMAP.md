@@ -587,7 +587,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers ✅ |
 | **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, watchdog-driven safe-state entry ✅ |
 | **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred ✅ |
-| **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified |
+| **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified ✅ |
 | **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue, e2e rebuilt against the new model |
 | **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire, udp, tsn, shmem, loan adapted; mdns retired in favour of native discovery; tlstransport deprecated |
 | **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata |
@@ -1026,7 +1026,7 @@ separately-scoped Phase 17 migration candidates — `REQ-ISELED-*`,
 `REQ-MDIO-*`, `REQ-WAKEUP-*`) are 100% traced and tested per `gofusa
 check`/`gofusa trace`.
 
-### 52. Fragmentation (v0.65.0) — **GO**
+### 52. Fragmentation (v0.65.0) — **GO** ✅
 
 Fragmentation of a single logical request/response across multiple
 physically-transmitted frames is explicitly optional in the specification.
@@ -1057,6 +1057,54 @@ If a future spec revision changes fragmentation's status, this decision
 should be revisited, but "don't build it" was rejected as leaving three
 already-planned endpoint types (CAN XL, UART, and large-topology discovery)
 either broken or quietly non-conformant.
+
+**Done (v0.65.0):** landed in the new `fragment` package (`fragment/
+doc.go`, `types.go`, `errors.go`, `segment.go`, `reassembler.go`,
+`gateway.go`), following the same doc.go-first, spec-fidelity-disclaimed
+package shape every Phase 13-16 milestone established, and consuming —
+without modifying — every hook staged for it ahead of time: `avtp`'s
+`FlagMoreSegments` bit and dual-purpose `ReadSizeOrSegment` field
+(`avtp/message.go`), `crcsafe.ComputeFragmented` (`crcsafe/crc.go`), and
+`request.Dispatcher.Submit`'s existing signature (`request/dispatcher.go`).
+`fragment.Split` is the send-side half: it divides one logical
+`avtp.Message` into ordered segments, setting `FlagMoreSegments` and a
+0-based segment number on every segment but the last, and restoring the
+last segment's own `ReadSizeOrSegment` to its original (non-segment-number)
+meaning, exactly matching the field semantics `avtp/message.go` already
+committed to. `fragment.Reassembler` is the receive-side half: `Add`
+accumulates segments keyed by `fragment.Key` (stream/bus/transaction,
+mirroring `avtp/doc.go`'s own addressing-scope rules) until a terminal
+segment arrives — treating an ordinary unfragmented `Message` as a trivial,
+immediately-complete one-segment sequence so a caller never special-cases
+"is this fragmented?" — and `Finish`/`FinishProtected` return the
+reassembled `Message`, the latter verifying the "only the final segment
+carries the CRC, computed over the combined body" rule by calling
+`crcsafe.ComputeFragmented` directly over the sequence's own per-segment
+bodies. `fragment.Gateway` wraps a `request.Dispatcher` (via the minimal
+`Submitter` interface, so neither package imports the other's concrete
+type) so a fragmented request is fully reassembled before `Submit` ever
+sees it and participates in the ordinary `StateQueued`/`StateStarted`/
+`StateExecuting`/`StateFinalized` lifecycle unmodified, with
+`Gateway.Response` as the symmetric send-side convenience for a resolved
+response too large for one AVTPDU. Neither `can`, `uart`, nor
+`server/discovery.go` needed any change: their existing request/response
+bodies are simply segmentable by a caller that chooses to route them
+through `Split`/`Gateway`, validated directly against representative CAN
+XL-sized, UART-FIFO-sized, and discovery-register-map-sized payloads in
+this package's own test suite. Per Guiding Principle 10, out-of-order
+segments, duplicate segments, and a stalled/abandoned sequence are not
+addressed by this roadmap's own text and are documented as this
+implementation's own reasoned, reversible choices in `fragment/
+reassembler.go`'s own doc comment: strict in-order-only non-terminal
+segment numbering (abandoning a sequence on a gap or reordering, since the
+terminal segment carries no segment number of its own once
+`FlagMoreSegments` clears — a wire-format consequence, not a policy
+choice, also documented there), silent tolerance of an exact-duplicate
+retransmission, a caller-driven (`Sweep`, no background goroutine)
+staleness timeout that only ever purges an incomplete sequence, and a
+`Config.MaxSegments` bound against a sequence that never terminates. 12 new
+`//fusa:req`/`//fusa:test`-tagged requirements (`REQ-FRAG-*`) are 100%
+traced and tested per `gofusa check`/`gofusa trace`.
 
 ---
 ### Phase 17 — Satellite Package Migration
