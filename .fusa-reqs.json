@@ -3495,6 +3495,134 @@
       "standard": "iso21434",
       "level": "CAL-3",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-001",
+      "title": "Untimed (NTSCF) AVTPDU header round-trips all fields",
+      "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical untimed (NTSCF) Header. StreamIDValid, SequenceNum, DataLength, and StreamID shall survive the round-trip byte-for-byte.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-002",
+      "title": "Timestamped (TSCF) AVTPDU header round-trips all fields",
+      "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical timestamped (TSCF) Header, including the presentation Timestamp and TimestampStatus marker, in addition to the fields shared with the untimed variant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-003",
+      "title": "Header decode rejects buffers shorter than the applicable header length",
+      "text": "avtp.DecodeHeader shall return ErrShortHeader when the supplied buffer is shorter than the header length implied by its subtype (untimed or timestamped), so that no caller reads beyond the buffer bounds when parsing an AVTPDU header.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-004",
+      "title": "Header decode rejects an unsupported protocol version",
+      "text": "avtp.DecodeHeader shall return ErrUnsupportedVersion when the header's version bits do not equal avtp.ProtocolVersion, so that a frame from an incompatible AVTPDU revision is not misinterpreted.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-005",
+      "title": "Header decode rejects nonzero reserved bits",
+      "text": "avtp.DecodeHeader shall return ErrReservedBitsSet when any bit documented as reserved in the AVTPDU header's flags byte is nonzero, for both the untimed and timestamped header variants.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-006",
+      "title": "StreamID round-trips sender MAC and locally-assigned suffix",
+      "text": "avtp.NewStreamID followed by StreamID.MAC and StreamID.Suffix shall reproduce the exact 6-byte MAC address and 2-byte suffix the StreamID was constructed from.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-007",
+      "title": "Disposition schedules a valid, time-sync-supported timestamped header",
+      "text": "Header.Disposition shall return DispositionScheduled only when the header is timestamped (Timed true), its TimestampStatus is TimestampValid, and the caller reports time-sync support.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-008",
+      "title": "Disposition folds a missing, invalid, or uncertain timestamp marker down to best-effort",
+      "text": "Header.Disposition shall return DispositionBestEffort for a timestamped header whose TimestampStatus is TimestampMissing, TimestampInvalid, or TimestampUncertain, when the caller reports time-sync support.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-009",
+      "title": "Disposition drops a timestamped header when the server has no time-sync support",
+      "text": "Header.Disposition shall return DispositionDrop for any timestamped (Timed true) header when the caller reports no time-sync support, regardless of the header's TimestampStatus marker.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-010",
+      "title": "Disposition treats every untimed header as best-effort",
+      "text": "Header.Disposition shall return DispositionBestEffort for an untimed (Timed false) header unconditionally, regardless of the time-sync-support argument.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-011",
+      "title": "Short-form (ACF_ABB) RCP message round-trips with no timestamp field on the wire",
+      "text": "avtp.EncodeMessage followed by avtp.DecodeMessage shall reproduce an identical Message of MessageKind KindShort, and the encoded bytes shall be exactly the 10-byte request-descriptor header plus the body, with no 64-bit timestamp slot present.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-012",
+      "title": "Long-form (ACF_GBB) RCP message round-trips including its 64-bit timestamp slot",
+      "text": "avtp.EncodeMessage followed by avtp.DecodeMessage shall reproduce an identical Message of MessageKind KindLong, including the 64-bit Timestamp field carried immediately after the shared request-descriptor header.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-013",
+      "title": "Control flags and the dual-purpose read-size/segment-number field round-trip correctly",
+      "text": "avtp.EncodeMessage/DecodeMessage shall preserve every combination of the Ack, Read, Write, Response, Error, and MoreSegments control bits, and Message.SegmentNumber/Message.ReadSize shall interpret ReadSizeOrSegment as a segment number when MoreSegments is set and as a read size otherwise.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-014",
+      "title": "Message decode rejects malformed input without misreading it",
+      "text": "avtp.DecodeMessage shall return ErrShortMessage for a buffer shorter than its declared length (including a truncated 64-bit timestamp slot on a KindLong message), ErrUnknownMessageKind for an unrecognized kind tag, and ErrReservedBitsSet for nonzero reserved pad or control bits.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-015",
+      "title": "A full Frame round-trips for every header-variant / message-kind combination",
+      "text": "avtp.EncodeFrame followed by avtp.DecodeFrame shall reproduce an identical Frame for all four combinations of untimed/timestamped Header and short-form/long-form Message, with the AVTPDU's DataLength field always derived from the encoded message rather than trusted from the caller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-016",
+      "title": "Decoders never panic on arbitrary input, and golden vectors freeze the wire encoding",
+      "text": "avtp.DecodeHeader, DecodeMessage, and DecodeFrame shall return an error or a valid value for any arbitrary byte slice and shall never panic or slice out of bounds, as verified by fuzz testing; in addition, a fixed set of golden byte-vector fixtures shall pin the exact encoding of representative server requests so later milestones can regression-test against a frozen wire format.",
+      "standard": "iso21434",
+      "level": "CAL-3",
+      "asil": "ASIL-B"
     }
   ]
 }

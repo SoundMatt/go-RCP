@@ -30,7 +30,7 @@ prefer `go-rcp` for anything spec-related.
 
 ## Packages
 
-The repo ships ~45 packages beyond the root module. The table below groups
+The repo ships ~46 packages beyond the root module. The table below groups
 them by concern; see each package's doc comment (`go doc ./<pkg>`) for
 details.
 
@@ -39,6 +39,17 @@ details.
 | `.` | Core interfaces: `Controller`, `Registry`, `Command`, `Response`, `Status`, `Zone` |
 | `mock` | In-process mock controller and registry — zero dependencies, default for unit tests |
 | `loan` | `LoaningController` wrapper — zero-copy payload loaning via a `sync.Pool` |
+
+### TC18 protocol replacement program (ROADMAP.md Part II)
+
+The packages above implement go-RCP's original bespoke Zone/Command
+protocol. The following implement the OPEN Alliance TC18 Remote Control
+Protocol replacement instead, phase by phase; see ROADMAP.md Part II for the
+full program and each satellite package's disposition.
+
+| Package | Description |
+|---|---|
+| `avtp` | IEEE 1722 AVTPDU/ACF wire format for TC18 RCP (Milestone 44, v0.57.0) — untimed/timestamped AVTPDU headers, the short/long RCP message encodings, and stream_id/byte_bus_id/transaction_num addressing |
 
 ### RCP control-plane concerns (spec §13.7.2)
 

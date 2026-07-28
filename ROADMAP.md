@@ -579,7 +579,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 
 | Phase | Version | Theme | Summary |
 |---|---|---|---|
-| **TC18 Core — Wire & Server** | v0.57.0 | Wire format core | IEEE 1722 NTSCF/TSCF framing, ACF_ABB/ACF_GBB, the shared request-descriptor header, stream/transaction/bus-id addressing |
+| **TC18 Core — Wire & Server** | v0.57.0 | Wire format core | IEEE 1722 NTSCF/TSCF framing, ACF_ABB/ACF_GBB, the shared request-descriptor header, stream/transaction/bus-id addressing ✅ |
 | **TC18 Core — Wire & Server** | v0.58.0 | RC Server lifecycle | 3-state config lifecycle, generic/functional register-map split, EP0 |
 | **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response |
 | **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes |
@@ -604,7 +604,17 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 ### Phase 13 — TC18 Core: Wire Format & Server Model
 ---
 
-### 44. AVTPDU / ACF Wire Format (v0.57.0)
+### 44. AVTPDU / ACF Wire Format (v0.57.0) ✅
+
+**Done (v0.57.0):** landed in the new `avtp` package (`avtp/avtpdu.go`,
+`avtp/message.go`, `avtp/address.go`, `avtp/frame.go`; see `avtp/doc.go` for
+the package-level design notes, including the explicit call-out that this
+package's exact numeric subtype/field-width choices are this
+implementation's own reasoned encoding pending confirmation against a public
+interoperability reference, since the TC18 spec text itself is
+members-confidential). `wire/` is untouched — this is a new, independent
+package, not an edit to the old bespoke frame format it will eventually
+replace at Phase 17 (Milestone 54, v0.67.0).
 
 - New wire-format package implementing IEEE 1722 framing for RCP: both
   header variants — the untimed "execute as soon as possible" form and the
