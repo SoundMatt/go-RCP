@@ -3623,6 +3623,166 @@
       "standard": "iso21434",
       "level": "CAL-3",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-001",
+      "title": "New Server starts in StateUnconfigured with an empty register map",
+      "text": "server.NewServer shall return a Server in StateUnconfigured with no endpoints declared, an empty pin-mapping table, and zero-value stream/queue configuration.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-002",
+      "title": "AdvanceToHWLocked succeeds and locks in a plausible pin map",
+      "text": "Server.AdvanceToHWLocked shall transition a Server from StateUnconfigured to StateHWLocked when its pin-mapping table passes PinMap.Validate.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-003",
+      "title": "PinMap.Validate rejects a duplicate physical pin assignment",
+      "text": "PinMap.Validate shall return ErrPinMapInvalid when two assignments in the table claim the same physical pin.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-004",
+      "title": "AdvanceToHWLocked rejects a pin map referencing an undeclared endpoint",
+      "text": "Server.AdvanceToHWLocked shall return ErrPinMapInvalid, and leave the lifecycle state unchanged, when the pin-mapping table references a byte_bus_id that was never declared via Server.AddEndpoint.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-005",
+      "title": "AdvanceToFullyConfigured succeeds once every endpoint and the queue configuration are plausible",
+      "text": "Server.AdvanceToFullyConfigured shall transition a Server from StateHWLocked to StateFullyConfigured once every declared endpoint has a non-empty functional configuration block and QueueConfig.Validate passes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-006",
+      "title": "AdvanceToFullyConfigured rejects an endpoint with no functional configuration",
+      "text": "Server.AdvanceToFullyConfigured shall return ErrFunctionalBlockIncomplete, and leave the lifecycle state unchanged, when any declared endpoint still has an empty FunctionalBlock.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-007",
+      "title": "AdvanceToFullyConfigured rejects a queue configuration that can never flush",
+      "text": "Server.AdvanceToFullyConfigured shall return ErrQueueConfigInvalid when QueueConfig has both FlushThreshold and FlushTimeMillis set to zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-008",
+      "title": "Lifecycle transitions cannot skip a state",
+      "text": "Server.AdvanceToFullyConfigured shall return ErrLifecycleOutOfOrder, and leave the lifecycle state unchanged, when called while the Server is still StateUnconfigured.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-009",
+      "title": "The pin-mapping table is locked once the server leaves StateUnconfigured",
+      "text": "Server.SetPinAssignment shall return ErrRegisterLocked when called while the Server is not StateUnconfigured, even for the root client.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-010",
+      "title": "Functional configuration blocks are permanently locked once fully configured",
+      "text": "Server.WriteFunctional shall return ErrRegisterLocked once the Server reaches StateFullyConfigured, regardless of whether the requester is the root client or a stream with an explicit grant for that endpoint.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-011",
+      "title": "The general server register block is never client-writable",
+      "text": "Server.WriteEP0 shall return ErrGeneralBlockReadOnly when the incoming whole-map write changes any identification, protocol-version, or capability/capacity field of GeneralBlock.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-012",
+      "title": "EP0 whole-map read round-trips the configured register map",
+      "text": "Server.ReadEP0 followed by DecodeRegisterMap shall reproduce every declared endpoint's GenericEndpointBlock and FunctionalBlock, and the configured pin-mapping table, byte-for-byte.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-013",
+      "title": "The root client can write the whole register map before it is fully configured",
+      "text": "Server.WriteEP0 shall apply an incoming register map for the root-client stream when the Server has not yet reached StateFullyConfigured.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-014",
+      "title": "A whole-map write is denied to any stream that is not the root client",
+      "text": "Server.WriteEP0 shall return ErrNotRootClient when called by a stream that has not claimed the root-client role via Server.ClaimRoot.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-015",
+      "title": "A restricted stream can read and write an endpoint explicitly granted to it",
+      "text": "Server.ReadEndpoint and Server.WriteFunctional shall succeed for a non-root stream when that endpoint's address has been granted to it via Server.Grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-016",
+      "title": "A restricted stream is denied access to an endpoint that was never granted to it",
+      "text": "Server.ReadEndpoint and Server.WriteFunctional shall return ErrAccessDenied for a non-root stream addressing an endpoint it was never granted via Server.Grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-017",
+      "title": "The root-client role is exclusive to one stream at a time",
+      "text": "AccessController.ClaimRoot shall return ErrRootAlreadyClaimed when a stream other than the current root client attempts to claim the role, and shall succeed idempotently when the current root client re-claims it.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-018",
+      "title": "GeneralBlock round-trips all fields through Encode/DecodeGeneralBlock",
+      "text": "EncodeGeneralBlock followed by DecodeGeneralBlock shall reproduce an identical GeneralBlock: identification fields, register-map version, capability/capacity counters, and the four configuration-table pointers shall all survive the round-trip byte-for-byte.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-019",
+      "title": "PinMap.Validate rejects a named-signal index out of range for its endpoint's declared type",
+      "text": "PinMap.Validate shall return ErrPinMapInvalid when an assignment's SignalIndex is not a valid index into SignalName for its Endpoint's declared EndpointType.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-020",
+      "title": "Register-map decoders never panic on arbitrary input, and golden vectors freeze the whole-map encoding",
+      "text": "DecodeGeneralBlock and DecodeRegisterMap shall return an error or a valid value for any arbitrary byte slice and shall never panic or slice out of bounds, as verified by fuzz testing; in addition, a fixed golden byte-vector fixture shall pin the exact whole-register-map encoding EncodeRegisterMap produces for a representative configuration so later milestones can regression-test against a frozen register-map format.",
+      "standard": "iso21434",
+      "level": "CAL-3",
+      "asil": "ASIL-B"
     }
   ]
 }

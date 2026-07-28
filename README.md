@@ -30,7 +30,7 @@ prefer `go-rcp` for anything spec-related.
 
 ## Packages
 
-The repo ships ~46 packages beyond the root module. The table below groups
+The repo ships ~47 packages beyond the root module. The table below groups
 them by concern; see each package's doc comment (`go doc ./<pkg>`) for
 details.
 
@@ -50,6 +50,7 @@ full program and each satellite package's disposition.
 | Package | Description |
 |---|---|
 | `avtp` | IEEE 1722 AVTPDU/ACF wire format for TC18 RCP (Milestone 44, v0.57.0) — untimed/timestamped AVTPDU headers, the short/long RCP message encodings, and stream_id/byte_bus_id/transaction_num addressing |
+| `server` | RC Server configuration lifecycle and register map for TC18 RCP (Milestone 45, v0.58.0) — the 3-state lifecycle and its transition guards, the generic/functional per-endpoint register split, EP0 and the root-client/restricted-stream access model, the HW pin-mapping table, and request-stream/response-queue configuration |
 
 ### RCP control-plane concerns (spec §13.7.2)
 

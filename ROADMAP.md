@@ -580,7 +580,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | Phase | Version | Theme | Summary |
 |---|---|---|---|
 | **TC18 Core — Wire & Server** | v0.57.0 | Wire format core | IEEE 1722 NTSCF/TSCF framing, ACF_ABB/ACF_GBB, the shared request-descriptor header, stream/transaction/bus-id addressing ✅ |
-| **TC18 Core — Wire & Server** | v0.58.0 | RC Server lifecycle | 3-state config lifecycle, generic/functional register-map split, EP0 |
+| **TC18 Core — Wire & Server** | v0.58.0 | RC Server lifecycle | 3-state config lifecycle, generic/functional register-map split, EP0 ✅ |
 | **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response |
 | **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes |
 | **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types |
@@ -640,7 +640,21 @@ replace at Phase 17 (Milestone 54, v0.67.0).
 - Golden-vector-style fixtures (server request → expected byte layout) so
   later phases can regression-test against a frozen wire encoding
 
-### 45. RC Server Lifecycle & Register Map (v0.58.0)
+### 45. RC Server Lifecycle & Register Map (v0.58.0) ✅
+
+**Done (v0.58.0):** landed in the new `server` package (`server/lifecycle.go`,
+`server/registermap.go`, `server/access.go`, `server/pinmap.go`,
+`server/queues.go`, `server/types.go`, `server/server.go`; see `server/doc.go`
+for the package-level design notes, including the same explicit spec-fidelity
+call-out avtp/doc.go established — this package's exact register byte
+layouts and named-signal-index scheme are this implementation's own reasoned
+encoding pending confirmation against a public interoperability reference,
+since the TC18 spec text itself is members-confidential). `server` builds
+directly on `avtp` (Milestone 44): `avtp.ByteBusID` addresses endpoints and
+EP0, `avtp.StreamID` is what the root-client/restricted-stream access model
+keys off of. The old bespoke-protocol `Zone`/`Controller`/`Registry` types in
+the root module are untouched — this is a new, independent package, not an
+edit to them.
 
 - The three-state server lifecycle (an unconfigured bare-defaults state, a
   hardware-configuration-locked state, and a fully-configured state), with
