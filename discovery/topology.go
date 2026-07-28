@@ -1,10 +1,11 @@
-package server
+package discovery
 
 import (
 	"encoding/json"
 	"io"
 
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 // This file is the client-facing half of ROADMAP.md Milestone 46
@@ -12,31 +13,28 @@ import (
 // response, and persisting the resulting topology so re-discovery isn't
 // mandatory every power cycle. Full client-side configuration tooling is
 // deferred to the Phase 17 control-plane migration (ROADMAP.md Milestone
-// 55, see server/doc.go's endpoint-address-ordering note) — these are only
-// the narrow discovery-recognition and topology-persistence helpers
-// Milestone 46 itself calls out, kept in this package because they operate
-// directly on GeneralBlock/RegisterMap and have no other home yet.
+// 55, see server/doc.go's endpoint-address-ordering note).
 
 // IsConformantServer reports whether a discovery response's general block
 // looks like a genuine RCP server, rather than noise from an unrelated
 // device answering (or misinterpreted) on the same untimed AVTPDU stream:
-// its RegisterMapVersion must match the version this package implements,
-// and it must carry a nonzero vendor and product identification. This is
-// this implementation's own reasoned recognition heuristic — built from
-// the fields GeneralBlock already carries (see server/registermap.go) —
+// its RegisterMapVersion must match the version the regmap package
+// implements, and it must carry a nonzero vendor and product
+// identification. This is this implementation's own reasoned recognition
+// heuristic — built from the fields regmap.GeneralBlock already carries —
 // rather than a verified transcription of a published conformance test, the
 // same open-item posture the rest of this package's spec-fidelity notes
 // document.
-func IsConformantServer(g GeneralBlock) bool {
-	return g.RegisterMapVersion == RegisterMapVersion && g.VendorID != 0 && g.ProductID != 0
+func IsConformantServer(g regmap.GeneralBlock) bool {
+	return g.RegisterMapVersion == regmap.RegisterMapVersion && g.VendorID != 0 && g.ProductID != 0
 }
 
 // TopologyEndpoint is one declared endpoint's identity as persisted by
 // Topology: enough for a client to re-address it without re-declaring its
 // full functional configuration.
 type TopologyEndpoint struct {
-	Address avtp.ByteBusID `json:"address"`
-	Type    EndpointType   `json:"type"`
+	Address avtp.ByteBusID      `json:"address"`
+	Type    regmap.EndpointType `json:"type"`
 }
 
 // Topology is a client's persisted summary of one server's discovered
@@ -62,13 +60,14 @@ func (t Topology) EndpointCount() int {
 }
 
 // DiscoverTopology extracts a client-persistable Topology summary from a
-// decoded discovery response (see DecodeRegisterMap). Endpoints are listed
-// in the same ascending byte_bus_id order RegisterMap.Addresses returns.
-func DiscoverTopology(m *RegisterMap) Topology {
+// decoded discovery response (see regmap.DecodeRegisterMap). Endpoints are
+// listed in the same ascending byte_bus_id order RegisterMap.Addresses
+// returns.
+func DiscoverTopology(m *regmap.RegisterMap) Topology {
 	addrs := m.Addresses()
 	endpoints := make([]TopologyEndpoint, 0, len(addrs))
 	for _, addr := range addrs {
-		ep := m.endpoints[addr]
+		ep, _ := m.Endpoint(addr)
 		endpoints = append(endpoints, TopologyEndpoint{Address: addr, Type: ep.Generic.Type})
 	}
 	return Topology{

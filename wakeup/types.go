@@ -1,11 +1,11 @@
 package wakeup
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeWakeup so a caller that only
+// EndpointType re-exports regmap.EndpointTypeWakeup so a caller that only
 // imports this package doesn't also need to import server just to declare
 // a Wakeup endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeWakeup
+const EndpointType = regmap.EndpointTypeWakeup
 
 // PowerState is one of this package's four recognized whole-server power
 // states. See doc.go's Scope section for which of these Endpoint actually

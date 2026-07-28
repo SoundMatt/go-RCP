@@ -1,6 +1,7 @@
 package fragment
 
 import (
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/request"
 )
@@ -11,7 +12,7 @@ import (
 // uses around a Phase 14/16 endpoint's Handler (see request/dispatcher.go).
 // *request.Dispatcher satisfies Submitter unmodified.
 type Submitter interface {
-	Submit(requester avtp.StreamID, req avtp.Message) (request.TicketID, error)
+	Submit(requester avtp.StreamID, req acf.Message) (request.TicketID, error)
 }
 
 // Gateway is the ROADMAP.md Milestone 52 integration point named in this
@@ -26,7 +27,7 @@ type Submitter interface {
 //
 // Gateway is deliberately asymmetric: reassembly (Submit) is generic over
 // any Submitter, matching how request.Dispatcher.Submit takes an
-// avtp.Message and returns a request.TicketID regardless of Kind. Segmenting
+// acf.Message and returns a request.TicketID regardless of Kind. Segmenting
 // an outgoing response (Response) needs no Dispatcher reference of its
 // own — a caller supplies the already-resolved response Message itself
 // (typically request.Dispatcher.Response's own return value), so Response
@@ -60,7 +61,7 @@ func NewGateway(dispatcher Submitter, re *Reassembler, maxSegmentBody int) *Gate
 // Reassembler.Add and Submitter.Submit) means the message was rejected
 // outright and, for a reassembly failure, that the whole in-progress
 // sequence was abandoned.
-func (g *Gateway) Submit(requester avtp.StreamID, req avtp.Message) (request.TicketID, error) {
+func (g *Gateway) Submit(requester avtp.StreamID, req acf.Message) (request.TicketID, error) {
 	complete, err := g.Reassembler.Add(requester, req)
 	if err != nil {
 		return 0, err
@@ -81,7 +82,7 @@ func (g *Gateway) Submit(requester avtp.StreamID, req avtp.Message) (request.Tic
 // Body exceeds g.MaxSegmentBody, for a caller to transmit as one AVTPDU per
 // returned Message (e.g. once request.Dispatcher.Response has resolved a
 // ticket Submit admitted). A resp that already fits within one segment is
-// returned as []avtp.Message{resp} unchanged, exactly as Split itself would.
-func (g *Gateway) Response(resp avtp.Message) ([]avtp.Message, error) {
+// returned as []acf.Message{resp} unchanged, exactly as Split itself would.
+func (g *Gateway) Response(resp acf.Message) ([]acf.Message, error) {
 	return Split(resp, g.MaxSegmentBody)
 }

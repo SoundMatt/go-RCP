@@ -1,11 +1,12 @@
 //fusa:test REQ-AVTP-016
 
-package avtp_test
+package acf_test
 
 import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
 
@@ -56,15 +57,15 @@ func TestGolden_UntimedShortRead(t *testing.T) {
 		SequenceNum:   1,
 		StreamID:      avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 0x0001),
 	}
-	msg := avtp.Message{
-		Kind:              avtp.KindShort,
+	msg := acf.Message{
+		Kind:              acf.KindShort,
 		ByteBusID:         avtp.ByteBusID(0x10),
 		TransactionNum:    avtp.TransactionNum(1),
-		Control:           avtp.FlagRead | avtp.FlagAck,
+		Control:           acf.FlagRead | acf.FlagAck,
 		ReadSizeOrSegment: 4,
 	}
 
-	got, err := avtp.EncodeFrame(hdr, msg)
+	got, err := acf.EncodeFrame(hdr, msg)
 	if err != nil {
 		t.Fatalf("EncodeFrame: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestGolden_UntimedShortRead(t *testing.T) {
 		t.Fatalf("encoded bytes changed:\n got  % X\n want % X", got, goldenUntimedShortRead)
 	}
 
-	frame, err := avtp.DecodeFrame(goldenUntimedShortRead)
+	frame, err := acf.DecodeFrame(goldenUntimedShortRead)
 	if err != nil {
 		t.Fatalf("DecodeFrame(golden): %v", err)
 	}
@@ -90,16 +91,16 @@ func TestGolden_TimedLongWrite(t *testing.T) {
 		Timestamp:       0x00112233,
 		TimestampStatus: avtp.TimestampValid,
 	}
-	msg := avtp.Message{
-		Kind:           avtp.KindLong,
+	msg := acf.Message{
+		Kind:           acf.KindLong,
 		ByteBusID:      avtp.ByteBusID(0x20),
 		TransactionNum: avtp.TransactionNum(7),
-		Control:        avtp.FlagWrite,
+		Control:        acf.FlagWrite,
 		Timestamp:      0x0102030405060708,
 		Body:           []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	}
 
-	got, err := avtp.EncodeFrame(hdr, msg)
+	got, err := acf.EncodeFrame(hdr, msg)
 	if err != nil {
 		t.Fatalf("EncodeFrame: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestGolden_TimedLongWrite(t *testing.T) {
 		t.Fatalf("encoded bytes changed:\n got  % X\n want % X", got, goldenTimedLongWrite)
 	}
 
-	frame, err := avtp.DecodeFrame(goldenTimedLongWrite)
+	frame, err := acf.DecodeFrame(goldenTimedLongWrite)
 	if err != nil {
 		t.Fatalf("DecodeFrame(golden): %v", err)
 	}

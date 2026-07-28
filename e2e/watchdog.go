@@ -1,4 +1,4 @@
-package crcsafe
+package e2e
 
 import (
 	"fmt"
@@ -162,7 +162,7 @@ func (s *Supervisor) InSafeState(stream avtp.StreamID) bool {
 // CheckFunc adapts InSafeState to request.SafeStateCheck's shape, for
 // wiring directly into a request.Dispatcher's SetSafeStateCheck:
 //
-//	sup := crcsafe.NewSupervisor(crcsafe.StreamConfig{Timeout: 50 * time.Millisecond})
+//	sup := e2e.NewSupervisor(e2e.StreamConfig{Timeout: 50 * time.Millisecond})
 //	dispatcher.SetSafeStateCheck(sup.CheckFunc())
 func (s *Supervisor) CheckFunc() request.SafeStateCheck {
 	return s.InSafeState

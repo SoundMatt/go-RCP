@@ -1,7 +1,7 @@
 //fusa:test REQ-RCS-003
 //fusa:test REQ-RCS-019
 
-package server
+package regmap
 
 import (
 	"errors"

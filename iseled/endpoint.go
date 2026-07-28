@@ -3,6 +3,7 @@ package iseled
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -87,34 +88,34 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message command
+// HandleRequest answers one plain, unconditional acf.Message command
 // request addressed to this endpoint (see doc.go's "Explicit non-goal"
 // section for the conditional-request kinds this deliberately leaves to
-// request.Dispatcher). req must set avtp.FlagWrite: an ISELED command
+// request.Dispatcher). req must set acf.FlagWrite: an ISELED command
 // always carries an outgoing payload, so there is nothing to send down the
 // chain without it. The response body is an EncodeAggregatedResponse
 // encoding of every device that answered — one entry for a targeted
 // Command, up to Config.DeviceCount entries for one addressed to
 // DeviceBroadcast (see doc.go's "Multi-device response aggregation"
 // section).
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
-	if !req.Control.Has(avtp.FlagWrite) {
-		return avtp.Message{}, ErrRequestMustWrite
+	if !req.Control.Has(acf.FlagWrite) {
+		return acf.Message{}, ErrRequestMustWrite
 	}
 
 	cmd, err := DecodeCommand(req.Body)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	resp, err := e.exchange(cmd)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	return responseFor(req, EncodeAggregatedResponse(resp)), nil
 }
@@ -169,12 +170,12 @@ func defaultLoopback(cmd Command, deviceCount uint8) AggregatedResponse {
 // responseFor builds the response Message for req: FlagResponse set, same
 // Kind/ByteBusID/TransactionNum as req for correlation, and body as the
 // caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | avtp.FlagWrite,
+		Control:        acf.FlagResponse | acf.FlagWrite,
 		Body:           body,
 	}
 }

@@ -10,22 +10,23 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/pwm"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
-func writeReq(period, active uint32) avtp.Message {
-	return avtp.Message{
-		Kind:      avtp.KindShort,
+func writeReq(period, active uint32) acf.Message {
+	return acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      pwm.EncodeWaveform(period, active),
 	}
 }
 
-func readReq() avtp.Message {
-	return avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead}
+func readReq() acf.Message {
+	return acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
 }
 
 // recordingOutputTransport is an OutputTransport test double that records
@@ -81,7 +82,7 @@ func TestHandleRequest_RoutesReadWriteRejectsNeither(t *testing.T) {
 		t.Errorf("DecodeWaveform(read response) = (%d, %d, %v), want (2000, 1000, nil)", period, active, err)
 	}
 
-	noFlags := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	noFlags := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1)}
 	if _, err := ep.HandleRequest(root, noFlags); !errors.Is(err, pwm.ErrRequestMustReadOrWrite) {
 		t.Errorf("HandleRequest(no flags) err = %v, want ErrRequestMustReadOrWrite", err)
 	}
@@ -104,8 +105,8 @@ func TestHandleRequest_WrongEndpointNoAccessNotConfigured(t *testing.T) {
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	if _, err := ep.HandleRequest(stranger, readReq()); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	if _, err := ep.HandleRequest(stranger, readReq()); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 
 	unconfigured, root2 := newDeclaredEndpoint(t)

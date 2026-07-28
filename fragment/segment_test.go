@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/fragment"
 )
@@ -20,11 +21,11 @@ func testStream() avtp.StreamID {
 // within maxBody is returned as a single unchanged segment, and that
 // invalid input is rejected (REQ-FRAG-001).
 func TestSplit_SmallBodyUnchanged(t *testing.T) {
-	msg := avtp.Message{
-		Kind:              avtp.KindShort,
+	msg := acf.Message{
+		Kind:              acf.KindShort,
 		ByteBusID:         avtp.ByteBusID(1),
 		TransactionNum:    7,
-		Control:           avtp.FlagWrite,
+		Control:           acf.FlagWrite,
 		ReadSizeOrSegment: 42,
 		Body:              []byte{0x01, 0x02, 0x03},
 	}
@@ -45,7 +46,7 @@ func TestSplit_SmallBodyUnchanged(t *testing.T) {
 	}
 
 	already := msg
-	already.Control |= avtp.FlagMoreSegments
+	already.Control |= acf.FlagMoreSegments
 	if _, err := fragment.Split(already, 1); !errors.Is(err, fragment.ErrAlreadyFragmented) {
 		t.Errorf("Split(already fragmented) err = %v, want ErrAlreadyFragmented", err)
 	}
@@ -60,11 +61,11 @@ func TestSplit_MultiSegmentSequencing(t *testing.T) {
 	for i := range body {
 		body[i] = byte(i)
 	}
-	msg := avtp.Message{
-		Kind:              avtp.KindLong,
+	msg := acf.Message{
+		Kind:              acf.KindLong,
 		ByteBusID:         avtp.ByteBusID(3),
 		TransactionNum:    99,
-		Control:           avtp.FlagRead | avtp.FlagResponse,
+		Control:           acf.FlagRead | acf.FlagResponse,
 		ReadSizeOrSegment: 25,
 		Timestamp:         0x1122334455667788,
 		Body:              body,
@@ -84,7 +85,7 @@ func TestSplit_MultiSegmentSequencing(t *testing.T) {
 			t.Fatalf("segment %d shared descriptor fields diverged: %+v", i, seg)
 		}
 		last := i == len(segs)-1
-		if got := seg.Control.Has(avtp.FlagMoreSegments); got == last {
+		if got := seg.Control.Has(acf.FlagMoreSegments); got == last {
 			t.Fatalf("segment %d FlagMoreSegments = %v, want %v", i, got, !last)
 		}
 		if !last {
@@ -108,14 +109,14 @@ func TestSplit_MultiSegmentSequencing(t *testing.T) {
 // non-terminal segments than the wire's 16-bit segment-number field can
 // represent is rejected (REQ-FRAG-001).
 func TestSplit_TooManySegments(t *testing.T) {
-	msg := avtp.Message{Body: make([]byte, 3)}
+	msg := acf.Message{Body: make([]byte, 3)}
 	if _, err := fragment.Split(msg, 1); err != nil {
 		t.Fatalf("Split: %v", err)
 	}
 
 	// A single-byte-per-segment split of a body one byte over the
 	// representable non-terminal segment-count bound.
-	huge := avtp.Message{Body: make([]byte, 0x10001)}
+	huge := acf.Message{Body: make([]byte, 0x10001)}
 	if _, err := fragment.Split(huge, 1); !errors.Is(err, fragment.ErrTooManySegments) {
 		t.Errorf("Split(huge) err = %v, want ErrTooManySegments", err)
 	}

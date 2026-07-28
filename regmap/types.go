@@ -1,4 +1,4 @@
-package server
+package regmap
 
 import "github.com/SoundMatt/go-RCP/avtp"
 

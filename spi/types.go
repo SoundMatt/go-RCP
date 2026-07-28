@@ -1,16 +1,16 @@
 package spi
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
 // MaxChannels is the largest number of independently pre-configured
 // chip-select channels one SPI endpoint may declare, per ROADMAP.md
 // Milestone 47.
 const MaxChannels = 6
 
-// EndpointType re-exports server.EndpointTypeSPI so a caller that only
+// EndpointType re-exports regmap.EndpointTypeSPI so a caller that only
 // imports this package doesn't also need to import server just to declare a
 // SPI endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeSPI
+const EndpointType = regmap.EndpointTypeSPI
 
 // Channel selects one of an endpoint's up to MaxChannels pre-configured
 // chip-select channels. It is this package's request sub-opcode: the first

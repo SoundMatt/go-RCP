@@ -1,11 +1,11 @@
 package adc
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeADC so a caller that only
+// EndpointType re-exports regmap.EndpointTypeADC so a caller that only
 // imports this package doesn't also need to import server just to declare an
 // ADC endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeADC
+const EndpointType = regmap.EndpointTypeADC
 
 // MaxResolutionBits is the largest sample resolution one ADC endpoint may
 // declare, per ROADMAP.md Milestone 48.

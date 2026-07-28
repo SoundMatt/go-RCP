@@ -9,7 +9,7 @@
 // configuration (Config) is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint exactly like any
 // other endpoint's FunctionalBlock, and Endpoint.HandleRequest decodes and
-// answers a plain avtp.Message request the same request-descriptor header
+// answers a plain acf.Message request the same request-descriptor header
 // every endpoint type shares.
 //
 // # Scope
@@ -17,7 +17,7 @@
 // One UART endpoint models a single serial line's independent TX and RX
 // directions, both governed by one shared Config block (baud rate, data
 // bits, parity, stop bits, and optional RTS/CTS flow control — see
-// server/types.go's UART signal list, which names TX/RX/RTS/CTS). A write
+// regmap/types.go's UART signal list, which names TX/RX/RTS/CTS). A write
 // request is TX: its Body is the raw bytes to transmit, handed to the
 // endpoint's Transport (see Endpoint.SetTransport) or, with none configured,
 // looped directly back into the endpoint's own RX FIFO. A read request is
@@ -29,7 +29,7 @@
 // request in one deliberate way: it must be entirely payload-less (see
 // ErrReadRequestNotPayloadLess), carrying its requested byte count in the
 // shared request-descriptor header's read-size field instead of the body
-// (see avtp.Message.ReadSizeOrSegment). This matters beyond this milestone:
+// (see acf.Message.ReadSizeOrSegment). This matters beyond this milestone:
 // ROADMAP.md Milestone 49's compound-wait request kind gates execution on a
 // comparison against an endpoint's current value, and for every other
 // endpoint type that comparand is a fixed-width scalar register value
@@ -54,7 +54,7 @@
 // # Explicit non-goal
 //
 // Per ROADMAP.md Milestone 48, this package ships against the plain,
-// unconditional avtp.Message request kind only. Compound/triggered/chained/
+// unconditional acf.Message request kind only. Compound/triggered/chained/
 // timed request variants — including the compound-wait accumulated-RX-data
 // comparison flagged above — are Phase 15's job (ROADMAP.md Milestone 49)
 // and are not decided here.

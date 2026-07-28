@@ -3,6 +3,7 @@ package adc
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -160,12 +161,12 @@ func (e *Endpoint) Trigger(requester avtp.StreamID) (uint16, error) {
 	return final, nil
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message request
+// HandleRequest answers one plain, unconditional acf.Message request
 // addressed to this endpoint. Per ROADMAP.md Milestone 48's explicit scope,
 // this is the read/manual-trigger request shape only — compound/triggered/
 // chained/timed request kinds are Phase 15's job (ROADMAP.md Milestone 49)
-// and are not decoded here. req must set exactly one of avtp.FlagRead or
-// avtp.FlagWrite; a request with neither is rejected with
+// and are not decoded here. req must set exactly one of acf.FlagRead or
+// acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite. A Write request always performs a fresh
 // Trigger, regardless of Config.TriggerMode — a manual on-demand override. A
 // Read request performs a fresh Trigger only when Config.TriggerMode is
@@ -174,29 +175,29 @@ func (e *Endpoint) Trigger(requester avtp.StreamID) (uint16, error) {
 // since in those modes the endpoint is expected to already be kept sampling
 // by whatever is driving Trigger — a plain read must not additionally force
 // a sample of its own on top of that.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		v, err := e.Trigger(requester)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		return responseFor(req, EncodeValue(v)), nil
-	case req.Control.Has(avtp.FlagRead):
+	case req.Control.Has(acf.FlagRead):
 		e.mu.Lock()
 		mode := e.cfg.TriggerMode
 		e.mu.Unlock()
 		if mode == TriggerModeOnDemand {
 			v, err := e.Trigger(requester)
 			if err != nil {
-				return avtp.Message{}, err
+				return acf.Message{}, err
 			}
 			return responseFor(req, EncodeValue(v)), nil
 		}
@@ -205,11 +206,11 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avt
 		v := e.value
 		e.mu.Unlock()
 		if !enabled {
-			return avtp.Message{}, ErrChannelNotConfigured
+			return acf.Message{}, ErrChannelNotConfigured
 		}
 		return responseFor(req, EncodeValue(v)), nil
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -217,12 +218,12 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avt
 // originating Read/Write flag preserved so a caller can tell which request
 // shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | (req.Control & (avtp.FlagRead | avtp.FlagWrite)),
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
 		Body:           body,
 	}
 }

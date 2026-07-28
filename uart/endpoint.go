@@ -3,6 +3,7 @@ package uart
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -118,48 +119,48 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message TX or RX
+// HandleRequest answers one plain, unconditional acf.Message TX or RX
 // request addressed to this endpoint. Per ROADMAP.md Milestone 48's explicit
 // scope, this is the plain request shape only — compound/triggered/chained/
 // timed request kinds are Phase 15's job (ROADMAP.md Milestone 49) and are
-// not decoded here. req must set exactly one of avtp.FlagRead or
-// avtp.FlagWrite; a request with neither is rejected with
+// not decoded here. req must set exactly one of acf.FlagRead or
+// acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite. A Write request is TX: its Body is the bytes to
 // transmit. A Read request is RX and must be payload-less (see doc.go's note
 // on this asymmetry versus gpio/pwm's read requests); its
-// avtp.Message.ReadSizeOrSegment field carries the requested read size, per
+// acf.Message.ReadSizeOrSegment field carries the requested read size, per
 // the shared request-descriptor header every endpoint type uses for a plain
 // read.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		tx := DecodeWriteRequest(req.Body)
 		n, err := e.transmit(tx)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		return responseFor(req, EncodeWriteResponse(n)), nil
-	case req.Control.Has(avtp.FlagRead):
+	case req.Control.Has(acf.FlagRead):
 		if len(req.Body) != 0 {
-			return avtp.Message{}, ErrReadRequestNotPayloadLess
+			return acf.Message{}, ErrReadRequestNotPayloadLess
 		}
 		e.mu.Lock()
 		enabled := e.cfg.Enabled
 		e.mu.Unlock()
 		if !enabled {
-			return avtp.Message{}, ErrUARTNotConfigured
+			return acf.Message{}, ErrUARTNotConfigured
 		}
 		complete, data := e.read(req.ReadSizeOrSegment)
 		return responseFor(req, EncodeReadResponse(complete, data)), nil
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -217,12 +218,12 @@ func (e *Endpoint) read(want uint16) (complete bool, data []byte) {
 // originating Read/Write flag preserved so a caller can tell which request
 // shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | (req.Control & (avtp.FlagRead | avtp.FlagWrite)),
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
 		Body:           body,
 	}
 }

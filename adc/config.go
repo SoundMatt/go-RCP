@@ -3,8 +3,8 @@ package adc
 // Config is an ADC endpoint's functional (type-specific) configuration:
 // resolution, the sample/average/combine model's tunables, and how this
 // channel is expected to be kept sampling continuously. It is stored as an
-// endpoint's server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// endpoint's regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this channel is configured for use. A trigger
 	// or request against a disabled channel is rejected with

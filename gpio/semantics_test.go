@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/gpio"
 	"github.com/SoundMatt/go-RCP/server"
@@ -45,10 +46,10 @@ func newConfiguredEndpoint(t *testing.T, cfg gpio.Config) (*gpio.Endpoint, avtp.
 // write request.
 func writeAndGetValue(t *testing.T, ep *gpio.Endpoint, requester avtp.StreamID, sem gpio.WriteSemantic, operand uint32) uint32 {
 	t.Helper()
-	req := avtp.Message{
-		Kind:      avtp.KindShort,
+	req := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      gpio.EncodeWriteRequest(sem, operand),
 	}
 	resp, err := ep.HandleRequest(requester, req)
@@ -154,10 +155,10 @@ func TestApplyWrite_InvalidSemantic(t *testing.T) {
 	cfg := gpio.Config{PinCount: 4, Direction: 0b1111}
 	ep, root := newConfiguredEndpoint(t, cfg)
 
-	req := avtp.Message{
-		Kind:      avtp.KindShort,
+	req := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      gpio.EncodeWriteRequest(9, 0),
 	}
 	if _, err := ep.HandleRequest(root, req); !errors.Is(err, gpio.ErrInvalidSemantic) {

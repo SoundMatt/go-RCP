@@ -18,7 +18,7 @@
 //
 // # Wire layer: FlagExtended
 //
-// A conditional request is an avtp.Message with avtp.FlagExtended set on
+// A conditional request is an acf.Message with acf.FlagExtended set on
 // Control; Body then begins with this package's own envelope — a Kind byte
 // followed by kind-specific fields (see Kind and the EncodeXxx/DecodeXxx
 // functions in envelope.go and chained.go). A Message without FlagExtended
@@ -99,14 +99,14 @@
 // safe state (see SafeStateCheck and Dispatcher.SetSafeStateCheck); Submit
 // refuses to admit one at all when no SafeStateCheck is configured
 // (ErrSafeStateNotConfigured), the same "opt in explicitly or don't get the
-// mechanism" posture the CRC safe-point mechanism takes (see the crcsafe
+// mechanism" posture the CRC safe-point mechanism takes (see the e2e
 // package). The other new property this milestone adds — no analogue
 // anywhere in the old protocol — is that these three Kinds specifically
 // survive Dispatcher.PurgeNonSafety, the watchdog-driven bulk clear of every
-// other pending ticket a caller invokes once a crcsafe.Supervisor judges a
+// other pending ticket a caller invokes once a e2e.Supervisor judges a
 // stream's request-arrival watchdog has tripped. This package does not
 // itself compute either the safe-state verdict or the watchdog trip
-// condition — both are the new crcsafe package's job; this package only
+// condition — both are the new e2e package's job; this package only
 // consumes them through SafeStateCheck and PurgeNonSafety, mirroring how it
 // already consumes an AccessCheck it does not itself define the policy for.
 //
@@ -115,7 +115,7 @@
 // This package does not implement the CRC32 safe-point wire mechanism
 // itself (envelope-independent — it protects the whole Message, plain
 // requests included, not just conditional-request envelopes) — see the new
-// crcsafe package for that, plus the per-stream watchdog/sequence-
+// e2e package for that, plus the per-stream watchdog/sequence-
 // monotonicity/overflow configuration that decides when to call
 // PurgeNonSafety. It also does not implement multi-AVTPDU fragmentation
 // (ROADMAP.md Milestone 52); a KindChained envelope's segments are still
@@ -127,7 +127,7 @@
 // package was built from a behavioral description of the conditional-
 // request model, not from the primary spec text. Every wire-level choice
 // this package makes — the envelope byte layout in envelope.go/chained.go,
-// claiming avtp.FlagExtended for the envelope marker, the sequencer-
+// claiming acf.FlagExtended for the envelope marker, the sequencer-
 // wraparound arithmetic, the exact split between the mandatory and two
 // optional cancellation variants, and the fixed cross-type priority
 // ordering in Kind.Priority — is this implementation's own reasoned,

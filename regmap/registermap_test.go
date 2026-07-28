@@ -1,11 +1,11 @@
 //fusa:test REQ-RCS-018
 
-package server_test
+package regmap_test
 
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 // TestGeneralBlock_RoundTrips checks EncodeGeneralBlock followed by
@@ -14,10 +14,10 @@ import (
 // the four configuration-table pointers all survive byte-for-byte
 // (REQ-RCS-018).
 func TestGeneralBlock_RoundTrips(t *testing.T) {
-	want := server.GeneralBlock{
+	want := regmap.GeneralBlock{
 		VendorID:                0x11223344,
 		ProductID:               0x55667788,
-		RegisterMapVersion:      server.RegisterMapVersion,
+		RegisterMapVersion:      regmap.RegisterMapVersion,
 		MaxEndpoints:            16,
 		MaxStreams:              4,
 		MaxFunctionalBlockBytes: 256,
@@ -27,8 +27,8 @@ func TestGeneralBlock_RoundTrips(t *testing.T) {
 		EndpointTablePointer:    53,
 	}
 
-	buf := server.EncodeGeneralBlock(want)
-	got, rest, err := server.DecodeGeneralBlock(buf)
+	buf := regmap.EncodeGeneralBlock(want)
+	got, rest, err := regmap.DecodeGeneralBlock(buf)
 	if err != nil {
 		t.Fatalf("DecodeGeneralBlock: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestGeneralBlock_RoundTrips(t *testing.T) {
 // TestDecodeGeneralBlock_ShortBufferError checks a buffer shorter than the
 // fixed general-block length is rejected rather than panicking.
 func TestDecodeGeneralBlock_ShortBufferError(t *testing.T) {
-	_, _, err := server.DecodeGeneralBlock(make([]byte, 5))
+	_, _, err := regmap.DecodeGeneralBlock(make([]byte, 5))
 	if err == nil {
 		t.Fatal("DecodeGeneralBlock on a short buffer: got nil error, want one")
 	}

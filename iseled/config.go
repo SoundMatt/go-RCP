@@ -6,8 +6,8 @@ import "encoding/binary"
 // it models a single daisy chain (see doc.go's Scope section), the number
 // of devices on it, and the timeout the controller waits for a device's
 // response before giving up. It is stored as an endpoint's
-// server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint's chain is configured for use.
 	// A command against a disabled chain is rejected with

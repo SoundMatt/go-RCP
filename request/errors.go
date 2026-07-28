@@ -35,7 +35,7 @@ var (
 var (
 	// ErrNotExtended is returned by Submit when a caller explicitly asks for
 	// conditional-request decoding (DecodeAny) on a Message that does not
-	// have avtp.FlagExtended set — there is no envelope to decode.
+	// have acf.FlagExtended set — there is no envelope to decode.
 	ErrNotExtended = errors.New("rcp/request: message does not carry the FlagExtended conditional-request envelope")
 
 	// ErrUnknownTicket is returned when a caller addresses a TicketID this

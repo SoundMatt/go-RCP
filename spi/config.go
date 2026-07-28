@@ -54,8 +54,8 @@ func decodeChannelConfig(b []byte) (ChannelConfig, error) {
 // Config is a SPI endpoint's functional (type-specific) configuration: one
 // ChannelConfig per chip-select channel, always exactly MaxChannels slots
 // (unused channels simply left Enabled=false). It is stored as an
-// endpoint's server.FunctionalBlock.Data (see Endpoint.SetChannelConfig) —
-// the generic/functional register-map split server/registermap.go
+// endpoint's regmap.FunctionalBlock.Data (see Endpoint.SetChannelConfig) —
+// the generic/functional register-map split regmap/registermap.go
 // establishes.
 type Config struct {
 	Channels [MaxChannels]ChannelConfig

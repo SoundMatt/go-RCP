@@ -1,15 +1,15 @@
 package gpio
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
 // MaxPins is the largest number of independently configured pins one GPIO
 // endpoint may declare, per ROADMAP.md Milestone 47.
 const MaxPins = 32
 
-// EndpointType re-exports server.EndpointTypeGPIO so a caller that only
+// EndpointType re-exports regmap.EndpointTypeGPIO so a caller that only
 // imports this package doesn't also need to import server just to declare a
 // GPIO endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeGPIO
+const EndpointType = regmap.EndpointTypeGPIO
 
 // WriteSemantic selects how an incoming GPIO write request's operand bitmask
 // combines with the endpoint's current pin state. See doc.go's spec-fidelity

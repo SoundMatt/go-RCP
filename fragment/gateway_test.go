@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/fragment"
 	"github.com/SoundMatt/go-RCP/request"
@@ -16,15 +17,15 @@ import (
 // echoHandler is a minimal request.Handler test double recording the
 // (fully reassembled) request it was handed and echoing its Body back.
 type echoHandler struct {
-	got avtp.Message
+	got acf.Message
 	n   int
 }
 
-func (h *echoHandler) HandleRequest(_ avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (h *echoHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
 	h.got = req
 	h.n++
 	resp := req
-	resp.Control = avtp.FlagResponse
+	resp.Control = acf.FlagResponse
 	return resp, nil
 }
 
@@ -42,7 +43,7 @@ func newGatewayFixture() (*fragment.Gateway, *echoHandler, *request.Dispatcher) 
 func TestGateway_Submit_PassesUnfragmentedRequestThrough(t *testing.T) {
 	gw, h, d := newGatewayFixture()
 	stream := testStream()
-	req := avtp.Message{ByteBusID: 1, TransactionNum: 1, Control: avtp.FlagWrite, Body: []byte{0x01, 0x02}}
+	req := acf.Message{ByteBusID: 1, TransactionNum: 1, Control: acf.FlagWrite, Body: []byte{0x01, 0x02}}
 
 	id, err := gw.Submit(stream, req)
 	if err != nil {
@@ -70,7 +71,7 @@ func TestGateway_Submit_ReassemblesBeforeDispatching(t *testing.T) {
 	gw, h, d := newGatewayFixture()
 	stream := testStream()
 	body := bytes.Repeat([]byte{0x07}, 35)
-	original := avtp.Message{ByteBusID: 1, TransactionNum: 2, Control: avtp.FlagWrite, Body: body}
+	original := acf.Message{ByteBusID: 1, TransactionNum: 2, Control: acf.FlagWrite, Body: body}
 
 	segs, err := fragment.Split(original, 10)
 	if err != nil {
@@ -112,7 +113,7 @@ func TestGateway_Submit_ReassemblesBeforeDispatching(t *testing.T) {
 func TestGateway_Response_SplitsLargeResponse(t *testing.T) {
 	gw, _, _ := newGatewayFixture()
 
-	small := avtp.Message{Body: []byte{0x01, 0x02}}
+	small := acf.Message{Body: []byte{0x01, 0x02}}
 	segs, err := gw.Response(small)
 	if err != nil {
 		t.Fatalf("Response(small): %v", err)
@@ -121,7 +122,7 @@ func TestGateway_Response_SplitsLargeResponse(t *testing.T) {
 		t.Fatalf("Response(small) = %+v, want unchanged single segment", segs)
 	}
 
-	large := avtp.Message{Body: bytes.Repeat([]byte{0x09}, 25)}
+	large := acf.Message{Body: bytes.Repeat([]byte{0x09}, 25)}
 	segs, err = gw.Response(large)
 	if err != nil {
 		t.Fatalf("Response(large): %v", err)

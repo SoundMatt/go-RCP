@@ -4243,7 +4243,7 @@
     {
       "id": "REQ-CRC-001",
       "title": "Compute covers stream addressing, message addressing/timestamp fields, and the whole message",
-      "text": "crcsafe.Compute shall be deterministic for a given (stream, Message) pair, and shall produce a different CRC32 value when the stream, ByteBusID, TransactionNum, Control, ReadSizeOrSegment, Timestamp, or Body of its input changes.",
+      "text": "e2e.Compute shall be deterministic for a given (stream, Message) pair, and shall produce a different CRC32 value when the stream, ByteBusID, TransactionNum, Control, ReadSizeOrSegment, Timestamp, or Body of its input changes.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4251,7 +4251,7 @@
     {
       "id": "REQ-CRC-002",
       "title": "Protect/Verify round-trip a message through a trailing CRC32 safe point",
-      "text": "crcsafe.Protect shall append a Len-byte trailing CRC32 safe point to a Message's Body computed by Compute over the message as given, and crcsafe.Verify shall strip and validate that trailing field, returning a Message with Body restored to its original contents when the safe point is valid.",
+      "text": "e2e.Protect shall append a Len-byte trailing CRC32 safe point to a Message's Body computed by Compute over the message as given, and e2e.Verify shall strip and validate that trailing field, returning a Message with Body restored to its original contents when the safe point is valid.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4259,7 +4259,7 @@
     {
       "id": "REQ-CRC-003",
       "title": "Verify rejects a short or mismatched safe point without exposing a usable message",
-      "text": "crcsafe.Verify shall report ErrShortSafePoint when a message's Body is shorter than Len, and shall report ErrCRCMismatch without returning a usable inner message when the trailing CRC32 does not match the CRC recomputed over any covered field, including a tampered payload byte with an otherwise-intact trailing CRC.",
+      "text": "e2e.Verify shall report ErrShortSafePoint when a message's Body is shorter than Len, and shall report ErrCRCMismatch without returning a usable inner message when the trailing CRC32 does not match the CRC recomputed over any covered field, including a tampered payload byte with an otherwise-intact trailing CRC.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4267,7 +4267,7 @@
     {
       "id": "REQ-CRC-004",
       "title": "ComputeFragmented matches Compute over an equivalent reassembled single message",
-      "text": "crcsafe.ComputeFragmented, given a shared header and a slice of per-segment Body byte slices, shall produce exactly the CRC32 that crcsafe.Compute would produce for a single message carrying the same header with Body set to every segment's Body concatenated in order.",
+      "text": "e2e.ComputeFragmented, given a shared header and a slice of per-segment Body byte slices, shall produce exactly the CRC32 that e2e.Compute would produce for a single message carrying the same header with Body set to every segment's Body concatenated in order.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4275,7 +4275,7 @@
     {
       "id": "REQ-CRC-005",
       "title": "Guard skips the wrapped Handler on a CRC failure and re-Protects a successful response",
-      "text": "crcsafe.Guard.HandleRequest shall not call its wrapped request.Handler and shall return ErrCRCMismatch when the inbound message's safe point fails Verify, and shall call the wrapped Handler with the Verify-recovered inner message and return that Handler's response re-Protected with a fresh safe point when the inbound safe point is valid.",
+      "text": "e2e.Guard.HandleRequest shall not call its wrapped request.Handler and shall return ErrCRCMismatch when the inbound message's safe point fails Verify, and shall call the wrapped Handler with the Verify-recovered inner message and return that Handler's response re-Protected with a fresh safe point when the inbound safe point is valid.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4283,7 +4283,7 @@
     {
       "id": "REQ-CRC-006",
       "title": "Supervisor.Observe enforces configured sequence monotonicity and overflow wraparound",
-      "text": "crcsafe.Supervisor.Observe shall report an error wrapping ErrSequenceViolation and sticky-trip that stream when StreamConfig.RequireMonotonicSequence is set and an arrival's sequence number does not strictly follow the previous one, shall accept a wraparound from the maximum uint32 value to zero when SequenceOverflowWraps is also set, and shall always rearm the stream's inter-arrival timeout clock regardless of whether a violation was recorded.",
+      "text": "e2e.Supervisor.Observe shall report an error wrapping ErrSequenceViolation and sticky-trip that stream when StreamConfig.RequireMonotonicSequence is set and an arrival's sequence number does not strictly follow the previous one, shall accept a wraparound from the maximum uint32 value to zero when SequenceOverflowWraps is also set, and shall always rearm the stream's inter-arrival timeout clock regardless of whether a violation was recorded.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4291,7 +4291,7 @@
     {
       "id": "REQ-CRC-007",
       "title": "Supervisor.InSafeState reflects inter-arrival Timeout on its injectable clock",
-      "text": "crcsafe.Supervisor.InSafeState shall report true for a stream Observe has never been called for, false immediately after a qualifying Observe call, and true again once the stream's configured Timeout has elapsed since its last Observe call, all measured against the Supervisor's injectable clock function.",
+      "text": "e2e.Supervisor.InSafeState shall report true for a stream Observe has never been called for, false immediately after a qualifying Observe call, and true again once the stream's configured Timeout has elapsed since its last Observe call, all measured against the Supervisor's injectable clock function.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4299,7 +4299,7 @@
     {
       "id": "REQ-CRC-008",
       "title": "Supervisor.CheckFunc matches InSafeState and Reset clears a sticky trip",
-      "text": "crcsafe.Supervisor.CheckFunc's returned request.SafeStateCheck shall report exactly the same boolean InSafeState reports for the same stream at the same call, and Supervisor.Reset shall clear a stream's sticky monotonicity-violation trip and rearm its timeout clock from the moment Reset is called.",
+      "text": "e2e.Supervisor.CheckFunc's returned request.SafeStateCheck shall report exactly the same boolean InSafeState reports for the same stream at the same call, and Supervisor.Reset shall clear a stream's sticky monotonicity-violation trip and rearm its timeout clock from the moment Reset is called.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4307,7 +4307,7 @@
     {
       "id": "REQ-CRC-009",
       "title": "Supervisor-driven safe-state gating and watchdog purge integrate correctly with Dispatcher",
-      "text": "Wiring a crcsafe.Supervisor's CheckFunc into a request.Dispatcher's SetSafeStateCheck, and calling Dispatcher.PurgeNonSafety once Supervisor.InSafeState reports true for a stream, shall finalize that Dispatcher's ordinary pending tickets for that stream with ErrPurgedByWatchdog while leaving a submitted safety-request ticket pending until InSafeState itself reports true, at which point that surviving ticket shall execute normally on the next Pump call.",
+      "text": "Wiring a e2e.Supervisor's CheckFunc into a request.Dispatcher's SetSafeStateCheck, and calling Dispatcher.PurgeNonSafety once Supervisor.InSafeState reports true for a stream, shall finalize that Dispatcher's ordinary pending tickets for that stream with ErrPurgedByWatchdog while leaving a submitted safety-request ticket pending until InSafeState itself reports true, at which point that surviving ticket shall execute normally on the next Pump call.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4730,8 +4730,8 @@
     },
     {
       "id": "REQ-FRAG-009",
-      "title": "FinishProtected verifies a fragmented message's CRC32 safe point via crcsafe.ComputeFragmented",
-      "text": "fragment.Reassembler.FinishProtected shall recompute the trailing CRC32 safe point of a completed sequence's terminal segment via crcsafe.ComputeFragmented over the sequence's own per-segment Body slices, returning the reassembled Message with that field stripped on a match, wrapping crcsafe.ErrCRCMismatch on a mismatch, and returning crcsafe.ErrShortSafePoint when the terminal segment's Body is too short to contain one \u2014 matching what crcsafe.Verify computes for the same logical message sent unfragmented.",
+      "title": "FinishProtected verifies a fragmented message's CRC32 safe point via e2e.ComputeFragmented",
+      "text": "fragment.Reassembler.FinishProtected shall recompute the trailing CRC32 safe point of a completed sequence's terminal segment via e2e.ComputeFragmented over the sequence's own per-segment Body slices, returning the reassembled Message with that field stripped on a match, wrapping e2e.ErrCRCMismatch on a mismatch, and returning e2e.ErrShortSafePoint when the terminal segment's Body is too short to contain one \u2014 matching what e2e.Verify computes for the same logical message sent unfragmented.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4771,7 +4771,7 @@
     {
       "id": "REQ-WDG-002",
       "title": "Tick performs no purge for a stream whose watchdog has not tripped",
-      "text": "watchdog.Keeper.Tick shall not call PurgeNonSafety on any Dispatcher registered under a stream for which the configured crcsafe.Supervisor's InSafeState currently reports false, and shall not include that stream in its returned PurgeEvent slice.",
+      "text": "watchdog.Keeper.Tick shall not call PurgeNonSafety on any Dispatcher registered under a stream for which the configured e2e.Supervisor's InSafeState currently reports false, and shall not include that stream in its returned PurgeEvent slice.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4779,7 +4779,7 @@
     {
       "id": "REQ-WDG-003",
       "title": "Tick purges non-safety tickets on every Dispatcher registered under a tripped stream",
-      "text": "watchdog.Keeper.Tick shall call PurgeNonSafety on every Dispatcher registered against a stream for which the configured crcsafe.Supervisor's InSafeState currently reports true, leaving every safety-request ticket on that Dispatcher untouched and leaving every Dispatcher registered only against untripped streams untouched.",
+      "text": "watchdog.Keeper.Tick shall call PurgeNonSafety on every Dispatcher registered against a stream for which the configured e2e.Supervisor's InSafeState currently reports true, leaving every safety-request ticket on that Dispatcher untouched and leaving every Dispatcher registered only against untripped streams untouched.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

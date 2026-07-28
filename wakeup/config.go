@@ -5,9 +5,9 @@ import "encoding/binary"
 // Config is a Wakeup endpoint's functional (type-specific) configuration:
 // whether it is enabled, and the pacing/count of the repeating
 // wake-handshake message a wake from PowerSleep produces (see doc.go). It
-// is stored as an endpoint's server.FunctionalBlock.Data (see
+// is stored as an endpoint's regmap.FunctionalBlock.Data (see
 // Endpoint.Configure) — the generic/functional register-map split
-// server/registermap.go establishes.
+// regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint is configured for use. A
 	// request against a disabled endpoint is rejected with

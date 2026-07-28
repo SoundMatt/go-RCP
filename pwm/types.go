@@ -1,15 +1,15 @@
 package pwm
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypePWM so a caller that only
+// EndpointType re-exports regmap.EndpointTypePWM so a caller that only
 // imports this package doesn't also need to import server just to declare a
 // PWM endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypePWM
+const EndpointType = regmap.EndpointTypePWM
 
 // Role selects whether one PWM endpoint generates an output waveform or
 // measures an incoming one. Unlike gpio's per-pin Direction, Role is a
-// whole-endpoint setting: server/types.go's PWM signal list names a single
+// whole-endpoint setting: regmap/types.go's PWM signal list names a single
 // "OUT" signal, since PWM input observes the same physical pin in a
 // different mode rather than adding a second signal.
 type Role uint8

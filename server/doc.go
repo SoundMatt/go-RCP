@@ -1,74 +1,102 @@
-// Package server implements the RC Server configuration lifecycle and
-// register map for the OPEN Alliance TC18 Remote Control Protocol (RCP), as
-// described by the "OPEN Alliance TC18 Remote Control Protocol
-// Specification v0.5.1_RC".
+// Package server implements the RC Server for the OPEN Alliance TC18 Remote
+// Control Protocol (RCP), as described by the "OPEN Alliance TC18 Remote
+// Control Protocol Specification v0.5.1_RC": the Server type that composes
+// the lifecycle package's state machine, the regmap package's register-map
+// model, and the discovery package's discovery mechanism into the single
+// lifecycle-gated, access-controlled read/write surface a client interacts
+// with.
 //
 // This package is the Phase 13 (v0.58.0) layer built directly on top of the
 // avtp package's wire format (see ROADMAP.md, Part II, Milestone 45):
 // avtp.ByteBusID is the addressing unit the register map and EP0 organize
 // around, avtp.StreamID is what the root-client/restricted-stream access
-// model keys off of, and avtp.Message's Read/Write/Response control flags
+// model keys off of, and acf.Message's Read/Write/Response control flags
 // are the request/response shape register operations are expected to ride
 // on once a later milestone wires this package to the wire-format layer.
-// This package does not itself encode/decode avtp.Message or avtp.Frame —
+// This package does not itself encode/decode acf.Message or acf.Frame —
 // it stops at producing and consuming the register-map byte buffers those
 // messages would carry as their Body.
 //
+// # A note on this package's shape (RELAY spec v1.14 §13.7.2)
+//
+// Through v0.66.0 this package directly implemented the lifecycle state
+// machine, the register-map model, and the discovery mechanism all in one.
+// RELAY spec v1.14's §13.7.2 cross-language module-name registry
+// distinguishes those as three separate concerns — naming them
+// `lifecycle`, `regmap`, and `discovery` — and cpp-RCP, rust-RCP, and
+// c-RCP already split them into three modules on that basis, so this
+// package's own data model and pure logic moved out into the three sibling
+// packages of those names to match. What remains here — the Server type,
+// its mutex, and every method below — is the composition and orchestration
+// those three packages deliberately do not do themselves: Server is the
+// only thing in this repo that holds a lifecycle.LifecycleState, a
+// *regmap.RegisterMap, a *regmap.AccessController, and a discovery.Claim
+// together and enforces the rules that span more than one of them (e.g.
+// AdvanceToHWLocked's guard reads both the current LifecycleState and the
+// RegisterMap's PinMap; WriteEP0 checks AccessController before touching
+// the RegisterMap at all). This mirrors the composition shape
+// ROADMAP.md's other satellite packages already use (e.g. watchdog
+// orchestrating e2e.Supervisor without owning its data model).
+//
 // # Lifecycle
 //
-// A Server has exactly three configuration states (see LifecycleState):
-// StateUnconfigured, StateHWLocked, and StateFullyConfigured. It only ever
+// A Server has exactly three configuration states (see
+// lifecycle.LifecycleState): lifecycle.StateUnconfigured,
+// lifecycle.StateHWLocked, and lifecycle.StateFullyConfigured. It only ever
 // advances forward, one state at a time, and only through a guard that
 // rejects an implausible configuration rather than silently accepting it —
 // see Server.AdvanceToHWLocked and Server.AdvanceToFullyConfigured. Once a
 // register field's lock class closes for the current state, it stays
 // closed for every requester for the rest of that server's lifetime,
-// including the root client (see the register-locking errors in errors.go).
+// including the root client (see regmap's register-locking errors).
 //
 // # Register-map structure
 //
-// The map splits, per endpoint, into two independent blocks: a
-// GenericEndpointBlock the server itself owns (address, declared type,
-// enabled flag), and that endpoint's own FunctionalBlock (opaque,
+// The map (regmap.RegisterMap) splits, per endpoint, into two independent
+// blocks: a GenericEndpointBlock the server itself owns (address, declared
+// type, enabled flag), and that endpoint's own FunctionalBlock (opaque,
 // type-specific configuration bytes this milestone doesn't interpret — see
 // the "explicit non-goal" section below). Alongside the per-endpoint
 // entries, the map carries one GeneralBlock (identification, protocol
 // version, capability/capacity counters, and table pointers), one PinMap
 // (the HW pin-mapping table), one StreamLimits table, and one QueueConfig
-// table. EncodeRegisterMap/DecodeRegisterMap serialize the whole structure
-// to and from a single contiguous buffer; GeneralBlock's own pointer fields
-// are always recomputed at encode time rather than trusted from the
-// caller, mirroring how avtp.EncodeFrame recomputes Header.DataLength
-// instead of accepting a value that could drift from the truth.
+// table. regmap.EncodeRegisterMap/regmap.DecodeRegisterMap serialize the
+// whole structure to and from a single contiguous buffer; GeneralBlock's
+// own pointer fields are always recomputed at encode time rather than
+// trusted from the caller, mirroring how acf.EncodeFrame recomputes
+// Header.DataLength instead of accepting a value that could drift from the
+// truth.
 //
 // # EP0 and the root client
 //
-// EP0 (byte_bus_id 0, see the EP0 constant) addresses the server itself as
-// a pseudo-endpoint: Server.ReadEP0/Server.WriteEP0 operate on the whole
-// register map rather than one endpoint's registers. Exactly one stream may
-// hold the root-client role at a time (AccessController.ClaimRoot); it has
-// full-register access, while every other stream is restricted to only the
-// endpoints an operator has explicitly granted it (AccessController.Grant).
-// This milestone (45) treats EP0 itself as subject to that same grant
-// requirement for a restricted stream. Milestone 46 (Discovery, see
-// discovery.go) layers its own universal, grant-independent,
-// lifecycle-state-independent read of register 0 on top of this package —
-// Server.ReadDiscovery and Server.HandleDiscoveryRequest — plus a
-// timeout-releasable Discovery-stream configuration claim
-// (Server.ClaimConfiguration) that coexists with, but is distinct from, the
-// root-client claim described above; see AccessController's doc comment and
-// discovery.go's package-level notes.
+// EP0 (byte_bus_id 0, see the regmap.EP0 constant) addresses the server
+// itself as a pseudo-endpoint: Server.ReadEP0/Server.WriteEP0 operate on
+// the whole register map rather than one endpoint's registers. Exactly one
+// stream may hold the root-client role at a time
+// (regmap.AccessController.ClaimRoot); it has full-register access, while
+// every other stream is restricted to only the endpoints an operator has
+// explicitly granted it (regmap.AccessController.Grant). This milestone
+// (45) treats EP0 itself as subject to that same grant requirement for a
+// restricted stream. Milestone 46 (Discovery, see discovery.go) layers its
+// own universal, grant-independent, lifecycle-state-independent read of
+// register 0 on top of this package — Server.ReadDiscovery and
+// Server.HandleDiscoveryRequest — plus a timeout-releasable
+// Discovery-stream configuration claim (Server.ClaimConfiguration) that
+// coexists with, but is distinct from, the root-client claim described
+// above; see regmap.AccessController's doc comment and discovery/doc.go's
+// package-level notes.
 //
 // # Discovery (Milestone 46)
 //
-// discovery.go and discovery_client.go add: a register-0 read
-// (ReadDiscovery) answerable in any LifecycleState and regardless of
-// AccessController grants; HandleDiscoveryRequest, which additionally
-// enforces that a discovery request arrived on the untimed (NTSCF) AVTPDU
-// header, dropping a timestamped (TSCF) one outright; ClaimConfiguration
-// and its companion ConfigurationClaimant/ReleaseConfigurationClaim, a
-// configurable-timeout reservation of configuration rights scoped to one
-// stream at a time, independent of AccessController.ClaimRoot; and
+// discovery.go adds: a register-0 read (Server.ReadDiscovery) answerable in
+// any LifecycleState and regardless of AccessController grants;
+// Server.HandleDiscoveryRequest, which additionally enforces that a
+// discovery request arrived on the untimed (NTSCF) AVTPDU header, dropping
+// a timestamped (TSCF) one outright; Server.ClaimConfiguration and its
+// companion Server.ConfigurationClaimant/Server.ReleaseConfigurationClaim,
+// a configurable-timeout reservation of configuration rights scoped to one
+// stream at a time, independent of AccessController.ClaimRoot. The
+// discovery package itself additionally provides
 // IsConformantServer/Topology/DiscoverTopology/WriteTopology/ReadTopology,
 // client-side helpers for recognizing a conformant server from a discovery
 // response and persisting its topology so re-discovery isn't mandatory
@@ -76,13 +104,13 @@
 //
 // # HW pin mapping and named signals
 //
-// PinMap binds physical pins to a (endpoint, named-signal-index) pair; it
-// is writable only in StateUnconfigured and is the subject of
-// AdvanceToHWLocked's plausibility check (no duplicate pin claims, no
-// reference to an undeclared endpoint, no signal index out of range for
-// that endpoint's declared EndpointType). See SignalName and its
-// surrounding doc comment in types.go for this package's own named-signal
-// scheme and the spec-fidelity caveat around it.
+// regmap.PinMap binds physical pins to a (endpoint, named-signal-index)
+// pair; it is writable only in lifecycle.StateUnconfigured and is the
+// subject of AdvanceToHWLocked's plausibility check (no duplicate pin
+// claims, no reference to an undeclared endpoint, no signal index out of
+// range for that endpoint's declared EndpointType). See
+// regmap.SignalName and its surrounding doc comment for this package's own
+// named-signal scheme and the spec-fidelity caveat around it.
 //
 // # Explicit non-goal
 //
@@ -119,18 +147,17 @@
 // package was built from a behavioral description of the RC Server
 // lifecycle and register map, not from the primary spec text. Its register
 // byte layouts (GeneralBlock's field order and widths, the pin-mapping
-// entry format, the named-signal-index scheme in types.go) are this
-// implementation's own reasoned, self-consistent encoding rather than a
-// verified transcription of the published register addresses — the same
-// open-item posture avtp/doc.go documents for its subtype tags. Structural
-// behaviour — the three-state lifecycle, the generic/functional split,
-// EP0's root-client model, and the plausibility checks gating each
-// transition — is what this milestone targets and tests; the precise wire
-// byte assignments are flagged here as pending confirmation against a
-// public interoperability reference, consistent with this repo's
-// established practice of surfacing spec ambiguity rather than silently
-// guessing (see also the I²C bus-speed-enum note referenced at Milestone
-// 48).
+// entry format, the named-signal-index scheme) are this implementation's
+// own reasoned, self-consistent encoding rather than a verified
+// transcription of the published register addresses — the same open-item
+// posture avtp/doc.go documents for its subtype tags. Structural behaviour
+// — the three-state lifecycle, the generic/functional split, EP0's
+// root-client model, and the plausibility checks gating each transition —
+// is what this milestone targets and tests; the precise wire byte
+// assignments are flagged here as pending confirmation against a public
+// interoperability reference, consistent with this repo's established
+// practice of surfacing spec ambiguity rather than silently guessing (see
+// also the I²C bus-speed-enum note referenced at Milestone 48).
 package server
 
 //fusa:req REQ-RCS-001

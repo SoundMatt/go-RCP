@@ -71,7 +71,7 @@ type streamState struct {
 // Monitor tracks per-stream liveness purely from caller-reported signal
 // arrivals (ObserveTrigger, ObserveHeartbeat) and a configured Deadline — no
 // goroutine, no timer of its own, every verdict computed lazily against this
-// Monitor's injectable clock, the same posture crcsafe.Supervisor already
+// Monitor's injectable clock, the same posture e2e.Supervisor already
 // establishes for its own request-arrival timeout. All exported methods are
 // safe for concurrent use.
 type Monitor struct {
@@ -90,7 +90,7 @@ func NewMonitor(cfg Config) (*Monitor, error) {
 
 // NewMonitorWithClock is like NewMonitor but accepts a custom clock
 // function, used in tests to avoid real-time sleeps when exercising
-// Deadline — the same injectable-clock pattern crcsafe.NewSupervisorWithClock
+// Deadline — the same injectable-clock pattern e2e.NewSupervisorWithClock
 // establishes.
 func NewMonitorWithClock(cfg Config, now func() time.Time) (*Monitor, error) {
 	if err := cfg.Validate(); err != nil {
@@ -114,7 +114,7 @@ func (m *Monitor) ObserveTrigger(stream avtp.StreamID) {
 }
 
 // ObserveHeartbeat records that a caller received a response-queue heartbeat
-// (server.QueueConfig.HeartbeatIntervalMillis) attributable to stream right
+// (regmap.QueueConfig.HeartbeatIntervalMillis) attributable to stream right
 // now, per this Monitor's clock. Unlike ObserveTrigger, this alone never
 // produces LivenessAlive — only LivenessIdle at best — since a heartbeat
 // only proves the link/queue is up, not that anything is actually

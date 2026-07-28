@@ -5,8 +5,8 @@ import "encoding/binary"
 // Config is a UART endpoint's functional (type-specific) configuration,
 // shared by its independent TX and RX request handling — see doc.go's Scope
 // section for why one block covers both directions. It is stored as an
-// endpoint's server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// endpoint's regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint is configured for use. A TX or
 	// RX request against a disabled endpoint is rejected with
@@ -27,7 +27,7 @@ type Config struct {
 	StopBits StopBits
 
 	// FlowControl reports whether RTS/CTS hardware flow control is in use
-	// (see server/types.go's UART signal list, which names RTS/CTS alongside
+	// (see regmap/types.go's UART signal list, which names RTS/CTS alongside
 	// TX/RX).
 	FlowControl bool
 

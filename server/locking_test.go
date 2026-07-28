@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 // TestSetPinAssignment_LockedAfterHWLock checks the pin-mapping table
@@ -20,8 +20,8 @@ func TestSetPinAssignment_LockedAfterHWLock(t *testing.T) {
 	s := newRootServer(t, root)
 	advanceToHWLocked(t, s, root, 1)
 
-	err := s.SetPinAssignment(root, server.PinAssignment{Pin: 20, Endpoint: 1, SignalIndex: 0})
-	if !errors.Is(err, server.ErrRegisterLocked) {
+	err := s.SetPinAssignment(root, regmap.PinAssignment{Pin: 20, Endpoint: 1, SignalIndex: 0})
+	if !errors.Is(err, regmap.ErrRegisterLocked) {
 		t.Fatalf("SetPinAssignment after HW lock = %v, want ErrRegisterLocked", err)
 	}
 }
@@ -37,20 +37,20 @@ func TestWriteFunctional_LockedAfterFullyConfigured(t *testing.T) {
 	if err := s.WriteFunctional(root, 1, []byte{0x01}); err != nil {
 		t.Fatalf("WriteFunctional (pre-lock): %v", err)
 	}
-	if err := s.SetQueueConfig(root, server.QueueConfig{FlushThreshold: 1}); err != nil {
+	if err := s.SetQueueConfig(root, regmap.QueueConfig{FlushThreshold: 1}); err != nil {
 		t.Fatalf("SetQueueConfig: %v", err)
 	}
 	if err := s.AdvanceToFullyConfigured(); err != nil {
 		t.Fatalf("AdvanceToFullyConfigured: %v", err)
 	}
 
-	if err := s.WriteFunctional(root, 1, []byte{0x02}); !errors.Is(err, server.ErrRegisterLocked) {
+	if err := s.WriteFunctional(root, 1, []byte{0x02}); !errors.Is(err, regmap.ErrRegisterLocked) {
 		t.Fatalf("WriteFunctional (root, post-lock) = %v, want ErrRegisterLocked", err)
 	}
 
 	restricted := avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x66}, 2)
 	s.Grant(restricted, 1)
-	if err := s.WriteFunctional(restricted, 1, []byte{0x03}); !errors.Is(err, server.ErrRegisterLocked) {
+	if err := s.WriteFunctional(restricted, 1, []byte{0x03}); !errors.Is(err, regmap.ErrRegisterLocked) {
 		t.Fatalf("WriteFunctional (granted stream, post-lock) = %v, want ErrRegisterLocked", err)
 	}
 }
@@ -67,14 +67,14 @@ func TestWriteEP0_RejectsGeneralBlockChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadEP0: %v", err)
 	}
-	m, err := server.DecodeRegisterMap(buf)
+	m, err := regmap.DecodeRegisterMap(buf)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap: %v", err)
 	}
 	m.General.VendorID = m.General.VendorID + 1 // tamper with an identity field
 
-	err = s.WriteEP0(root, server.EncodeRegisterMap(m))
-	if !errors.Is(err, server.ErrGeneralBlockReadOnly) {
+	err = s.WriteEP0(root, regmap.EncodeRegisterMap(m))
+	if !errors.Is(err, regmap.ErrGeneralBlockReadOnly) {
 		t.Fatalf("WriteEP0 with tampered general block = %v, want ErrGeneralBlockReadOnly", err)
 	}
 }

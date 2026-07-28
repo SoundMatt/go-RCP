@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/fragment"
 )
@@ -15,7 +16,7 @@ import (
 //
 // These fixtures pin the exact wire bytes a representative multi-segment
 // Split produces once each returned segment is itself encoded via
-// avtp.EncodeMessage, so later work regression-tests against a frozen
+// acf.EncodeMessage, so later work regression-tests against a frozen
 // combination of this package's segmenting policy and avtp's already-frozen
 // message encoding, the same posture can/golden_test.go and
 // uart/golden_test.go established for their own packages.
@@ -23,11 +24,11 @@ import (
 // goldenOriginal is a 12-byte KindShort write request split at a 5-byte
 // per-segment budget: two non-terminal 5-byte segments plus a 2-byte
 // terminal one.
-var goldenOriginal = avtp.Message{
-	Kind:              avtp.KindShort,
+var goldenOriginal = acf.Message{
+	Kind:              acf.KindShort,
 	ByteBusID:         avtp.ByteBusID(9),
 	TransactionNum:    0x0102,
-	Control:           avtp.FlagWrite,
+	Control:           acf.FlagWrite,
 	ReadSizeOrSegment: 0,
 	Body:              []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
 }
@@ -66,7 +67,7 @@ func TestGolden_Split(t *testing.T) {
 		t.Fatalf("Split produced %d segments, want %d", len(segs), len(want))
 	}
 	for i, seg := range segs {
-		got, err := avtp.EncodeMessage(seg)
+		got, err := acf.EncodeMessage(seg)
 		if err != nil {
 			t.Fatalf("EncodeMessage(segment %d): %v", i, err)
 		}
@@ -80,7 +81,7 @@ func TestGolden_ReassembleFromEncodedSegments(t *testing.T) {
 	stream := testStream()
 	re := fragment.NewReassembler(fragment.Config{})
 	for i, raw := range [][]byte{goldenSegment0, goldenSegment1, goldenSegment2} {
-		msg, err := avtp.DecodeMessage(raw)
+		msg, err := acf.DecodeMessage(raw)
 		if err != nil {
 			t.Fatalf("DecodeMessage(golden segment %d): %v", i, err)
 		}

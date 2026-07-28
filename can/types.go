@@ -1,11 +1,11 @@
 package can
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeCAN so a caller that only
+// EndpointType re-exports regmap.EndpointTypeCAN so a caller that only
 // imports this package doesn't also need to import server just to declare a
 // CAN endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeCAN
+const EndpointType = regmap.EndpointTypeCAN
 
 // Format selects which CAN frame format a Frame uses. See doc.go's Scope
 // section for each format's payload cap and extra fields.

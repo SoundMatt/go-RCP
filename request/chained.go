@@ -3,14 +3,14 @@ package request
 import (
 	"encoding/binary"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/acf"
 )
 
 // ChainedSegment is one sub-request packed inside a KindChained envelope:
 // the Control flags (Read/Write/etc.) and Body an equivalent Plain request
 // to the same endpoint would carry.
 type ChainedSegment struct {
-	Control avtp.ControlFlags
+	Control acf.ControlFlags
 	Body    []byte
 }
 
@@ -63,7 +63,7 @@ func DecodeChained(body []byte) ([]ChainedSegment, error) {
 		if len(body) < off+3 {
 			return nil, ErrShortBuffer
 		}
-		control := avtp.ControlFlags(body[off])
+		control := acf.ControlFlags(body[off])
 		segLen := int(binary.BigEndian.Uint16(body[off+1 : off+3]))
 		off += 3
 		if len(body) < off+segLen {

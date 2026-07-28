@@ -11,25 +11,26 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/uart"
 )
 
-func writeReq(tx []byte) avtp.Message {
-	return avtp.Message{
-		Kind:      avtp.KindShort,
+func writeReq(tx []byte) acf.Message {
+	return acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      uart.EncodeWriteRequest(tx),
 	}
 }
 
-func readReq(want uint16) avtp.Message {
-	return avtp.Message{
-		Kind:              avtp.KindShort,
+func readReq(want uint16) acf.Message {
+	return acf.Message{
+		Kind:              acf.KindShort,
 		ByteBusID:         avtp.ByteBusID(1),
-		Control:           avtp.FlagRead,
+		Control:           acf.FlagRead,
 		ReadSizeOrSegment: want,
 	}
 }
@@ -81,7 +82,7 @@ func TestHandleRequest_RoutesReadWriteRejectsNeither(t *testing.T) {
 		t.Errorf("read = (complete=%v, % X), want (true, 01 02) [TX loopback into RX]", complete, data)
 	}
 
-	noFlags := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	noFlags := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1)}
 	if _, err := ep.HandleRequest(root, noFlags); !errors.Is(err, uart.ErrRequestMustReadOrWrite) {
 		t.Errorf("HandleRequest(no flags) err = %v, want ErrRequestMustReadOrWrite", err)
 	}
@@ -111,8 +112,8 @@ func TestHandleRequest_WrongEndpointNoAccessNotConfigured(t *testing.T) {
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	if _, err := ep.HandleRequest(stranger, writeReq(nil)); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	if _, err := ep.HandleRequest(stranger, writeReq(nil)); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 
 	unconfigured, root2 := newDeclaredEndpoint(t)

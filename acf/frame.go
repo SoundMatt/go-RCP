@@ -1,6 +1,13 @@
-package avtp
+package acf
 
-// Frame is a full AVTPDU carrying exactly one RCP-over-ACF message. Packing
+import "github.com/SoundMatt/go-RCP/avtp"
+
+// Frame is a full AVTPDU carrying exactly one RCP-over-ACF message: the
+// avtp package's IEEE 1722 header framing wrapped around this package's
+// ACF_ABB/ACF_GBB message. It lives here, in acf, rather than in avtp,
+// because it depends on both packages — avtp intentionally does not import
+// acf (see avtp/doc.go) — and "the composed unit carrying an ACF message
+// inside an AVTPDU" is squarely this package's own concern. Packing
 // multiple ACF messages into a single AVTPDU, and fragmenting one logical
 // RCP message across multiple AVTPDUs, are both out of scope for this
 // milestone (see ROADMAP.md Milestone 52, Fragmentation); Message.Control's
@@ -8,7 +15,7 @@ package avtp
 // later milestone's wire encoding stays backward compatible with what's
 // built here.
 type Frame struct {
-	Header  Header
+	Header  avtp.Header
 	Message Message
 }
 
@@ -18,17 +25,17 @@ type Frame struct {
 // (e.g. wire.EncodeCommand, someip's encodeFrame) derive their own length
 // fields instead of accepting a caller-supplied value that could drift from
 // the truth.
-func EncodeFrame(hdr Header, msg Message) ([]byte, error) {
+func EncodeFrame(hdr avtp.Header, msg Message) ([]byte, error) {
 	msgBytes, err := EncodeMessage(msg)
 	if err != nil {
 		return nil, err
 	}
-	if len(msgBytes) > dataLengthMask {
-		return nil, ErrDataLengthOverflow
+	if len(msgBytes) > avtp.MaxDataLength {
+		return nil, avtp.ErrDataLengthOverflow
 	}
 	hdr.DataLength = uint16(len(msgBytes))
 
-	hdrBytes, err := EncodeHeader(hdr)
+	hdrBytes, err := avtp.EncodeHeader(hdr)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +53,7 @@ func EncodeFrame(hdr Header, msg Message) ([]byte, error) {
 // kind of malformed input a receiver must not paper over. It never panics
 // on malformed input.
 func DecodeFrame(b []byte) (Frame, error) {
-	hdr, rest, err := DecodeHeader(b)
+	hdr, rest, err := avtp.DecodeHeader(b)
 	if err != nil {
 		return Frame{}, err
 	}

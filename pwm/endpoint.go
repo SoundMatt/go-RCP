@@ -3,6 +3,7 @@ package pwm
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -169,12 +170,12 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message request
+// HandleRequest answers one plain, unconditional acf.Message request
 // addressed to this endpoint. Per ROADMAP.md Milestone 48's explicit scope,
 // this is the read/write request shape only — compound/triggered/chained/
 // timed request kinds are Phase 15's job (ROADMAP.md Milestone 49) and are
-// not decoded here. req must set exactly one of avtp.FlagRead or
-// avtp.FlagWrite; a request with neither is rejected with
+// not decoded here. req must set exactly one of acf.FlagRead or
+// acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite. A write request is only accepted for a
 // RoleOutput endpoint (ErrWriteNotSupportedForInput otherwise): its body is
 // the waveform to apply (see EncodeWaveform), and the response echoes it
@@ -182,35 +183,35 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 // applied waveform; on a RoleInput endpoint it returns the most recently
 // captured waveform, or fails explicitly with ErrSignalLost on signal loss
 // rather than returning stale data or hanging.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	e.mu.Lock()
 	cfg := e.cfg
 	e.mu.Unlock()
 	if !cfg.Enabled {
-		return avtp.Message{}, ErrNotConfigured
+		return acf.Message{}, ErrNotConfigured
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		if cfg.Role != RoleOutput {
-			return avtp.Message{}, ErrWriteNotSupportedForInput
+			return acf.Message{}, ErrWriteNotSupportedForInput
 		}
 		period, active, err := DecodeWaveform(req.Body)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if err := e.applyOutput(period, active); err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		return responseFor(req, EncodeWaveform(period, active)), nil
-	case req.Control.Has(avtp.FlagRead):
+	case req.Control.Has(acf.FlagRead):
 		switch cfg.Role {
 		case RoleOutput:
 			e.mu.Lock()
@@ -220,12 +221,12 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avt
 		default: // RoleInput
 			p, a, err := e.capture()
 			if err != nil {
-				return avtp.Message{}, err
+				return acf.Message{}, err
 			}
 			return responseFor(req, EncodeWaveform(p, a)), nil
 		}
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -280,12 +281,12 @@ func (e *Endpoint) capture() (uint32, uint32, error) {
 // originating Read/Write flag preserved so a caller can tell which request
 // shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | (req.Control & (avtp.FlagRead | avtp.FlagWrite)),
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
 		Body:           body,
 	}
 }

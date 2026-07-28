@@ -1,11 +1,11 @@
 package iseled
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeISELED so a caller that only
+// EndpointType re-exports regmap.EndpointTypeISELED so a caller that only
 // imports this package doesn't also need to import server just to declare
 // an ISELED endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeISELED
+const EndpointType = regmap.EndpointTypeISELED
 
 // DeviceBroadcast is the reserved device address that targets every device
 // on the chain at once, per doc.go's "Multi-device response aggregation"

@@ -1,5 +1,5 @@
-// Package watchdog orchestrates crcsafe's server-side, request-arrival-timed
-// safety mechanism (crcsafe.Supervisor) against one or more
+// Package watchdog orchestrates e2e's server-side, request-arrival-timed
+// safety mechanism (e2e.Supervisor) against one or more
 // request.Dispatcher instances, for the OPEN Alliance TC18 Remote Control
 // Protocol (RCP), as described by the "OPEN Alliance TC18 Remote Control
 // Protocol Specification v0.5.1_RC".
@@ -11,14 +11,14 @@
 // keepalive command to each zone controller and tracked a client-observed
 // Healthy/Degraded/Faulted health state machine. None of that survives —
 // this package sends nothing on the wire and observes no "health state" at
-// all. Milestone 50's crcsafe package already inverted the architecture: a
+// all. Milestone 50's e2e package already inverted the architecture: a
 // stream's own inbound request arrivals are themselves the liveness signal,
-// timed server-side by crcsafe.Supervisor, and a stream that goes quiet
-// drives automatic safe-state entry (crcsafe.Supervisor.InSafeState) plus a
+// timed server-side by e2e.Supervisor, and a stream that goes quiet
+// drives automatic safe-state entry (e2e.Supervisor.InSafeState) plus a
 // watchdog-driven purge of every non-safety-request ticket
 // (request.Dispatcher.PurgeNonSafety).
 //
-// crcsafe/doc.go documents that two-line wiring as a caller's own
+// e2e/doc.go documents that two-line wiring as a caller's own
 // responsibility:
 //
 //	dispatcher.SetSafeStateCheck(sup.CheckFunc())
@@ -38,7 +38,7 @@
 // # Caller-driven, not a background goroutine
 //
 // Keeper.Tick is a synchronous, caller-driven sweep — the same posture
-// crcsafe.Supervisor, request.Dispatcher.Pump, and fragment.Reassembler.Sweep
+// e2e.Supervisor, request.Dispatcher.Pump, and fragment.Reassembler.Sweep
 // already establish throughout this repo's safety-critical layers. Nothing
 // in this package starts a goroutine or owns a timer of its own; a caller
 // invokes Tick on whatever cadence it judges appropriate (e.g. once per
@@ -47,9 +47,9 @@
 // # A note on spec fidelity (Guiding Principle 10)
 //
 // The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package is pure orchestration glue over crcsafe.Supervisor and
+// package is pure orchestration glue over e2e.Supervisor and
 // request.Dispatcher, both already built from a behavioral description of
-// the specification's safety mechanisms (see crcsafe/doc.go's own
+// the specification's safety mechanisms (see e2e/doc.go's own
 // spec-fidelity note) — it makes no independent claim about wire format or
 // spec-mandated behavior of its own.
 package watchdog

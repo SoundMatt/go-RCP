@@ -14,7 +14,7 @@ import (
 
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/deadline"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 type fakeClock struct{ t time.Time }
@@ -135,11 +135,11 @@ func TestMonitor_ConfigValidation(t *testing.T) {
 }
 
 // TestDeadlineForQueue checks DeadlineForQueue derives a Deadline from a
-// server.QueueConfig's HeartbeatIntervalMillis and a missed-heartbeat
+// regmap.QueueConfig's HeartbeatIntervalMillis and a missed-heartbeat
 // multiplier, and rejects a zero HeartbeatIntervalMillis or an
 // out-of-range multiplier (REQ-DL-005).
 func TestDeadlineForQueue(t *testing.T) {
-	got, err := deadline.DeadlineForQueue(server.QueueConfig{HeartbeatIntervalMillis: 50}, 3)
+	got, err := deadline.DeadlineForQueue(regmap.QueueConfig{HeartbeatIntervalMillis: 50}, 3)
 	if err != nil {
 		t.Fatalf("DeadlineForQueue: %v", err)
 	}
@@ -147,10 +147,10 @@ func TestDeadlineForQueue(t *testing.T) {
 		t.Errorf("DeadlineForQueue = %v, want %v", got, want)
 	}
 
-	if _, err := deadline.DeadlineForQueue(server.QueueConfig{HeartbeatIntervalMillis: 0}, 3); !errors.Is(err, deadline.ErrNoHeartbeatConfigured) {
+	if _, err := deadline.DeadlineForQueue(regmap.QueueConfig{HeartbeatIntervalMillis: 0}, 3); !errors.Is(err, deadline.ErrNoHeartbeatConfigured) {
 		t.Errorf("DeadlineForQueue(no heartbeat) err = %v, want ErrNoHeartbeatConfigured", err)
 	}
-	if _, err := deadline.DeadlineForQueue(server.QueueConfig{HeartbeatIntervalMillis: 50}, 0); !errors.Is(err, deadline.ErrInvalidMissedHeartbeats) {
+	if _, err := deadline.DeadlineForQueue(regmap.QueueConfig{HeartbeatIntervalMillis: 50}, 0); !errors.Is(err, deadline.ErrInvalidMissedHeartbeats) {
 		t.Errorf("DeadlineForQueue(missedHeartbeats=0) err = %v, want ErrInvalidMissedHeartbeats", err)
 	}
 }

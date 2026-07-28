@@ -12,7 +12,7 @@ var (
 	ErrInvalidDeadline = errors.New("rcp/deadline: Deadline must be positive")
 
 	// ErrNoHeartbeatConfigured is returned by DeadlineForQueue when the
-	// given server.QueueConfig has HeartbeatIntervalMillis == 0 — a queue
+	// given regmap.QueueConfig has HeartbeatIntervalMillis == 0 — a queue
 	// with heartbeats disabled carries no liveness signal for this function
 	// to derive a Deadline from at all.
 	ErrNoHeartbeatConfigured = errors.New("rcp/deadline: QueueConfig has no configured heartbeat interval")

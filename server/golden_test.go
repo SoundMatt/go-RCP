@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/server"
 )
 
@@ -54,19 +55,19 @@ func buildGoldenServer(t *testing.T) (*server.Server, avtp.StreamID) {
 	if err := s.ClaimRoot(root); err != nil {
 		t.Fatalf("ClaimRoot: %v", err)
 	}
-	if err := s.AddEndpoint(root, avtp.ByteBusID(1), server.EndpointTypeGPIO); err != nil {
+	if err := s.AddEndpoint(root, avtp.ByteBusID(1), regmap.EndpointTypeGPIO); err != nil {
 		t.Fatalf("AddEndpoint: %v", err)
 	}
-	if err := s.SetPinAssignment(root, server.PinAssignment{Pin: 5, Endpoint: 1, SignalIndex: 0}); err != nil {
+	if err := s.SetPinAssignment(root, regmap.PinAssignment{Pin: 5, Endpoint: 1, SignalIndex: 0}); err != nil {
 		t.Fatalf("SetPinAssignment: %v", err)
 	}
 	if err := s.WriteFunctional(root, 1, []byte{0xDE, 0xAD}); err != nil {
 		t.Fatalf("WriteFunctional: %v", err)
 	}
-	if err := s.SetStreamLimits(root, server.StreamLimits{MaxRequestStreams: 2, MaxInFlightPerStream: 8}); err != nil {
+	if err := s.SetStreamLimits(root, regmap.StreamLimits{MaxRequestStreams: 2, MaxInFlightPerStream: 8}); err != nil {
 		t.Fatalf("SetStreamLimits: %v", err)
 	}
-	if err := s.SetQueueConfig(root, server.QueueConfig{FlushThreshold: 4, FlushTimeMillis: 100, HeartbeatIntervalMillis: 1000}); err != nil {
+	if err := s.SetQueueConfig(root, regmap.QueueConfig{FlushThreshold: 4, FlushTimeMillis: 100, HeartbeatIntervalMillis: 1000}); err != nil {
 		t.Fatalf("SetQueueConfig: %v", err)
 	}
 	return s, root
@@ -83,12 +84,12 @@ func TestGolden_MinimalRegisterMap(t *testing.T) {
 		t.Fatalf("encoded register map changed:\n got  % X\n want % X", got, goldenMinimalMap)
 	}
 
-	m, err := server.DecodeRegisterMap(goldenMinimalMap)
+	m, err := regmap.DecodeRegisterMap(goldenMinimalMap)
 	if err != nil {
 		t.Fatalf("DecodeRegisterMap(golden): %v", err)
 	}
 	ep, ok := m.Endpoint(1)
-	if !ok || ep.Generic.Type != server.EndpointTypeGPIO {
+	if !ok || ep.Generic.Type != regmap.EndpointTypeGPIO {
 		t.Errorf("decoded golden vector mismatch: %+v", m)
 	}
 }

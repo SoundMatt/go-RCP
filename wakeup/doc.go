@@ -11,13 +11,13 @@
 // (Config) is read and written through
 // server.Server.WriteFunctional/server.Server.ReadEndpoint, and
 // Endpoint.HandleRequest implements the same request.Handler shape
-// (avtp.StreamID, avtp.Message) (avtp.Message, error) every other endpoint
+// (avtp.StreamID, acf.Message) (acf.Message, error) every other endpoint
 // type does, so it drops into request.Dispatcher unmodified.
 //
 // # Scope
 //
 // Per ROADMAP.md Milestone 51, Wakeup is a dedicated power-management
-// endpoint, not a generic device interface — matching server/types.go's
+// endpoint, not a generic device interface — matching regmap/types.go's
 // single "WAKE" Wakeup signal, it exists purely to drive the server's own
 // power dimension, not to expose any device's electrical signal the way
 // gpio/spi/i2c/uart/adc/pwm's own signal lists do. A write request commands
@@ -53,18 +53,18 @@
 //     polling — so it queues the full repeat count rather than pacing it
 //     internally.
 //
-// # Relationship to server.LifecycleState (Phase 13)
+// # Relationship to lifecycle.LifecycleState (Phase 13)
 //
 // ROADMAP.md Milestone 51 notes Wakeup "drives [the] same state machine's
-// power dimension" as server.LifecycleState (ROADMAP.md Milestone 44's
+// power dimension" as lifecycle.LifecycleState (ROADMAP.md Milestone 44's
 // Unconfigured→HWLocked→FullyConfigured configuration-readiness axis).
 // This package reads that as two genuinely orthogonal axes on the same
 // server.Server — configuration readiness versus power state — rather than
 // as one LifecycleState value this package should extend with new states
-// or otherwise require server/lifecycle.go to change for: PowerState is
+// or otherwise require lifecycle/lifecycle.go to change for: PowerState is
 // tracked entirely within this package's own Endpoint, the same
 // "extension point already anticipated, no core-package change needed"
-// posture the other four Phase 16 packages take toward server/types.go's
+// posture the other four Phase 16 packages take toward regmap/types.go's
 // endpoint-type enum. This is this implementation's own reasoned
 // interpretation of a roadmap sentence that does not spell out a more
 // specific mechanical coupling, flagged here per Guiding Principle 10
@@ -73,7 +73,7 @@
 // # Explicit non-goal
 //
 // Per ROADMAP.md Milestone 48/51, this package's Endpoint.HandleRequest
-// answers the plain, unconditional avtp.Message request shape only.
+// answers the plain, unconditional acf.Message request shape only.
 // Compound/triggered/chained/timed request variants are provided by
 // wrapping this package's Endpoint (a request.Handler) in a
 // request.Dispatcher exactly as every other endpoint type is, rather than
@@ -87,7 +87,7 @@
 // register/request byte layouts (Config's field order/widths,
 // WakeHandshake's field order), PowerUnpowered's non-requestable/
 // non-reportable-as-current-state treatment, and the
-// server.LifecycleState-orthogonality reading above are this
+// lifecycle.LifecycleState-orthogonality reading above are this
 // implementation's own reasoned, self-consistent choices rather than a
 // verified transcription of the published byte assignments or state-machine
 // relationship — the same open-item posture avtp/doc.go, server/doc.go, and

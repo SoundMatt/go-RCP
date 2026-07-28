@@ -1,13 +1,14 @@
 //fusa:test REQ-CRC-005
 
-package crcsafe_test
+package e2e_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 )
 
 // stubHandler is a minimal request.Handler double recording whether it was
@@ -15,12 +16,12 @@ import (
 // failure.
 type stubHandler struct {
 	called   bool
-	lastReq  avtp.Message
-	response avtp.Message
+	lastReq  acf.Message
+	response acf.Message
 	err      error
 }
 
-func (s *stubHandler) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (s *stubHandler) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	s.called = true
 	s.lastReq = req
 	return s.response, s.err
@@ -32,10 +33,10 @@ func (s *stubHandler) HandleRequest(requester avtp.StreamID, req avtp.Message) (
 func TestGuard_ValidRequest(t *testing.T) {
 	stream := testStream()
 	inner := baseMessage()
-	protectedReq := crcsafe.Protect(stream, inner)
+	protectedReq := e2e.Protect(stream, inner)
 
-	stub := &stubHandler{response: avtp.Message{Control: avtp.FlagResponse, Body: []byte{0x42}}}
-	g := crcsafe.NewGuard(stub)
+	stub := &stubHandler{response: acf.Message{Control: acf.FlagResponse, Body: []byte{0x42}}}
+	g := e2e.NewGuard(stub)
 
 	resp, err := g.HandleRequest(stream, protectedReq)
 	if err != nil {
@@ -49,7 +50,7 @@ func TestGuard_ValidRequest(t *testing.T) {
 	}
 
 	// The response must itself carry a valid, freshly computed safe point.
-	respInner, err := crcsafe.Verify(stream, resp)
+	respInner, err := e2e.Verify(stream, resp)
 	if err != nil {
 		t.Fatalf("Verify(Guard response): %v", err)
 	}
@@ -63,14 +64,14 @@ func TestGuard_ValidRequest(t *testing.T) {
 // reports the dedicated ErrCRCMismatch error instead (REQ-CRC-005).
 func TestGuard_CRCFailureSkipsHandler(t *testing.T) {
 	stream := testStream()
-	protectedReq := crcsafe.Protect(stream, baseMessage())
+	protectedReq := e2e.Protect(stream, baseMessage())
 	protectedReq.Body = append([]byte(nil), protectedReq.Body...)
 	protectedReq.Body[len(protectedReq.Body)-1] ^= 0xFF // corrupt the trailing CRC
 
 	stub := &stubHandler{}
-	g := crcsafe.NewGuard(stub)
+	g := e2e.NewGuard(stub)
 
-	if _, err := g.HandleRequest(stream, protectedReq); !errors.Is(err, crcsafe.ErrCRCMismatch) {
+	if _, err := g.HandleRequest(stream, protectedReq); !errors.Is(err, e2e.ErrCRCMismatch) {
 		t.Errorf("HandleRequest(corrupted) err = %v, want ErrCRCMismatch", err)
 	}
 	if stub.called {

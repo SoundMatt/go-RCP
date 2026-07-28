@@ -3,6 +3,7 @@ package can
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -88,52 +89,52 @@ func (e *Endpoint) SetReceivedFrame(f Frame) {
 	e.mu.Unlock()
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message request
+// HandleRequest answers one plain, unconditional acf.Message request
 // addressed to this endpoint (see doc.go's Scope section for the
 // conditional-request kinds this deliberately leaves to
-// request.Dispatcher). req must set exactly one of avtp.FlagRead or
-// avtp.FlagWrite; a request with neither is rejected with
+// request.Dispatcher). req must set exactly one of acf.FlagRead or
+// acf.FlagWrite; a request with neither is rejected with
 // ErrRequestMustReadOrWrite. A write request's body is an encoded Frame to
 // transmit (see EncodeFrame); the response echoes it back once accepted. A
 // read request returns the most recently received Frame (see
 // SetReceivedFrame), failing explicitly with ErrNoFrameReceived rather than
 // returning a stale or zero-value Frame when none has been received yet.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 
 	e.mu.Lock()
 	cfg := e.cfg
 	e.mu.Unlock()
 	if !cfg.Enabled {
-		return avtp.Message{}, ErrNotConfigured
+		return acf.Message{}, ErrNotConfigured
 	}
 
 	switch {
-	case req.Control.Has(avtp.FlagWrite):
+	case req.Control.Has(acf.FlagWrite):
 		f, err := DecodeFrame(req.Body)
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if err := f.Validate(); err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
 		if err := e.transmit(f); err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
-		return responseFor(req, avtp.FlagWrite, EncodeFrame(f)), nil
-	case req.Control.Has(avtp.FlagRead):
+		return responseFor(req, acf.FlagWrite, EncodeFrame(f)), nil
+	case req.Control.Has(acf.FlagRead):
 		f, err := e.lastReceived()
 		if err != nil {
-			return avtp.Message{}, err
+			return acf.Message{}, err
 		}
-		return responseFor(req, avtp.FlagRead, EncodeFrame(f)), nil
+		return responseFor(req, acf.FlagRead, EncodeFrame(f)), nil
 	default:
-		return avtp.Message{}, ErrRequestMustReadOrWrite
+		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
@@ -165,12 +166,12 @@ func (e *Endpoint) lastReceived() (Frame, error) {
 // originating Read/Write flag preserved so a caller can tell which request
 // shape it answers, same Kind/ByteBusID/TransactionNum as req for
 // correlation, and body as the caller-supplied payload.
-func responseFor(req avtp.Message, rw avtp.ControlFlags, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, rw acf.ControlFlags, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | rw,
+		Control:        acf.FlagResponse | rw,
 		Body:           body,
 	}
 }

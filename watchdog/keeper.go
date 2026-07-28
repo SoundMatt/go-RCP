@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/crcsafe"
+	"github.com/SoundMatt/go-RCP/e2e"
 	"github.com/SoundMatt/go-RCP/request"
 )
 
@@ -21,12 +21,12 @@ type PurgeEvent struct {
 	Purged []request.TicketID
 }
 
-// Keeper centralizes the crcsafe.Supervisor-driven watchdog check-and-purge
-// pattern crcsafe/doc.go documents, across every (stream, Dispatcher)
+// Keeper centralizes the e2e.Supervisor-driven watchdog check-and-purge
+// pattern e2e/doc.go documents, across every (stream, Dispatcher)
 // association a caller registers with Watch. All exported methods are safe
 // for concurrent use.
 type Keeper struct {
-	sup *crcsafe.Supervisor
+	sup *e2e.Supervisor
 
 	mu    sync.Mutex
 	watch map[avtp.StreamID][]*request.Dispatcher
@@ -34,7 +34,7 @@ type Keeper struct {
 
 // NewKeeper returns a Keeper whose Tick checks sup for every stream Watch
 // registers. sup must not be nil.
-func NewKeeper(sup *crcsafe.Supervisor) *Keeper {
+func NewKeeper(sup *e2e.Supervisor) *Keeper {
 	return &Keeper{sup: sup, watch: make(map[avtp.StreamID][]*request.Dispatcher)}
 }
 

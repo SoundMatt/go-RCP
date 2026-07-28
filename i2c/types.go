@@ -1,11 +1,11 @@
 package i2c
 
-import "github.com/SoundMatt/go-RCP/server"
+import "github.com/SoundMatt/go-RCP/regmap"
 
-// EndpointType re-exports server.EndpointTypeI2C so a caller that only
+// EndpointType re-exports regmap.EndpointTypeI2C so a caller that only
 // imports this package doesn't also need to import server just to declare an
 // I2C endpoint's type with server.Server.AddEndpoint.
-const EndpointType = server.EndpointTypeI2C
+const EndpointType = regmap.EndpointTypeI2C
 
 // BusSpeed selects one of this package's recognized I2C bus speed classes.
 // See doc.go's spec-fidelity note for why this package assigns its own

@@ -1,9 +1,9 @@
-package server
+package lifecycle
 
 // LifecycleState is one of the RC Server's three configuration states. A
 // server only ever advances forward, one state at a time, and only when the
-// guard condition for that transition passes — see Server.AdvanceToHWLocked
-// and Server.AdvanceToFullyConfigured.
+// guard condition for that transition passes — see
+// server.Server.AdvanceToHWLocked and server.Server.AdvanceToFullyConfigured.
 type LifecycleState uint8
 
 const (

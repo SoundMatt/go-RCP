@@ -5,8 +5,8 @@ package mdio
 // per request rather than fixed here, so this is deliberately minimal — the
 // same "nothing to configure beyond enablement" shape as this package's
 // pass-through posture implies. It is stored as an endpoint's
-// server.FunctionalBlock.Data (see Endpoint.Configure) — the
-// generic/functional register-map split server/registermap.go establishes.
+// regmap.FunctionalBlock.Data (see Endpoint.Configure) — the
+// generic/functional register-map split regmap/registermap.go establishes.
 type Config struct {
 	// Enabled reports whether this endpoint is configured for use. A
 	// request against a disabled endpoint is rejected with

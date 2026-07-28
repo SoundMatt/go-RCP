@@ -3,6 +3,7 @@ package spi
 import (
 	"sync"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/server"
 )
@@ -123,31 +124,31 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 	return out
 }
 
-// HandleRequest answers one plain, unconditional avtp.Message transfer
+// HandleRequest answers one plain, unconditional acf.Message transfer
 // request addressed to this endpoint. Per ROADMAP.md Milestone 47's
 // explicit scope, this is the plain request shape only — compound/
 // triggered/chained/timed request kinds are Phase 15's job (ROADMAP.md
-// Milestone 49) and are not decoded here. req must set avtp.FlagWrite: a SPI
+// Milestone 49) and are not decoded here. req must set acf.FlagWrite: a SPI
 // transfer always carries an outgoing payload (even a zero-length one), so
 // there is nothing to transfer without it.
-func (e *Endpoint) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
-		return avtp.Message{}, ErrWrongEndpoint
+		return acf.Message{}, ErrWrongEndpoint
 	}
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
-	if !req.Control.Has(avtp.FlagWrite) {
-		return avtp.Message{}, ErrRequestMustWrite
+	if !req.Control.Has(acf.FlagWrite) {
+		return acf.Message{}, ErrRequestMustWrite
 	}
 
 	ch, tx, err := DecodeTransferRequest(req.Body)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	rx, err := e.transfer(ch, tx)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	return responseFor(req, EncodeTransferResponse(ch, rx)), nil
 }
@@ -192,12 +193,12 @@ func (e *Endpoint) recordTrigger(ev TriggerEvent) {
 // responseFor builds the response Message for req: FlagResponse set, same
 // Kind/ByteBusID/TransactionNum as req for correlation, and body as the
 // caller-supplied payload.
-func responseFor(req avtp.Message, body []byte) avtp.Message {
-	return avtp.Message{
+func responseFor(req acf.Message, body []byte) acf.Message {
+	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
-		Control:        avtp.FlagResponse | avtp.FlagWrite,
+		Control:        acf.FlagResponse | acf.FlagWrite,
 		Body:           body,
 	}
 }

@@ -10,17 +10,18 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/adc"
 	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
-func writeReq() avtp.Message {
-	return avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagWrite}
+func writeReq() acf.Message {
+	return acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagWrite}
 }
 
-func readReq() avtp.Message {
-	return avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead}
+func readReq() acf.Message {
+	return acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
 }
 
 // sequenceTransport is a Transport test double that returns a fixed sequence
@@ -118,7 +119,7 @@ func TestHandleRequest_RoutesReadWriteRejectsNeither(t *testing.T) {
 		t.Errorf("DecodeValue(write response) = (%d, %v), want (7, nil)", v, err)
 	}
 
-	noFlags := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	noFlags := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1)}
 	if _, err := ep.HandleRequest(root, noFlags); !errors.Is(err, adc.ErrRequestMustReadOrWrite) {
 		t.Errorf("HandleRequest(no flags) err = %v, want ErrRequestMustReadOrWrite", err)
 	}
@@ -130,8 +131,8 @@ func TestHandleRequest_RoutesReadWriteRejectsNeither(t *testing.T) {
 	}
 
 	stranger := avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
-	if _, err := ep.HandleRequest(stranger, writeReq()); !errors.Is(err, server.ErrAccessDenied) {
-		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	if _, err := ep.HandleRequest(stranger, writeReq()); !errors.Is(err, regmap.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want regmap.ErrAccessDenied", err)
 	}
 }
 

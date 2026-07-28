@@ -1,6 +1,7 @@
-package crcsafe
+package e2e
 
 import (
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/request"
 )
@@ -10,7 +11,7 @@ import (
 // mode — the same "wrap, don't edit" composition request.Dispatcher itself
 // uses to retrofit the six Phase 14 endpoint types (see request/doc.go): an
 // endpoint opts into safe-point protection by handing
-// crcsafe.NewGuard(theRealHandler) to request.NewDispatcher in place of the
+// e2e.NewGuard(theRealHandler) to request.NewDispatcher in place of the
 // endpoint itself, without theRealHandler needing to know this mechanism
 // exists at all.
 //
@@ -37,14 +38,14 @@ func NewGuard(h request.Handler) *Guard {
 // addressing identity Verify/Protect use for the CRC's stream-addressing
 // coverage: the AVTPDU carrying req is addressed to/from that same stream,
 // on both the request and (symmetrically) the response leg.
-func (g *Guard) HandleRequest(requester avtp.StreamID, req avtp.Message) (avtp.Message, error) {
+func (g *Guard) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	inner, err := Verify(requester, req)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	resp, err := g.Handler.HandleRequest(requester, inner)
 	if err != nil {
-		return avtp.Message{}, err
+		return acf.Message{}, err
 	}
 	return Protect(requester, resp), nil
 }

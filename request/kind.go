@@ -2,7 +2,7 @@ package request
 
 // Kind selects which conditional-request shape a Message's envelope carries.
 // KindPlain is the zero value and is never itself present on the wire — a
-// Message with avtp.FlagExtended unset carries no envelope at all and is
+// Message with acf.FlagExtended unset carries no envelope at all and is
 // treated as KindPlain internally (see Dispatcher.Submit); every other value
 // is a byte this package's own envelope encoding writes as Body's first
 // byte.
@@ -10,7 +10,7 @@ type Kind uint8
 
 const (
 	// KindPlain is the synthetic Kind Dispatcher assigns to a Message with
-	// avtp.FlagExtended unset: the unconditional, immediate request shape
+	// acf.FlagExtended unset: the unconditional, immediate request shape
 	// every Phase 14 endpoint type already implements. It never appears as
 	// an encoded envelope's leading byte.
 	KindPlain Kind = iota

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/uart"
 )
@@ -78,10 +79,10 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 		t.Fatalf("Configure: %v", err)
 	}
 
-	req := avtp.Message{
-		Kind:      avtp.KindShort,
+	req := acf.Message{
+		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
-		Control:   avtp.FlagWrite,
+		Control:   acf.FlagWrite,
 		Body:      []byte{0xDE, 0xAD, 0xBE},
 	}
 	resp, err := ep.HandleRequest(root, req)
@@ -93,8 +94,8 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 		t.Fatalf("DecodeWriteResponse = (%d, %v), want (3, nil)", n, err)
 	}
 
-	readResp, err := ep.HandleRequest(root, avtp.Message{
-		Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1), Control: avtp.FlagRead, ReadSizeOrSegment: 3,
+	readResp, err := ep.HandleRequest(root, acf.Message{
+		Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead, ReadSizeOrSegment: 3,
 	})
 	if err != nil {
 		t.Fatalf("HandleRequest(golden read): %v", err)

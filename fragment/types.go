@@ -3,13 +3,14 @@ package fragment
 import (
 	"time"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
 
 // Key identifies one logical, potentially multi-segment RCP message: the
-// same addressing/correlation fields crcsafe.Compute already treats as a
-// message's own identity (see avtp.Message.ByteBusID and
-// avtp.Message.TransactionNum), scoped to the enclosing AVTPDU's StreamID
+// same addressing/correlation fields e2e.Compute already treats as a
+// message's own identity (see acf.Message.ByteBusID and
+// acf.Message.TransactionNum), scoped to the enclosing AVTPDU's StreamID
 // exactly as avtp/doc.go describes both fields being scoped. Two segments
 // with equal Key are always part of the same logical message; two with
 // unequal Key never are.
@@ -21,7 +22,7 @@ type Key struct {
 
 // KeyOf derives m's reassembly Key relative to the enclosing AVTPDU's
 // StreamID.
-func KeyOf(stream avtp.StreamID, m avtp.Message) Key {
+func KeyOf(stream avtp.StreamID, m acf.Message) Key {
 	return Key{Stream: stream, Bus: m.ByteBusID, Txn: m.TransactionNum}
 }
 
