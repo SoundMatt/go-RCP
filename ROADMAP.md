@@ -588,7 +588,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, watchdog-driven safe-state entry ✅ |
 | **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred ✅ |
 | **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified ✅ |
-| **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue, e2e rebuilt against the new model |
+| **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue rebuilt against the new model; e2e retired in favour of crcsafe ✅ |
 | **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire, udp, tsn, shmem, loan adapted; mdns retired in favour of native discovery; tlstransport deprecated |
 | **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata |
 | **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge |
@@ -1175,13 +1175,91 @@ is Phases 13-16 (the types themselves) plus Phase 18 (re-satisfying
 `Adapt`/`relay.Caller`, the optional `Health`/`Metrics`/`Drainer`
 interfaces, and the golden-vector conformance tests against the new types).
 
-### 53. Safety & Liveness Rebuild (v0.66.0)
+### 53. Safety & Liveness Rebuild (v0.66.0) ✅
 
 - Rebuild `e2e`, `powerstate`, `watchdog`, `deadline`, and `prioqueue` per
   the disposition table above
 - These come first among the satellite migrations because every later
   bridge/tooling package either wraps one of these five directly or
   assumes the health/priority/power model they define
+
+**Done (v0.66.0):** all five REPLACE-flagged packages rebuilt, none
+adapted, per the disposition table's own reasoning for each:
+
+- **`e2e` retired outright, no successor package.** Its entire job — CRC
+  protection over the wire — is already fully superseded by `crcsafe`
+  (Milestone 50, v0.63.0): `crcsafe.Compute`/`Protect`/`Verify`/`Guard`
+  cover both the sender and receiver sides with the specification's own
+  CRC32 coverage, and nothing about the old package's client-side
+  sequence-counter framing has a meaningful new-model equivalent (the new
+  protocol correlates by `avtp.TransactionNum`, not a client-maintained
+  counter). Building a facade package here would only re-export `crcsafe`
+  under a different name for no behavioral benefit, so the package is
+  removed rather than kept as an empty wrapper.
+- **`watchdog` rebuilt from scratch as orchestration glue**
+  (`watchdog/doc.go`, `keeper.go`): `crcsafe/doc.go` documents the
+  Supervisor-to-Dispatcher wiring (`SetSafeStateCheck`/`PurgeNonSafety`) as
+  two lines a caller writes itself, on whatever cadence it judges
+  appropriate, for one stream and one Dispatcher at a time. `watchdog.Keeper`
+  is the missing piece for a server with more than one endpoint: `Watch`
+  builds up a (stream → Dispatchers) association, and `Keeper.Tick` — a
+  synchronous, caller-driven sweep, the same posture `crcsafe.Supervisor`
+  and `fragment.Reassembler.Sweep` already establish — checks every watched
+  stream's `InSafeState` and purges every Dispatcher registered against a
+  tripped one in a single call, reporting a `PurgeEvent` per tripped stream
+  (including a tripped-but-nothing-to-purge stream, kept distinguishable
+  from a never-tripped one).
+- **`powerstate` rebuilt from scratch as the wake-handshake pacing loop**
+  (`powerstate/doc.go`, `driver.go`): `wakeup/doc.go` (Milestone 51,
+  v0.64.0) explicitly leaves "a caller's own transport loop" responsible for
+  re-emitting the repeating wake-handshake message at
+  `wakeup.Config.WakeHandshakeIntervalMillis` cadence — nothing in `wakeup`
+  paces or transmits it. `powerstate.Driver.Pump` drains a
+  `wakeup.Endpoint`'s trigger queue, relays every `TriggerPowerStateChanged`
+  as an `Event`, and transmits at most one queued `TriggerWakeHandshake`
+  repeat per call through a caller-supplied `Transmitter` — a failed send
+  leaves the repeat at the front of the queue for the next call to retry
+  rather than losing it. `Driver.Acknowledge` forwards to
+  `Endpoint.AcknowledgeWake` and additionally discards whatever this Driver
+  had already pulled off that queue but not yet sent.
+- **`deadline` rebuilt from scratch around a three-state liveness model**
+  (`deadline/doc.go`, `monitor.go`, `queueconfig.go`): the roadmap's own
+  text names two different-failure-semantics substitutes for the retired
+  periodic-`Status`-broadcast concept — per-endpoint triggers (every
+  endpoint type's own `Trigger`/`DrainTriggers`, Phases 14-16) and
+  response-queue heartbeat flushes (`server.QueueConfig`.
+  `HeartbeatIntervalMillis`, Milestone 45, `server/queues.go`) — and this
+  package treats them as genuinely distinct signal classes rather than
+  collapsing them into one boolean: `Monitor.ObserveTrigger` and
+  `Monitor.ObserveHeartbeat` each update independent bookkeeping, and
+  `Monitor.State` reports `LivenessAlive` (a trigger within `Deadline`),
+  `LivenessIdle` (only a heartbeat within `Deadline` — the link is up, but
+  nothing is happening upstream of it), or `LivenessDead` (neither). No
+  goroutine, no timer — verdicts are computed lazily against an injectable
+  clock, the same posture `crcsafe.Supervisor` already established.
+  `DeadlineForQueue` derives a plausible `Config.Deadline` directly from a
+  `server.QueueConfig`'s own `HeartbeatIntervalMillis`, so the two configs
+  cannot silently drift apart.
+- **`prioqueue` rebuilt from scratch around `request.Kind.Priority`**
+  (`prioqueue/doc.go`, `queue.go`): the old client-assigned
+  `PriorityCritical`/`High`/`Normal` enum has no equivalent at all in a
+  protocol where `request.Kind` (Milestone 49) already fixes a total
+  cross-type execution-priority ordering by request *kind*. The rebuilt
+  `Queue` is a `container/heap`-backed structure identical in shape to the
+  old one, but ranks strictly by `request.Kind.Priority()` (cancellation >
+  chained > triggered > timed > compound-wait > compound > plain) with
+  FIFO tie-breaking, so a caller expresses urgency by picking the request
+  Kind that already matches what it's doing rather than tagging an
+  arbitrary value the server would ignore anyway.
+
+No other package in this repo imported any of the five old packages outside
+their own test files, so no additional call sites needed updating.
+22 new/updated `//fusa:req`/`//fusa:test`-tagged requirements replace the 40
+retired ones (`REQ-WDG-*`, `REQ-PWR-*`, `REQ-DL-*`, `REQ-PQ-*` rewritten in
+place under their original prefixes since each still names the same
+package; `REQ-E2E-*` removed outright with no successor family, since
+`e2e`'s role is now `REQ-CRC-*`'s), 100% traced and tested per `gofusa
+check`/`gofusa trace`.
 
 ### 54. Transport & Discovery Migration (v0.67.0)
 
