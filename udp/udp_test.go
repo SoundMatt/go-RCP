@@ -4,12 +4,6 @@
 //fusa:test REQ-UDP-004
 //fusa:test REQ-UDP-005
 //fusa:test REQ-UDP-006
-//fusa:test REQ-UDP-007
-//fusa:test REQ-UDP-008
-//fusa:test REQ-UDP-009
-//fusa:test REQ-UDP-010
-//fusa:test REQ-UDP-011
-//fusa:test REQ-UDP-012
 
 package udp_test
 
@@ -17,268 +11,194 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	rcpudp "github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-func newServerController(t *testing.T, zone rcp.Zone) (*rcpudp.ZoneServer, *rcpudp.Controller) {
-	t.Helper()
-	srv, err := rcpudp.NewZoneServer(zone, "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewZoneServer: %v", err)
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
+
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+// stubHandler answers every request with a fixed response body, echoing the
+// request's control flags' Read/Write bit and recording the requester and
+// request it was last called with. Guarded by mu since the Server's serve
+// goroutine calls HandleRequest concurrently with the test goroutine that
+// inspects the recorded fields after Controller.Request returns.
+type stubHandler struct {
+	body []byte
+	err  error
+
+	mu        sync.Mutex
+	lastReq   acf.Message
+	lastFrom  avtp.StreamID
+	callCount int
+}
+
+func (h *stubHandler) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
+	h.mu.Lock()
+	h.lastReq = req
+	h.lastFrom = requester
+	h.callCount++
+	h.mu.Unlock()
+	if h.err != nil {
+		return acf.Message{}, h.err
 	}
-	ctrl, err := rcpudp.NewController(zone, srv.Addr())
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           h.body,
+	}, nil
+}
+
+func (h *stubHandler) last() (acf.Message, avtp.StreamID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastReq, h.lastFrom
+}
+
+// newTestServer starts a udp.Server backed by a root-claimed server.Server
+// and returns it alongside a dialed Controller.
+func newTestServer(t *testing.T) (*udp.Server, *server.Server, *udp.Router) {
+	t.Helper()
+	root := clientStream()
+	srv := server.NewServer()
+	if err := srv.ClaimRoot(root); err != nil {
+		t.Fatalf("ClaimRoot: %v", err)
+	}
+	router := udp.NewRouter(udp.NewEP0Handler(srv), true)
+	us, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
 	if err != nil {
-		_ = srv.Close()
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = us.Close() })
+	return us, srv, router
+}
+
+func dial(t *testing.T, us *udp.Server, stream avtp.StreamID) *udp.Controller {
+	t.Helper()
+	ctrl, err := udp.NewController(stream, us.Addr())
+	if err != nil {
 		t.Fatalf("NewController: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = ctrl.Close()
-		_ = srv.Close()
-	})
-	return srv, ctrl
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
 }
 
-// TestUDP_Send_RoundTrip verifies command send + response receipt over loopback (REQ-UDP-001).
-func TestUDP_Send_RoundTrip(t *testing.T) {
-	_, ctrl := newServerController(t, rcp.ZoneFrontLeft)
+// TestController_Discover_RoundTrips verifies a discovery read against a
+// freshly declared endpoint round-trips through regmap.DecodeRegisterMap
+// (REQ-UDP-001, REQ-UDP-003).
+func TestController_Discover_RoundTrips(t *testing.T) {
+	us, srv, _ := newTestServer(t)
+	root := clientStream()
+	if err := srv.AddEndpoint(root, 1, regmap.EndpointTypeGPIO); err != nil {
+		t.Fatalf("AddEndpoint: %v", err)
+	}
+
+	ctrl := dial(t, us, root)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop, ID: 1}
-	resp, err := ctrl.Send(ctx, cmd)
+	buf, err := ctrl.Discover(ctx)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Discover: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("status = %v, want OK", resp.Status)
-	}
-}
-
-// TestUDP_Send_CustomHandler verifies server-side handler is invoked (REQ-UDP-002).
-func TestUDP_Send_CustomHandler(t *testing.T) {
-	srv, ctrl := newServerController(t, rcp.ZoneFrontRight)
-	srv.SetHandler(func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusError}
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontRight, Type: rcp.CmdSet})
+	m, err := regmap.DecodeRegisterMap(buf)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("DecodeRegisterMap: %v", err)
 	}
-	if resp.Status != rcp.StatusError {
-		t.Errorf("status = %v, want Error", resp.Status)
+	if _, ok := m.Endpoint(1); !ok {
+		t.Errorf("decoded map missing endpoint 1")
 	}
 }
 
-// TestUDP_Send_PayloadRoundTrip verifies payload survives encoding/decoding (REQ-UDP-003).
-func TestUDP_Send_PayloadRoundTrip(t *testing.T) {
-	want := []byte{0xDE, 0xAD, 0xBE, 0xEF}
-	srv, ctrl := newServerController(t, rcp.ZoneRearLeft)
-	srv.SetHandler(func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK, Payload: cmd.Payload}
-	})
+// TestController_Write_RoutesToHandler verifies a write request addressed
+// to a registered endpoint reaches its Handler with the requester's
+// avtp.StreamID and body intact (REQ-UDP-002).
+func TestController_Write_RoutesToHandler(t *testing.T) {
+	us, _, router := newTestServer(t)
+	h := &stubHandler{body: []byte{0xAA}}
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	client := clientStream()
+	ctrl := dial(t, us, client)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneRearLeft, Type: rcp.CmdSet, Payload: want})
+	want := []byte{0x01, 0x02, 0x03}
+	resp, err := ctrl.Write(ctx, 1, want)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Write: %v", err)
 	}
-	if !bytes.Equal(resp.Payload, want) {
-		t.Errorf("payload = %v, want %v", resp.Payload, want)
+	if !resp.Control.Has(acf.FlagResponse) {
+		t.Errorf("response missing FlagResponse")
+	}
+	lastReq, lastFrom := h.last()
+	if !bytes.Equal(lastReq.Body, want) {
+		t.Errorf("handler body = % X, want % X", lastReq.Body, want)
+	}
+	if lastFrom != client {
+		t.Errorf("handler requester = %v, want %v", lastFrom, client)
 	}
 }
 
-// TestUDP_Send_ZoneMismatch verifies ErrZoneMismatch is returned for wrong zone (REQ-UDP-004).
-func TestUDP_Send_ZoneMismatch(t *testing.T) {
-	_, ctrl := newServerController(t, rcp.ZoneRearRight)
+// TestController_Read_UnknownEndpoint verifies an unregistered ByteBusID
+// yields a wire-level error response, not a dropped/lost request
+// (REQ-UDP-004).
+func TestController_Read_UnknownEndpoint(t *testing.T) {
+	us, _, _ := newTestServer(t)
+	ctrl := dial(t, us, clientStream())
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrZoneMismatch) {
-		t.Errorf("error = %v, want ErrZoneMismatch", err)
+	resp, err := ctrl.Read(ctx, 5)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if !resp.Control.Has(acf.FlagError) {
+		t.Errorf("response missing FlagError for unknown endpoint")
 	}
 }
 
-// TestUDP_Send_ContextCancelledBeforeSend verifies ErrTimeout on pre-cancelled context (REQ-UDP-005).
-func TestUDP_Send_ContextCancelledBeforeSend(t *testing.T) {
-	_, ctrl := newServerController(t, rcp.ZoneCentral)
+// TestController_Request_ContextExpired verifies ErrTimeout is returned
+// when the context is already cancelled (REQ-UDP-005).
+func TestController_Request_ContextExpired(t *testing.T) {
+	us, _, _ := newTestServer(t)
+	ctrl := dial(t, us, clientStream())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneCentral, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrTimeout) {
+	_, err := ctrl.Read(ctx, 1)
+	if !errors.Is(err, udp.ErrTimeout) {
 		t.Errorf("error = %v, want ErrTimeout", err)
 	}
 }
 
-// TestUDP_Send_ContextTimeout verifies ErrTimeout when server is unreachable (REQ-UDP-005).
-func TestUDP_Send_ContextTimeout(t *testing.T) {
-	// Use a real server but set an immediate deadline so the response race is deterministic.
-	_, ctrl := newServerController(t, rcp.ZoneFrontLeft)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-	defer cancel()
-	time.Sleep(2 * time.Millisecond) // ensure deadline is already past
-
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrTimeout) {
-		t.Errorf("error = %v, want ErrTimeout", err)
-	}
-}
-
-// TestUDP_Send_AfterClose verifies ErrClosed is returned after controller is closed (REQ-UDP-006).
-func TestUDP_Send_AfterClose(t *testing.T) {
-	_, ctrl := newServerController(t, rcp.ZoneFrontLeft)
+// TestController_Request_AfterClose verifies ErrClosed is returned once the
+// Controller has been closed (REQ-UDP-006).
+func TestController_Request_AfterClose(t *testing.T) {
+	us, _, _ := newTestServer(t)
+	ctrl := dial(t, us, clientStream())
 	_ = ctrl.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdNoop})
-	if !errors.Is(err, rcp.ErrClosed) {
+	_, err := ctrl.Read(ctx, 1)
+	if !errors.Is(err, udp.ErrClosed) {
 		t.Errorf("error = %v, want ErrClosed", err)
-	}
-}
-
-// TestUDP_Subscribe_ReceivesStatus verifies Publish → Subscribe fan-out (REQ-UDP-007).
-func TestUDP_Subscribe_ReceivesStatus(t *testing.T) {
-	srv, ctrl := newServerController(t, rcp.ZoneFrontLeft)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	ch, err := ctrl.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
-	}
-	time.Sleep(10 * time.Millisecond) // allow subscribe frame to reach server
-
-	srv.Publish([]byte{0x01})
-	select {
-	case st := <-ch:
-		if st.Zone != rcp.ZoneFrontLeft {
-			t.Errorf("zone = %v, want FrontLeft", st.Zone)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("no Status received within 1s")
-	}
-}
-
-// TestUDP_Subscribe_MultipleSubscribers verifies multiple subscribers all receive Status (REQ-UDP-008).
-func TestUDP_Subscribe_MultipleSubscribers(t *testing.T) {
-	srv, err := rcpudp.NewZoneServer(rcp.ZoneFrontRight, "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = srv.Close() }()
-
-	const n = 3
-	ctrls := make([]*rcpudp.Controller, n)
-	chs := make([]<-chan *rcp.Status, n)
-	for i := range ctrls {
-		ctrl, err := rcpudp.NewController(rcp.ZoneFrontRight, srv.Addr())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = ctrl.Close() }()
-		ctrls[i] = ctrl
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		ch, err := ctrl.Subscribe(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		chs[i] = ch
-	}
-
-	time.Sleep(20 * time.Millisecond) // allow subscribe frames to reach server
-	srv.Publish(nil)
-
-	for i, ch := range chs {
-		select {
-		case <-ch:
-		case <-time.After(time.Second):
-			t.Errorf("subscriber %d: no Status received", i)
-		}
-	}
-}
-
-// TestUDP_Subscribe_ClosedOnContextCancel verifies channel closes when ctx is cancelled (REQ-UDP-009).
-func TestUDP_Subscribe_ClosedOnContextCancel(t *testing.T) {
-	_, ctrl := newServerController(t, rcp.ZoneRearLeft)
-	ctx, cancel := context.WithCancel(context.Background())
-
-	ch, err := ctrl.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
-	}
-	cancel()
-
-	select {
-	case _, ok := <-ch:
-		if ok {
-			t.Error("channel should be closed after context cancel")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("channel not closed within 1s")
-	}
-}
-
-// TestUDP_Registry_DialAndLookup verifies Registry.Dial + Lookup + Close (REQ-UDP-010).
-func TestUDP_Registry_DialAndLookup(t *testing.T) {
-	srv, err := rcpudp.NewZoneServer(rcp.ZoneRearRight, "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = srv.Close() }()
-
-	reg := rcpudp.NewRegistry()
-	defer func() { _ = reg.Close() }()
-
-	if dialErr := reg.Dial(rcp.ZoneRearRight, srv.Addr().String()); dialErr != nil {
-		t.Fatalf("Dial: %v", dialErr)
-	}
-
-	ctrl, err := reg.Lookup(rcp.ZoneRearRight)
-	if err != nil {
-		t.Fatalf("Lookup: %v", err)
-	}
-	if ctrl.Zone() != rcp.ZoneRearRight {
-		t.Errorf("zone = %v, want RearRight", ctrl.Zone())
-	}
-}
-
-// TestUDP_Registry_DuplicateDial verifies ErrAlreadyExists on duplicate registration (REQ-UDP-011).
-func TestUDP_Registry_DuplicateDial(t *testing.T) {
-	srv, err := rcpudp.NewZoneServer(rcp.ZoneCentral, "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = srv.Close() }()
-
-	reg := rcpudp.NewRegistry()
-	defer func() { _ = reg.Close() }()
-
-	if err2 := reg.Dial(rcp.ZoneCentral, srv.Addr().String()); err2 != nil {
-		t.Fatalf("first Dial: %v", err2)
-	}
-	if err2 := reg.Dial(rcp.ZoneCentral, srv.Addr().String()); !errors.Is(err2, rcp.ErrAlreadyExists) {
-		t.Errorf("error = %v, want ErrAlreadyExists", err2)
-	}
-}
-
-// TestUDP_Registry_LookupMissing verifies ErrNotFound for an unregistered zone (REQ-UDP-012).
-func TestUDP_Registry_LookupMissing(t *testing.T) {
-	reg := rcpudp.NewRegistry()
-	defer func() { _ = reg.Close() }()
-
-	_, err := reg.Lookup(rcp.ZoneFrontLeft)
-	if !errors.Is(err, rcp.ErrNotFound) {
-		t.Errorf("error = %v, want ErrNotFound", err)
 	}
 }

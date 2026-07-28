@@ -5,18 +5,24 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/SoundMatt/go-RCP/avtp"
 )
 
-// Browser discovers zone controllers on the mDNS bus.
+// Browser discovers candidate RC Servers on the mDNS bus.
 // The caller owns the Transport; Browser borrows it and never closes it.
 type Browser struct {
 	transport Transport
 	closed    atomic.Bool
 }
 
-// Handler is called once for each discovered zone controller.
-// zone is the numeric Zone value; addr is "ip:port".
-type Handler func(zone uint8, addr string)
+// Handler is called once for each discovered RC Server. stream is the
+// candidate server's own avtp.StreamID identity (as advertised in its
+// announcement — not independently verified; a caller still confirms it
+// via an actual udp.Controller.Discover call against addr, the same
+// "optional rendezvous helper, not the discovery mechanism" posture this
+// package's doc comment describes); addr is "ip:port".
+type Handler func(stream avtp.StreamID, addr string)
 
 // NewBrowser creates a Browser using the given transport.
 // Pass nil to open real multicast UDP.
@@ -75,7 +81,7 @@ func (b *Browser) Query(ctx context.Context, h Handler) error {
 			continue // ignore queries
 		}
 		for _, si := range extractServices(rrs, msg) {
-			h(si.Zone, si.Addr)
+			h(avtp.StreamID(si.Stream), si.Addr)
 		}
 	}
 }

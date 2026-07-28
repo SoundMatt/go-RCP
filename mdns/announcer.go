@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net"
 	"sync/atomic"
+
+	"github.com/SoundMatt/go-RCP/avtp"
 )
 
-// Announcer advertises a single zone controller on the mDNS bus.
+// Announcer advertises a single candidate RC Server on the mDNS bus.
 // The caller owns the Transport; Announcer borrows it and never closes it.
 type Announcer struct {
 	transport Transport
@@ -14,11 +16,11 @@ type Announcer struct {
 	closed    atomic.Bool
 }
 
-// NewAnnouncer creates an Announcer for the given zone controller endpoint.
-// zone is the numeric Zone value (e.g. 1 = ZoneFrontLeft).
-// localAddr is the UDP address of the zone controller's ZoneServer (e.g. "192.168.1.10:7777").
-// transport is the mDNS packet bus (caller-owned); pass nil to open real multicast UDP.
-func NewAnnouncer(zone uint8, localAddr string, transport Transport) (*Announcer, error) {
+// NewAnnouncer creates an Announcer for the RC Server identified by stream.
+// localAddr is the UDP address of that server's udp.Server (e.g.
+// "192.168.1.10:7777"). transport is the mDNS packet bus (caller-owned);
+// pass nil to open real multicast UDP.
+func NewAnnouncer(stream avtp.StreamID, localAddr string, transport Transport) (*Announcer, error) {
 	if transport == nil {
 		var err error
 		transport, err = NewMulticastTransport(nil)
@@ -37,10 +39,10 @@ func NewAnnouncer(zone uint8, localAddr string, transport Transport) (*Announcer
 		return nil, fmt.Errorf("mdns: only IPv4 addresses supported, got %s", udpAddr.IP)
 	}
 
-	zoneName := fmt.Sprintf("zone-%d", zone)
-	instanceName := zoneName + "." + serviceType
-	host := zoneName + ".local."
-	txtKV := fmt.Sprintf("zone=%d", zone)
+	streamHex := encodeStreamHex(stream)
+	instanceName := streamHex + "." + serviceType
+	host := streamHex + ".local."
+	txtKV := streamTXTKey + streamHex
 
 	pkt := buildAnnouncement(instanceName, host, ip, uint16(udpAddr.Port), txtKV)
 	return &Announcer{transport: transport, pkt: pkt}, nil

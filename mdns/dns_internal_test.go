@@ -83,12 +83,14 @@ func TestDecodeHeader_Short(t *testing.T) {
 // ── parseRRs round-trip and robustness ─────────────────────────────────────────
 
 func TestParseRRs_AnnouncementRoundTrip(t *testing.T) {
+	stream := [8]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x01}
+	streamHex := encodeStreamHex(stream)
 	msg := buildAnnouncement(
-		"zone-front-left._rcp._udp.local.",
-		"zone-front-left.local.",
+		streamHex+"._rcp._udp.local.",
+		streamHex+".local.",
 		[]byte{192, 168, 1, 10},
 		9000,
-		"zone=1",
+		streamTXTKey+streamHex,
 	)
 	rrs, err := parseRRs(msg)
 	if err != nil {
@@ -101,8 +103,8 @@ func TestParseRRs_AnnouncementRoundTrip(t *testing.T) {
 	if len(svcs) != 1 {
 		t.Fatalf("extractServices returned %d services, want 1", len(svcs))
 	}
-	if svcs[0].Zone != 1 {
-		t.Errorf("Zone = %d, want 1", svcs[0].Zone)
+	if svcs[0].Stream != stream {
+		t.Errorf("Stream = %x, want %x", svcs[0].Stream, stream)
 	}
 	if svcs[0].Addr != "192.168.1.10:9000" {
 		t.Errorf("Addr = %q, want %q", svcs[0].Addr, "192.168.1.10:9000")
@@ -131,7 +133,7 @@ func TestParseRRs_TruncatedHeader(t *testing.T) {
 // arbitrary or hostile input (REQ-MDNS robustness at the network trust boundary).
 func FuzzParseRRs(f *testing.F) {
 	f.Add(buildPTRQuery())
-	f.Add(buildAnnouncement("i._rcp._udp.local.", "h.local.", []byte{1, 2, 3, 4}, 1, "zone=2"))
+	f.Add(buildAnnouncement("i._rcp._udp.local.", "h.local.", []byte{1, 2, 3, 4}, 1, streamTXTKey+"0011223344556677"))
 	f.Add([]byte{})
 	f.Add(make([]byte, 12))
 	f.Fuzz(func(t *testing.T, msg []byte) {

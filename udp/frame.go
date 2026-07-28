@@ -1,41 +1,20 @@
-// Package udp provides a pure-Go UDP transport for the RCP protocol.
 package udp
 
-//fusa:req REQ-UDP-001
-//fusa:req REQ-UDP-002
-//fusa:req REQ-UDP-003
-//fusa:req REQ-UDP-004
-//fusa:req REQ-UDP-005
-//fusa:req REQ-UDP-006
-//fusa:req REQ-UDP-007
-//fusa:req REQ-UDP-008
-//fusa:req REQ-UDP-009
-//fusa:req REQ-UDP-010
-//fusa:req REQ-UDP-011
-//fusa:req REQ-UDP-012
+import "github.com/SoundMatt/go-RCP/avtp"
 
-import (
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/wire"
-)
+// maxTimedHeaderLen is the largest AVTPDU header this package's decode path
+// needs to budget for: the presentation-timestamped (TSCF) variant. avtp
+// does not export its own wire length (Header.wireLen is unexported, an
+// internal encode/decode bookkeeping detail, not a public transport
+// concern), so this package restates just the one number it actually needs
+// — the untimed header (13 bytes) plus the 4-byte timestamp field TSCF
+// headers append — as its own transport-level buffer-sizing constant.
+const maxTimedHeaderLen = 13 + 4
 
-// Re-export wire constants for use within this package.
-const (
-	headerLen       = wire.HeaderLen
-	MaxPayload      = wire.MaxPayload
-	typeCommand     = wire.TypeCommand
-	typeResponse    = wire.TypeResponse
-	typeStatus      = wire.TypeStatus
-	typeSubscribe   = wire.TypeSubscribe
-	typeUnsubscribe = wire.TypeUnsubscribe
-)
-
-func encodeCommand(cmd *rcp.Command) []byte          { return wire.EncodeCommand(cmd) }
-func decodeCommand(b []byte) (*rcp.Command, error)   { return wire.DecodeCommand(b) }
-func encodeResponse(resp *rcp.Response) []byte       { return wire.EncodeResponse(resp) }
-func decodeResponse(b []byte) (*rcp.Response, error) { return wire.DecodeResponse(b) }
-func encodeStatus(st *rcp.Status) []byte             { return wire.EncodeStatus(st) }
-func decodeStatus(b []byte) (*rcp.Status, error)     { return wire.DecodeStatus(b) }
-func encodeControlFrame(msgType byte, zone rcp.Zone) []byte {
-	return wire.EncodeControlFrame(msgType, zone)
-}
+// MaxFrameLen is the largest single UDP datagram this package's Controller
+// and Server ever need to send or receive: the largest AVTPDU header
+// variant plus the largest RCP-over-ACF message avtp.Header.DataLength can
+// declare. It is comfortably under the 65507-byte practical UDP payload
+// ceiling, so this package does not need the old wire package's own
+// MaxPayload-vs-UDP-ceiling accounting.
+const MaxFrameLen = maxTimedHeaderLen + avtp.MaxDataLength

@@ -16,8 +16,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SoundMatt/go-RCP/avtp"
 	rcpmdns "github.com/SoundMatt/go-RCP/mdns"
 )
+
+func testStream(n byte) avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, n}, uint16(n))
+}
 
 // pipeTransport is a paired in-memory transport for tests using real loopback UDP.
 // Write on TX -> read on RX side.
@@ -128,7 +133,7 @@ func TestTransport_Loopback(t *testing.T) {
 func TestAnnouncer_Announce(t *testing.T) {
 	at, bt := newTransportPair(t)
 
-	a, err := rcpmdns.NewAnnouncer(1, "127.0.0.1:7000", at)
+	a, err := rcpmdns.NewAnnouncer(testStream(1), "127.0.0.1:7000", at)
 	if err != nil {
 		t.Fatalf("NewAnnouncer: %v", err)
 	}
@@ -163,7 +168,8 @@ func TestBrowser_DiscoverAnnounced(t *testing.T) {
 	// announcerTx -> browserRx: announcements flow from announcer to browser
 	announcerTx, browserRx := newTransportPair(t)
 
-	ann, err := rcpmdns.NewAnnouncer(2, "127.0.0.1:8000", announcerTx)
+	stream := testStream(2)
+	ann, err := rcpmdns.NewAnnouncer(stream, "127.0.0.1:8000", announcerTx)
 	if err != nil {
 		t.Fatalf("NewAnnouncer: %v", err)
 	}
@@ -174,8 +180,8 @@ func TestBrowser_DiscoverAnnounced(t *testing.T) {
 	}
 
 	type result struct {
-		zone uint8
-		addr string
+		stream avtp.StreamID
+		addr   string
 	}
 	discovered := make(chan result, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -185,9 +191,9 @@ func TestBrowser_DiscoverAnnounced(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_ = bro.Query(ctx, func(zone uint8, addr string) {
+		_ = bro.Query(ctx, func(stream avtp.StreamID, addr string) {
 			select {
-			case discovered <- result{zone, addr}:
+			case discovered <- result{stream, addr}:
 			default:
 			}
 		})
@@ -200,31 +206,32 @@ func TestBrowser_DiscoverAnnounced(t *testing.T) {
 
 	select {
 	case d := <-discovered:
-		if d.zone != 2 {
-			t.Errorf("zone = %d, want 2", d.zone)
+		if d.stream != stream {
+			t.Errorf("stream = %v, want %v", d.stream, stream)
 		}
 		if d.addr != "127.0.0.1:8000" {
 			t.Errorf("addr = %s, want 127.0.0.1:8000", d.addr)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("zone controller not discovered within 2s")
+		t.Fatal("RC Server not discovered within 2s")
 	}
 
 	cancel()
 	wg.Wait()
 }
 
-// TestBrowser_MultipleZones verifies that multiple zone controllers are discovered (REQ-MDNS-007).
-func TestBrowser_MultipleZones(t *testing.T) {
+// TestBrowser_MultipleServers verifies that multiple candidate RC Servers
+// are discovered (REQ-MDNS-007).
+func TestBrowser_MultipleServers(t *testing.T) {
 	announcerTx, browserRx := newTransportPair(t)
 
-	zones := []struct {
-		zone uint8
-		addr string
+	servers := []struct {
+		stream avtp.StreamID
+		addr   string
 	}{
-		{1, "127.0.0.1:7001"},
-		{2, "127.0.0.1:7002"},
-		{3, "127.0.0.1:7003"},
+		{testStream(1), "127.0.0.1:7001"},
+		{testStream(2), "127.0.0.1:7002"},
+		{testStream(3), "127.0.0.1:7003"},
 	}
 
 	bro, err := rcpmdns.NewBrowser(browserRx)
@@ -235,7 +242,7 @@ func TestBrowser_MultipleZones(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	found := make(map[uint8]string)
+	found := make(map[avtp.StreamID]string)
 	var mu sync.Mutex
 	allFound := make(chan struct{}, 1)
 
@@ -243,10 +250,10 @@ func TestBrowser_MultipleZones(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_ = bro.Query(ctx, func(zone uint8, addr string) {
+		_ = bro.Query(ctx, func(stream avtp.StreamID, addr string) {
 			mu.Lock()
-			found[zone] = addr
-			if len(found) == len(zones) {
+			found[stream] = addr
+			if len(found) == len(servers) {
 				select {
 				case allFound <- struct{}{}:
 				default:
@@ -257,13 +264,13 @@ func TestBrowser_MultipleZones(t *testing.T) {
 	}()
 
 	time.Sleep(20 * time.Millisecond)
-	for _, z := range zones {
-		ann, err := rcpmdns.NewAnnouncer(z.zone, z.addr, announcerTx)
+	for _, s := range servers {
+		ann, err := rcpmdns.NewAnnouncer(s.stream, s.addr, announcerTx)
 		if err != nil {
-			t.Fatalf("NewAnnouncer zone %d: %v", z.zone, err)
+			t.Fatalf("NewAnnouncer stream %v: %v", s.stream, err)
 		}
 		if err := ann.Announce(); err != nil {
-			t.Fatalf("Announce zone %d: %v", z.zone, err)
+			t.Fatalf("Announce stream %v: %v", s.stream, err)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -272,7 +279,7 @@ func TestBrowser_MultipleZones(t *testing.T) {
 	case <-allFound:
 	case <-time.After(3 * time.Second):
 		mu.Lock()
-		t.Errorf("only discovered %d/%d zones: %v", len(found), len(zones), found)
+		t.Errorf("only discovered %d/%d servers: %v", len(found), len(servers), found)
 		mu.Unlock()
 	}
 
@@ -283,7 +290,7 @@ func TestBrowser_MultipleZones(t *testing.T) {
 // TestAnnouncer_Close verifies idempotent Close (REQ-MDNS-008).
 func TestAnnouncer_Close(t *testing.T) {
 	at, _ := newTransportPair(t)
-	a, err := rcpmdns.NewAnnouncer(1, "127.0.0.1:7000", at)
+	a, err := rcpmdns.NewAnnouncer(testStream(1), "127.0.0.1:7000", at)
 	if err != nil {
 		t.Fatalf("NewAnnouncer: %v", err)
 	}

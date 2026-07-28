@@ -1,4 +1,24 @@
-// Package tlstransport provides a mutual-TLS TCP transport for the RCP protocol.
+// Package tlstransport provides a mutual-TLS TCP transport for the retired
+// pre-TC18 bespoke RCP Command/Response/Status protocol.
+//
+// Deprecated: per ROADMAP.md Milestone 54 (v0.67.0) and Phase 17's
+// disposition table, this package is DEPRECATE-flagged, not migrated to
+// the OPEN Alliance TC18 Remote Control Protocol this repo otherwise now
+// implements. The specification's own link-security story is MACsec
+// (802.1AE) at layer 2 — opaque and product-specific per the register map
+// — not mutual TLS over a TCP byte stream, and mutual-TLS-over-TCP does not
+// fit the stream_id/byte_bus_id AVTPDU addressing model at all: there is no
+// "zone" to dial in the new model, and no register-map-shaped session to
+// carry over a TCP connection instead of individual AVTPDUs. This package
+// is kept, not deleted, only because the roadmap explicitly frames it as
+// "revisit only as a bespoke, clearly-labelled non-spec transport option,
+// not as 'the' secure transport" — so it still exists for a caller with a
+// genuine, acknowledged non-spec use for a mutual-TLS Command/Response
+// channel, but it is no longer wired against any of this repo's TC18
+// packages (avtp, acf, server, discovery, request, ...) and never will be
+// under this name. See legacyframe.go for why it still compiles: it now
+// carries its own frozen copy of the retired wire package's framing rather
+// than depending on the (also retired) wire package itself.
 package tlstransport
 
 //fusa:req REQ-TLS-001
@@ -22,7 +42,6 @@ import (
 	"sync/atomic"
 
 	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/wire"
 )
 
 type subscription struct {
@@ -105,7 +124,7 @@ func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response,
 		c.mu.Unlock()
 	}()
 
-	frame := wire.EncodeCommand(&safe)
+	frame := legacyEncodeCommand(&safe)
 	c.writeMu.Lock()
 	_, err := c.conn.Write(frame)
 	c.writeMu.Unlock()
@@ -137,7 +156,7 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 	c.subs = append(c.subs, sub)
 	c.mu.Unlock()
 
-	frame := wire.EncodeControlFrame(wire.TypeSubscribe, c.zone)
+	frame := legacyEncodeControlFrame(legacyTypeSubscribe, c.zone)
 	c.writeMu.Lock()
 	_, err := c.conn.Write(frame)
 	c.writeMu.Unlock()
@@ -149,7 +168,7 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 	go func() {
 		select {
 		case <-ctx.Done():
-			frame := wire.EncodeControlFrame(wire.TypeUnsubscribe, c.zone)
+			frame := legacyEncodeControlFrame(legacyTypeUnsubscribe, c.zone)
 			if !c.closed.Load() {
 				c.writeMu.Lock()
 				_, _ = c.conn.Write(frame)
@@ -195,12 +214,12 @@ func (c *Controller) Close() error {
 
 func (c *Controller) readLoop() {
 	defer close(c.readDone)
-	hdr := make([]byte, wire.HeaderLen)
+	hdr := make([]byte, legacyHeaderLen)
 	for {
 		if _, err := io.ReadFull(c.conn, hdr); err != nil {
 			return
 		}
-		if hdr[0] != wire.MagicByte0 || hdr[1] != wire.MagicByte1 || hdr[2] != wire.ProtoVer {
+		if hdr[0] != legacyMagicByte0 || hdr[1] != legacyMagicByte1 || hdr[2] != legacyProtoVer {
 			return
 		}
 		bodyLen := uint32(hdr[12])<<24 | uint32(hdr[13])<<16 | uint32(hdr[14])<<8 | uint32(hdr[15])
@@ -211,11 +230,11 @@ func (c *Controller) readLoop() {
 				return
 			}
 		}
-		frame := append(hdr[:wire.HeaderLen:wire.HeaderLen], body...)
+		frame := append(hdr[:legacyHeaderLen:legacyHeaderLen], body...)
 
 		switch hdr[3] {
-		case wire.TypeResponse:
-			resp, err := wire.DecodeResponse(frame)
+		case legacyTypeResponse:
+			resp, err := legacyDecodeResponse(frame)
 			if err != nil {
 				continue
 			}
@@ -228,8 +247,8 @@ func (c *Controller) readLoop() {
 				default:
 				}
 			}
-		case wire.TypeStatus:
-			st, err := wire.DecodeStatus(frame)
+		case legacyTypeStatus:
+			st, err := legacyDecodeStatus(frame)
 			if err != nil {
 				continue
 			}
