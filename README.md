@@ -50,7 +50,7 @@ full program and each satellite package's disposition.
 | Package | Description |
 |---|---|
 | `avtp` | IEEE 1722 AVTPDU/ACF wire format for TC18 RCP (Milestone 44, v0.57.0) — untimed/timestamped AVTPDU headers, the short/long RCP message encodings, and stream_id/byte_bus_id/transaction_num addressing |
-| `server` | RC Server configuration lifecycle and register map for TC18 RCP (Milestone 45, v0.58.0) — the 3-state lifecycle and its transition guards, the generic/functional per-endpoint register split, EP0 and the root-client/restricted-stream access model, the HW pin-mapping table, and request-stream/response-queue configuration |
+| `server` | RC Server configuration lifecycle, register map, and Discovery for TC18 RCP (Milestones 45/46, v0.58.0/v0.59.0) — the 3-state lifecycle and its transition guards, the generic/functional per-endpoint register split, EP0 and the root-client/restricted-stream access model, the HW pin-mapping table, request-stream/response-queue configuration, the grant-independent register-0 discovery read, the timeout-releasable configuration-claim, and client-side conformant-server recognition/topology persistence |
 
 ### RCP control-plane concerns (spec §13.7.2)
 

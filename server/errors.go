@@ -70,6 +70,26 @@ var (
 	ErrAccessDenied = errors.New("rcp/server: stream has no grant for this endpoint")
 )
 
+// Discovery errors (ROADMAP.md Milestone 46).
+var (
+	// ErrDiscoveryRequiresUntimedHeader is returned by HandleDiscoveryRequest
+	// when a discovery request arrives framed in a presentation-timestamped
+	// (TSCF) AVTPDU header. Discovery has no scheduled-execution concept, so
+	// a timestamped discovery request is dropped outright rather than
+	// folded down to best-effort.
+	ErrDiscoveryRequiresUntimedHeader = errors.New("rcp/server: discovery request must use the untimed AVTPDU header")
+
+	// ErrConfigurationClaimed is returned by ClaimConfiguration when a
+	// different stream currently holds an unexpired Discovery-stream
+	// configuration claim.
+	ErrConfigurationClaimed = errors.New("rcp/server: configuration rights are currently reserved by another stream")
+
+	// ErrNotConfigurationClaimant is returned by ReleaseConfigurationClaim
+	// when the calling stream does not currently hold an active Discovery-
+	// stream configuration claim.
+	ErrNotConfigurationClaimant = errors.New("rcp/server: stream does not hold the active configuration claim")
+)
+
 // Wire (register-map encoding) errors.
 var (
 	// ErrShortBuffer is returned when a buffer is too short to hold the

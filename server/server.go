@@ -2,6 +2,7 @@ package server
 
 import (
 	"sync"
+	"time"
 
 	"github.com/SoundMatt/go-RCP/avtp"
 )
@@ -10,20 +11,39 @@ import (
 // the EP0 access-control state (root-client claim and per-stream grants)
 // that gates every read/write against that map. All exported methods are
 // safe for concurrent use.
+//
+// Server also carries the Milestone 46 (Discovery) configuration-claim
+// state (see discovery.go): a timeout-releasable reservation of
+// configuration rights that coexists with, but is not the same mechanism
+// as, AccessController's own permanent root-client claim.
 type Server struct {
 	mu     sync.Mutex
 	state  LifecycleState
 	regmap *RegisterMap
 	access *AccessController
+
+	now          func() time.Time // injectable for testing; defaults to time.Now
+	claimTimeout time.Duration
+	claim        configurationClaim
 }
 
 // NewServer returns a Server in StateUnconfigured with an empty register
 // map: no endpoints declared, an empty pin map, zero-value stream/queue
 // configuration, and no root client claimed yet.
 func NewServer() *Server {
+	return NewServerWithClock(time.Now)
+}
+
+// NewServerWithClock is like NewServer but accepts a custom clock function,
+// used in tests to avoid real-time sleeps when exercising the Discovery
+// configuration-claim timeout (see ClaimConfiguration) — the same
+// injectable-clock pattern ratelimit.NewControllerWithClock establishes.
+func NewServerWithClock(now func() time.Time) *Server {
 	return &Server{
-		regmap: NewRegisterMap(),
-		access: NewAccessController(),
+		regmap:       NewRegisterMap(),
+		access:       NewAccessController(),
+		now:          now,
+		claimTimeout: DefaultConfigurationClaimTimeout,
 	}
 }
 
@@ -203,7 +223,9 @@ func (s *Server) ReadEndpoint(requester avtp.StreamID, addr avtp.ByteBusID) ([]b
 
 // ReadEP0 returns the whole register map, encoded, for requester. Per this
 // milestone's access model, EP0 is gated like any other address: requester
-// must be root or have an explicit grant of EP0.
+// must be root or have an explicit grant of EP0. See ReadDiscovery
+// (discovery.go) for Milestone 46's separate, grant-independent and
+// lifecycle-state-independent register-0 read.
 func (s *Server) ReadEP0(requester avtp.StreamID) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

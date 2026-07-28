@@ -581,7 +581,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 |---|---|---|---|
 | **TC18 Core — Wire & Server** | v0.57.0 | Wire format core | IEEE 1722 NTSCF/TSCF framing, ACF_ABB/ACF_GBB, the shared request-descriptor header, stream/transaction/bus-id addressing ✅ |
 | **TC18 Core — Wire & Server** | v0.58.0 | RC Server lifecycle | 3-state config lifecycle, generic/functional register-map split, EP0 ✅ |
-| **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response |
+| **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response ✅ |
 | **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes |
 | **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types |
 | **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers |
@@ -684,7 +684,24 @@ edit to them.
   client-side config tooling (see Phase 17's control-plane migration) must
   enforce correct ordering itself rather than assume the wire format does
 
-### 46. Discovery (v0.59.0)
+### 46. Discovery (v0.59.0) ✅
+
+**Done (v0.59.0):** landed in the existing `server` package (new files
+`server/discovery.go` and `server/discovery_client.go`; see `server/doc.go`'s
+new "Discovery (Milestone 46)" section). This milestone deliberately adds
+directly onto the Milestone 45 package rather than a new one — `access.go`'s
+own doc comment forward-referenced exactly this addition as something
+Milestone 45 left ungated for Discovery to build "on top", not a fresh
+package boundary. `Server.ReadDiscovery` is a narrowly-scoped, explicitly
+carved bypass of the ordinary EP0 access-control gate (answerable in any
+`LifecycleState` and regardless of `AccessController` grants); it does not
+relax `CanAccess`/`Grant`/`Revoke` for any other address, and every other
+read/write path from Milestone 45 is untouched. `Server.ClaimConfiguration`
+is a new, timeout-releasable configuration-rights reservation, deliberately
+independent of `AccessController.ClaimRoot` (narrower in scope, and not
+wired to gate `ClaimRoot`/`AddEndpoint`/`WriteEP0` in this milestone — that
+integration is left to the Phase 17 control-plane migration that will
+actually build a client workflow around it, per this milestone's own scope).
 
 - Discovery as a broadcastable, untimed, best-effort read of the register
   map starting at address 0, answerable by a server in **any** lifecycle
