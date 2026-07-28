@@ -49,11 +49,30 @@
 // hold the root-client role at a time (AccessController.ClaimRoot); it has
 // full-register access, while every other stream is restricted to only the
 // endpoints an operator has explicitly granted it (AccessController.Grant).
-// This milestone treats EP0 itself as subject to that same grant
-// requirement for a restricted stream — Discovery's universal,
-// grant-independent read of register 0 (ROADMAP.md Milestone 46) is a
-// deliberate exception layered on top of this package, not something this
-// milestone pre-builds; see AccessController's doc comment.
+// This milestone (45) treats EP0 itself as subject to that same grant
+// requirement for a restricted stream. Milestone 46 (Discovery, see
+// discovery.go) layers its own universal, grant-independent,
+// lifecycle-state-independent read of register 0 on top of this package —
+// Server.ReadDiscovery and Server.HandleDiscoveryRequest — plus a
+// timeout-releasable Discovery-stream configuration claim
+// (Server.ClaimConfiguration) that coexists with, but is distinct from, the
+// root-client claim described above; see AccessController's doc comment and
+// discovery.go's package-level notes.
+//
+// # Discovery (Milestone 46)
+//
+// discovery.go and discovery_client.go add: a register-0 read
+// (ReadDiscovery) answerable in any LifecycleState and regardless of
+// AccessController grants; HandleDiscoveryRequest, which additionally
+// enforces that a discovery request arrived on the untimed (NTSCF) AVTPDU
+// header, dropping a timestamped (TSCF) one outright; ClaimConfiguration
+// and its companion ConfigurationClaimant/ReleaseConfigurationClaim, a
+// configurable-timeout reservation of configuration rights scoped to one
+// stream at a time, independent of AccessController.ClaimRoot; and
+// IsConformantServer/Topology/DiscoverTopology/WriteTopology/ReadTopology,
+// client-side helpers for recognizing a conformant server from a discovery
+// response and persisting its topology so re-discovery isn't mandatory
+// every power cycle.
 //
 // # HW pin mapping and named signals
 //
@@ -133,4 +152,15 @@ package server
 //fusa:req REQ-RCS-017
 //fusa:req REQ-RCS-018
 //fusa:req REQ-RCS-019
+//fusa:req REQ-RCS-020
+//fusa:req REQ-RCS-021
+//fusa:req REQ-RCS-022
+//fusa:req REQ-RCS-023
+//fusa:req REQ-RCS-024
+//fusa:req REQ-RCS-025
+//fusa:req REQ-RCS-026
+//fusa:req REQ-RCS-027
+//fusa:req REQ-RCS-028
+//fusa:req REQ-RCS-029
+//fusa:req REQ-RCS-030
 //fusa:req REQ-RCS-020

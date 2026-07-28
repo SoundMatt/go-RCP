@@ -7,13 +7,15 @@ import "github.com/SoundMatt/go-RCP/avtp"
 // access; every other stream is restricted to only the endpoints explicitly
 // granted to it.
 //
-// This milestone treats EP0 itself as an address like any other for grant
-// purposes: a restricted stream needs an explicit grant of EP0 to read the
-// whole map, the same as it would for any real endpoint. Milestone 46
-// (Discovery) will need its own universal, grant-independent read of the
-// general block at register 0 — that is a deliberate exception this
-// milestone does not implement, left for Discovery to add on top rather
-// than pre-built here (see ROADMAP.md Milestone 46).
+// This package (Milestone 45) treats EP0 itself as an address like any
+// other for grant purposes: a restricted stream needs an explicit grant of
+// EP0 to read the whole map through CanAccess/ReadEP0, the same as it would
+// for any real endpoint. Milestone 46 (Discovery, see discovery.go) adds
+// its own universal, grant-independent read of the register map starting at
+// register 0 (Server.ReadDiscovery) — a deliberate, narrowly-scoped
+// exception layered on top of this type rather than a change to CanAccess
+// itself: CanAccess and Grant/Revoke below are unmodified by it, and every
+// other address remains gated exactly as this milestone defined.
 type AccessController struct {
 	root    avtp.StreamID
 	rootSet bool
