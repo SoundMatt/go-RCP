@@ -10,157 +10,199 @@
 package linbr_test
 
 import (
+	"context"
 	"errors"
 	"testing"
-	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/lin"
 	"github.com/SoundMatt/go-RCP/linbr"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// REQ-LIN-001: EncodeFrame produces a valid 11-byte LIN frame.
-func TestEncodeFrame_Size(t *testing.T) {
-	f := linbr.Frame{ID: 0x10, DataLen: 4, Data: [8]byte{1, 2, 3, 4}}
-	buf := linbr.EncodeFrame(f)
-	if len(buf) != 11 {
-		t.Fatalf("EncodeFrame len = %d, want 11", len(buf))
-	}
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
 }
 
-// REQ-LIN-002: DecodeFrame parses the header back correctly.
-func TestEncodeDecodeRoundTrip(t *testing.T) {
-	want := linbr.Frame{ID: 0x1A, DataLen: 3, Data: [8]byte{0xAA, 0xBB, 0xCC}}
-	buf := linbr.EncodeFrame(want)
-	got, err := linbr.DecodeFrame(buf)
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+const testAddr = avtp.ByteBusID(1)
+
+// TestEncodeFrame_ClassicChecksum EncodeFrame produces PID+data+classic
+// checksum wire bytes, decodable back to the same Frame (REQ-LIN-001).
+func TestEncodeFrame_ClassicChecksum(t *testing.T) {
+	f := linbr.Frame{ID: 0x10, Data: []byte{1, 2, 3, 4}, Checksum: linbr.ChecksumClassic}
+	buf, err := linbr.EncodeFrame(f)
+	if err != nil {
+		t.Fatalf("EncodeFrame: %v", err)
+	}
+	if len(buf) != 6 { // pid(1) + data(4) + checksum(1)
+		t.Fatalf("len(buf) = %d, want 6", len(buf))
+	}
+	got, err := linbr.DecodeFrame(buf, linbr.ChecksumClassic)
 	if err != nil {
 		t.Fatalf("DecodeFrame: %v", err)
 	}
-	if got.ID != want.ID {
-		t.Errorf("ID = %d, want %d", got.ID, want.ID)
-	}
-	if got.DataLen != want.DataLen {
-		t.Errorf("DataLen = %d, want %d", got.DataLen, want.DataLen)
-	}
-	for i := uint8(0); i < want.DataLen; i++ {
-		if got.Data[i] != want.Data[i] {
-			t.Errorf("Data[%d] = %d, want %d", i, got.Data[i], want.Data[i])
-		}
+	if got.ID != f.ID || string(got.Data) != string(f.Data) {
+		t.Errorf("DecodeFrame = %+v, want ID/Data matching %+v", got, f)
 	}
 }
 
-// REQ-LIN-003: DecodeFrame returns ErrChecksumMismatch for corrupted frames.
+// TestDecodeFrame_ChecksumMismatch a corrupted checksum byte is detected
+// (REQ-LIN-002).
 func TestDecodeFrame_ChecksumMismatch(t *testing.T) {
-	f := linbr.Frame{ID: 0x05, DataLen: 2, Data: [8]byte{0x01, 0x02}}
-	buf := linbr.EncodeFrame(f)
-	buf[10] ^= 0xFF // corrupt checksum
-	_, err := linbr.DecodeFrame(buf)
-	if !errors.Is(err, linbr.ErrChecksumMismatch) {
-		t.Errorf("want ErrChecksumMismatch, got %v", err)
+	f := linbr.Frame{ID: 0x05, Data: []byte{0x01, 0x02}, Checksum: linbr.ChecksumClassic}
+	buf, err := linbr.EncodeFrame(f)
+	if err != nil {
+		t.Fatalf("EncodeFrame: %v", err)
+	}
+	buf[len(buf)-1] ^= 0xFF
+	if _, err := linbr.DecodeFrame(buf, linbr.ChecksumClassic); !errors.Is(err, linbr.ErrChecksumMismatch) {
+		t.Errorf("err = %v, want ErrChecksumMismatch", err)
 	}
 }
 
-// REQ-LIN-004: Bus.Send delivers frames to all registered Slaves with matching ID.
-func TestBus_Send_Routes(t *testing.T) {
-	bus := linbr.NewBus()
-	s1 := linbr.NewSlave(bus, 0x20)
-	s2 := linbr.NewSlave(bus, 0x20)
-	defer s1.Close()
-	defer s2.Close()
-
-	f := linbr.Frame{ID: 0x20, DataLen: 1, Data: [8]byte{0x42}}
-	bus.Send(f)
-
-	for _, sl := range []*linbr.Slave{s1, s2} {
-		select {
-		case got := <-sl.Frames():
-			if got.ID != 0x20 {
-				t.Errorf("got ID %d, want 0x20", got.ID)
-			}
-		case <-time.After(time.Second):
-			t.Error("timeout waiting for frame on slave")
-		}
+// TestChecksum_EnhancedDiffersFromClassic the enhanced checksum (which
+// folds in the protected ID) is not interchangeable with the classic one
+// for the same frame (REQ-LIN-003).
+func TestChecksum_EnhancedDiffersFromClassic(t *testing.T) {
+	f := linbr.Frame{ID: 0x21, Data: []byte{0xAA, 0xBB}, Checksum: linbr.ChecksumEnhanced}
+	buf, err := linbr.EncodeFrame(f)
+	if err != nil {
+		t.Fatalf("EncodeFrame: %v", err)
+	}
+	if _, mismatchErr := linbr.DecodeFrame(buf, linbr.ChecksumClassic); !errors.Is(mismatchErr, linbr.ErrChecksumMismatch) {
+		t.Error("decoding an enhanced-checksum frame as classic unexpectedly validated")
+	}
+	got, err := linbr.DecodeFrame(buf, linbr.ChecksumEnhanced)
+	if err != nil {
+		t.Fatalf("DecodeFrame(enhanced): %v", err)
+	}
+	if got.ID != f.ID {
+		t.Errorf("ID = %#x, want %#x", got.ID, f.ID)
 	}
 }
 
-// REQ-LIN-005: Bus.Send does not deliver frames with non-matching IDs.
-func TestBus_Send_IDFilter(t *testing.T) {
-	bus := linbr.NewBus()
-	s := linbr.NewSlave(bus, 0x10)
-	defer s.Close()
-
-	bus.Send(linbr.Frame{ID: 0x20, DataLen: 1}) // different ID
-	select {
-	case <-s.Frames():
-		t.Error("received frame with wrong ID")
-	case <-time.After(50 * time.Millisecond):
-		// expected: no frame
+// TestEncodeFrame_RejectsOversizedData a Data payload over 8 bytes is
+// rejected before any wire bytes are produced (REQ-LIN-004).
+func TestEncodeFrame_RejectsOversizedData(t *testing.T) {
+	f := linbr.Frame{ID: 0x01, Data: make([]byte, 9)}
+	if _, err := linbr.EncodeFrame(f); !errors.Is(err, linbr.ErrDataTooLong) {
+		t.Errorf("err = %v, want ErrDataTooLong", err)
 	}
 }
 
-// REQ-LIN-006: Slave receives frames dispatched by the Bus.
-func TestSlave_ReceivesFrames(t *testing.T) {
-	bus := linbr.NewBus()
-	s := linbr.NewSlave(bus, 0x3F)
-	defer s.Close()
-
-	f := linbr.Frame{ID: 0x3F, DataLen: 2, Data: [8]byte{0xDE, 0xAD}}
-	bus.Send(f)
-
-	select {
-	case got := <-s.Frames():
-		if got.Data[0] != 0xDE || got.Data[1] != 0xAD {
-			t.Errorf("wrong data: %v", got.Data[:2])
-		}
-	case <-time.After(time.Second):
-		t.Error("timeout waiting for frame")
+// TestDecodeFrame_TooShort a buffer under 2 bytes cannot hold a PID and a
+// checksum (REQ-LIN-005).
+func TestDecodeFrame_TooShort(t *testing.T) {
+	if _, err := linbr.DecodeFrame([]byte{0x01}, linbr.ChecksumClassic); !errors.Is(err, linbr.ErrFrameTooShort) {
+		t.Errorf("err = %v, want ErrFrameTooShort", err)
 	}
 }
 
-// REQ-LIN-007: Bridge dispatches frames to rcp.Controller.Send.
-func TestBridge_DispatchesFrames(t *testing.T) {
-	bus := linbr.NewBus()
-	dispatched := make(chan rcp.CommandType, 1)
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		dispatched <- cmd.Type
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
+// TestScheduleTable_RoundRobin Next cycles through every entry in order and
+// wraps back to the first (REQ-LIN-006).
+func TestScheduleTable_RoundRobin(t *testing.T) {
+	table := linbr.NewScheduleTable([]linbr.ScheduleEntry{
+		{ID: 0x01, DelaySlots: 10},
+		{ID: 0x02, DelaySlots: 20},
+		{ID: 0x03, DelaySlots: 30},
 	})
-	defer inner.Close()
-
-	slave := linbr.NewSlave(bus, 0x01)
-	defer slave.Close()
-
-	bridge := linbr.NewBridge(inner, slave)
-	defer bridge.Close()
-
-	// Data: Zone=FrontLeft, Type=CmdSet
-	f := linbr.Frame{
-		ID:      0x01,
-		DataLen: 2,
-		Data:    [8]byte{byte(rcp.ZoneFrontLeft), byte(rcp.CmdSet)},
-	}
-	bus.Send(f)
-
-	select {
-	case got := <-dispatched:
-		if got != rcp.CmdSet {
-			t.Errorf("dispatched type = %v, want CmdSet", got)
+	var got []uint8
+	for i := 0; i < 5; i++ {
+		e, ok := table.Next()
+		if !ok {
+			t.Fatalf("Next() ok = false at i=%d", i)
 		}
-	case <-time.After(3 * time.Second):
-		t.Error("timeout waiting for dispatch")
+		got = append(got, e.ID)
+	}
+	want := []uint8{0x01, 0x02, 0x03, 0x01, 0x02}
+	if len(got) != len(want) {
+		t.Fatalf("got %d entries, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("slot %d = %#x, want %#x", i, got[i], want[i])
+		}
 	}
 }
 
-// REQ-LIN-008: Bridge.Close is idempotent.
-func TestBridge_CloseIdempotent(t *testing.T) {
-	bus := linbr.NewBus()
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
+// TestScheduleTable_EmptyReportsNotOK an empty table's Next never reports ok
+// (REQ-LIN-006, boundary case).
+func TestScheduleTable_EmptyReportsNotOK(t *testing.T) {
+	table := linbr.NewScheduleTable(nil)
+	if _, ok := table.Next(); ok {
+		t.Error("Next() on an empty table reported ok = true")
+	}
+}
 
-	slave := linbr.NewSlave(bus, 0x02)
-	defer slave.Close()
+// newHarness starts a udp.Server backed by a real lin.Endpoint at testAddr,
+// configured to loop every transfer back unchanged (the native endpoint's
+// default Transport, see lin.Endpoint.SetTransport), and dials a
+// *udp.Controller against it.
+func newHarness(t *testing.T) (*linbr.Controller, *udp.Controller) {
+	t.Helper()
+	srvSide := server.NewServer()
+	if err := srvSide.ClaimRoot(serverStream()); err != nil {
+		t.Fatalf("ClaimRoot: %v", err)
+	}
+	if err := srvSide.AddEndpoint(serverStream(), testAddr, lin.EndpointType); err != nil {
+		t.Fatalf("AddEndpoint: %v", err)
+	}
+	srvSide.Grant(clientStream(), testAddr)
+	ep := lin.NewEndpoint(srvSide, testAddr)
+	if err := ep.Configure(serverStream(), lin.Config{Enabled: true, BaudRate: 19200}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
 
-	bridge := linbr.NewBridge(inner, slave)
-	bridge.Close()
-	bridge.Close() // must not panic
+	router := udp.NewRouter(udp.NewEP0Handler(srvSide), false)
+	if err := router.Register(testAddr, ep); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	srv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	inner, err := udp.NewController(clientStream(), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = inner.Close() })
+
+	return linbr.NewController(inner, testAddr), inner
+}
+
+// TestController_Transfer_RoundTrip Transfer encodes a Frame, sends it
+// through a real lin.Endpoint (raw byte pass-through, loopback by default),
+// and decodes the echoed bytes back into the same Frame (REQ-LIN-007).
+func TestController_Transfer_RoundTrip(t *testing.T) {
+	c, _ := newHarness(t)
+	f := linbr.Frame{ID: 0x1A, Data: []byte{0xAA, 0xBB, 0xCC}, Checksum: linbr.ChecksumClassic}
+	got, err := c.Transfer(context.Background(), f)
+	if err != nil {
+		t.Fatalf("Transfer: %v", err)
+	}
+	if got.ID != f.ID || string(got.Data) != string(f.Data) {
+		t.Errorf("Transfer() = %+v, want echo of %+v", got, f)
+	}
+}
+
+// TestController_StreamIDAndClose StreamID/Close delegate to the wrapped
+// Controller, and Close is idempotent (REQ-LIN-008).
+func TestController_StreamIDAndClose(t *testing.T) {
+	c, inner := newHarness(t)
+	if got, want := c.StreamID(), inner.StreamID(); got != want {
+		t.Errorf("StreamID() = %v, want %v", got, want)
+	}
+	if err := c.Close(); err != nil {
+		t.Errorf("first Close: %v", err)
+	}
+	if err := c.Close(); err != nil {
+		t.Errorf("second Close: %v", err)
+	}
 }

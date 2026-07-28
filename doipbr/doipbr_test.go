@@ -16,32 +16,73 @@ import (
 	"errors"
 	"net"
 	"testing"
-	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/doipbr"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 	"github.com/SoundMatt/go-RCP/udsbr"
 )
 
-func startServer(t *testing.T, handler func(*rcp.Command) *rcp.Response) (*doipbr.Server, func()) {
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
+
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+const testAddr = avtp.ByteBusID(1)
+
+type echoHandler struct{}
+
+func (echoHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+// startServer wires a doipbr.Server end-to-end: a real udp.Controller
+// reaching a udp.Server with echoHandler registered, wrapped by a
+// udsbr.Server, wrapped by a doipbr.Server listening on TCP.
+func startServer(t *testing.T) (*doipbr.Server, func()) {
 	t.Helper()
-	inner := mock.NewController(rcp.ZoneFrontLeft, handler)
-	uds := udsbr.NewServer(inner)
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testAddr, echoHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	rcpSrv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("udp.NewServer: %v", err)
+	}
+	upstream, err := udp.NewController(clientStream(), rcpSrv.Addr())
+	if err != nil {
+		t.Fatalf("udp.NewController: %v", err)
+	}
+	uds := udsbr.NewServer(upstream)
+
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
 	srv := doipbr.NewServer(uds, ln)
 	srv.ServeBackground()
+
 	return srv, func() {
 		_ = srv.Close()
-		_ = inner.Close()
+		_ = upstream.Close()
+		_ = rcpSrv.Close()
 		uds.Close()
 	}
 }
 
-// REQ-DOIP-001: BuildHeader produces an 8-byte header with correct protocol version.
+// TestBuildHeader BuildHeader produces an 8-byte header with the correct
+// protocol version and payload type (REQ-DOIP-001).
 func TestBuildHeader(t *testing.T) {
 	h := doipbr.BuildHeader(doipbr.PayloadTypeDiagMessage, 4)
 	if len(h) != 8 {
@@ -53,7 +94,8 @@ func TestBuildHeader(t *testing.T) {
 	}
 }
 
-// REQ-DOIP-002: ParseHeader reads and validates the DoIP header.
+// TestParseHeader ParseHeader reads and validates the DoIP header
+// (REQ-DOIP-002).
 func TestParseHeader(t *testing.T) {
 	h := doipbr.BuildHeader(doipbr.PayloadTypeDiagMessage, 12)
 	pt, pl, err := doipbr.ParseHeader(bytes.NewReader(h))
@@ -68,7 +110,8 @@ func TestParseHeader(t *testing.T) {
 	}
 }
 
-// REQ-DOIP-003: ParseHeader returns ErrInvalidHeader for bad version bytes.
+// TestParseHeader_Invalid ParseHeader returns ErrInvalidHeader for bad
+// version bytes (REQ-DOIP-003).
 func TestParseHeader_Invalid(t *testing.T) {
 	h := []byte{0x01, 0x02, 0x80, 0x01, 0, 0, 0, 0}
 	_, _, err := doipbr.ParseHeader(bytes.NewReader(h))
@@ -77,11 +120,10 @@ func TestParseHeader_Invalid(t *testing.T) {
 	}
 }
 
-// REQ-DOIP-004: Server.Serve accepts TCP connections and processes DoIP messages.
+// TestServer_Serve Serve accepts TCP connections and processes DiagMessage
+// PDUs end-to-end through to a real upstream endpoint (REQ-DOIP-004).
 func TestServer_Serve(t *testing.T) {
-	srv, cleanup := startServer(t, func(cmd *rcp.Command) *rcp.Response {
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
+	srv, cleanup := startServer(t)
 	defer cleanup()
 
 	c, err := doipbr.NewClient(srv.Addr().String())
@@ -90,8 +132,7 @@ func TestServer_Serve(t *testing.T) {
 	}
 	defer func() { _ = c.Close() }()
 
-	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DIDRCPCommand,
-		[]byte{byte(rcp.ZoneFrontLeft), byte(rcp.CmdSet)})
+	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DataIdentifier(testAddr), []byte{0xAA})
 	resp, err := c.Send(context.Background(), pdu)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
@@ -101,13 +142,11 @@ func TestServer_Serve(t *testing.T) {
 	}
 }
 
-// REQ-DOIP-005: Client.Send transmits a diagnostic message and receives the response.
+// TestClient_Send Client.Send transmits a diagnostic message and returns the
+// UDS response payload, echoed through the real upstream endpoint
+// (REQ-DOIP-005).
 func TestClient_Send(t *testing.T) {
-	dispatched := make(chan rcp.CommandType, 1)
-	srv, cleanup := startServer(t, func(cmd *rcp.Command) *rcp.Response {
-		dispatched <- cmd.Type
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
+	srv, cleanup := startServer(t)
 	defer cleanup()
 
 	c, err := doipbr.NewClient(srv.Addr().String())
@@ -116,24 +155,20 @@ func TestClient_Send(t *testing.T) {
 	}
 	defer func() { _ = c.Close() }()
 
-	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DIDRCPCommand,
-		[]byte{byte(rcp.ZoneFrontLeft), byte(rcp.CmdGet)})
-	if _, err = c.Send(context.Background(), pdu); err != nil {
+	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DataIdentifier(testAddr), []byte{0xBE, 0xEF})
+	resp, err := c.Send(context.Background(), pdu)
+	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
-	select {
-	case got := <-dispatched:
-		if got != rcp.CmdGet {
-			t.Errorf("dispatched %v, want CmdGet", got)
-		}
-	case <-time.After(3 * time.Second):
-		t.Error("timeout waiting for dispatch")
+	if !bytes.Equal(resp[3:], []byte{0xBE, 0xEF}) {
+		t.Errorf("resp data = % X, want % X", resp[3:], []byte{0xBE, 0xEF})
 	}
 }
 
-// REQ-DOIP-006: Server returns NACK for unsupported payload types.
+// TestServer_Serve_UnsupportedPayload the server NACKs an unrecognised
+// payload type (REQ-DOIP-006).
 func TestServer_Serve_UnsupportedPayload(t *testing.T) {
-	srv, cleanup := startServer(t, nil)
+	srv, cleanup := startServer(t)
 	defer cleanup()
 
 	conn, err := (&net.Dialer{}).DialContext(context.Background(), "tcp", srv.Addr().String())
@@ -147,24 +182,26 @@ func TestServer_Serve_UnsupportedPayload(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	_, respType, err := doipbr.ParseHeader(conn)
+	respType, _, err := doipbr.ParseHeader(conn)
 	if err != nil {
 		t.Fatalf("ParseHeader resp: %v", err)
 	}
-	_ = respType // just verify server responds
+	if respType != doipbr.PayloadTypeDiagMessageNack {
+		t.Errorf("respType = 0x%04X, want NACK 0x%04X", respType, doipbr.PayloadTypeDiagMessageNack)
+	}
 }
 
-// REQ-DOIP-007: Server.Close is idempotent.
+// TestServer_CloseIdempotent Server.Close is idempotent (REQ-DOIP-007).
 func TestServer_CloseIdempotent(t *testing.T) {
-	srv, cleanup := startServer(t, nil)
+	srv, cleanup := startServer(t)
 	defer cleanup()
 	_ = srv.Close()
 	_ = srv.Close() // must not panic
 }
 
-// REQ-DOIP-008: Client.Close is idempotent.
+// TestClient_CloseIdempotent Client.Close is idempotent (REQ-DOIP-008).
 func TestClient_CloseIdempotent(t *testing.T) {
-	srv, cleanup := startServer(t, nil)
+	srv, cleanup := startServer(t)
 	defer cleanup()
 
 	c, err := doipbr.NewClient(srv.Addr().String())
@@ -173,4 +210,20 @@ func TestClient_CloseIdempotent(t *testing.T) {
 	}
 	_ = c.Close()
 	_ = c.Close() // must not panic
+}
+
+// TestServeBackground_TracksWaitGroup ServeBackground calls wg.Add(1)
+// synchronously before starting the Serve goroutine, so Close() correctly
+// blocks until Serve has actually exited rather than racing it
+// (REQ-DOIP-009).
+func TestServeBackground_TracksWaitGroup(t *testing.T) {
+	srv, cleanup := startServer(t)
+	defer cleanup()
+	// If ServeBackground raced wg.Add(1) against the goroutine, Close could
+	// return before Serve's accept loop had actually stopped; a clean,
+	// hang-free Close (bounded by the test's own timeout) is this test's
+	// evidence that didn't happen.
+	if err := srv.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
 }

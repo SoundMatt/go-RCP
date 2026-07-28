@@ -1,23 +1,31 @@
-//fusa:req REQ-SIPC-001
-//fusa:req REQ-SIPC-002
-//fusa:req REQ-SIPC-003
-//fusa:req REQ-SIPC-004
-//fusa:req REQ-SIPC-005
-//fusa:req REQ-SIPC-006
-//fusa:req REQ-SIPC-007
-//fusa:req REQ-SIPC-008
-
-// Package someip provides a SOME/IP bridge for go-RCP.
+// Package someip provides a SOME/IP service-method bridge for go-RCP, for
+// the OPEN Alliance TC18 Remote Control Protocol (RCP), as described by the
+// "OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC".
 //
-// The SOME/IP (Scalable service-Oriented MiddlewarE over IP) wire format uses
-// a 16-byte header followed by a payload. This package maps rcp.Commands to
-// SOME/IP service method invocations and vice versa.
+// This is ROADMAP.md Milestone 56 (v0.69.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, SOME/IP service-method bridging is
+// orthogonal to TC18 RCP and stays genuinely necessary, just re-pointed at
+// endpoint requests/responses. A SOME/IP method ID now addresses an
+// avtp.ByteBusID directly (its low byte — see addressFor), and a SOME/IP
+// REQUEST's own Read/Write intent (the retired package had none to carry:
+// rcp.CommandType was itself the whole operation) is inferred from whether
+// its payload is empty: an empty-payload REQUEST reads the addressed
+// endpoint, a non-empty one writes it. This is this package's own free
+// design choice for a protocol the specification does not itself define an
+// RCP mapping for, not a verified transcription of any SOME/IP or TC18 byte
+// layout (see doc.go's spec-fidelity notes elsewhere in this repo for the
+// same posture).
 //
-// Server listens for incoming SOME/IP request datagrams and dispatches them
-// to an rcp.Controller. Controller implements rcp.Controller by sending
-// SOME/IP request datagrams to a remote Server.
+// Server listens for incoming SOME/IP REQUEST datagrams and forwards each
+// to an upstream *udp.Controller as one plain request, replying with a
+// SOME/IP RESPONSE. Controller is the reciprocal client-side stub: it
+// presents the same Request/Read/Write/Close surface a *udp.Controller
+// does (Milestone 54's own "Controller-equivalent interface" precedent —
+// see grpcbridge/restbridge, this milestone's other cloud-facing bridges)
+// but reaches a remote someip.Server over SOME/IP datagrams instead of
+// dialing an RC Server directly.
 //
-// SOME/IP header layout (16 bytes):
+// SOME/IP header layout (16 bytes) is unchanged from the retired package:
 //
 //	[0:2]  Service ID  (uint16 big-endian)
 //	[2:4]  Method  ID  (uint16 big-endian)
@@ -30,6 +38,15 @@
 //	[15]   Return Code (0x00 OK, 0x01 NOT_OK)
 package someip
 
+//fusa:req REQ-SIPC-001
+//fusa:req REQ-SIPC-002
+//fusa:req REQ-SIPC-003
+//fusa:req REQ-SIPC-004
+//fusa:req REQ-SIPC-005
+//fusa:req REQ-SIPC-006
+//fusa:req REQ-SIPC-007
+//fusa:req REQ-SIPC-008
+
 import (
 	"context"
 	"encoding/binary"
@@ -40,7 +57,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
 const (
@@ -54,10 +73,17 @@ const (
 
 	// DefaultServiceID is the SOME/IP service ID used for the RCP bridge.
 	DefaultServiceID uint16 = 0x0E00
+
+	// DefaultRequestTimeout bounds how long Server waits for the upstream
+	// controller's response to a forwarded SOME/IP REQUEST.
+	DefaultRequestTimeout = 5 * time.Second
 )
 
 // ErrMalformedFrame is returned when a SOME/IP frame is too short or invalid.
 var ErrMalformedFrame = errors.New("rcp/someip: malformed SOME/IP frame")
+
+// ErrClosed is returned by Controller methods once Close has been called.
+var ErrClosed = errors.New("rcp/someip: closed")
 
 // Header is a decoded SOME/IP message header.
 type Header struct {
@@ -72,13 +98,28 @@ type Header struct {
 	ReturnCode uint8
 }
 
+// addressFor derives the avtp.ByteBusID a SOME/IP MethodID addresses: its
+// low byte, ByteBusID's own full representable width (see avtp/address.go).
+func addressFor(methodID uint16) avtp.ByteBusID {
+	return avtp.ByteBusID(methodID & 0xFF) //nolint:gosec // deliberate truncation, see addressFor's doc comment
+}
+
+// controlFor infers a SOME/IP REQUEST's Read/Write intent from its payload:
+// empty means read, non-empty means write (see the package doc comment).
+func controlFor(payload []byte) acf.ControlFlags {
+	if len(payload) == 0 {
+		return acf.FlagRead
+	}
+	return acf.FlagWrite
+}
+
 // encodeFrame serialises hdr and payload into a SOME/IP datagram.
 func encodeFrame(hdr Header, payload []byte) []byte {
 	out := make([]byte, headerLen+len(payload))
 	binary.BigEndian.PutUint16(out[0:], hdr.ServiceID)
 	binary.BigEndian.PutUint16(out[2:], hdr.MethodID)
 	// Length field covers ClientID..end of payload (headerLen - 8 + len(payload))
-	binary.BigEndian.PutUint32(out[4:], uint32(8+len(payload)))
+	binary.BigEndian.PutUint32(out[4:], uint32(8+len(payload))) //nolint:gosec // payload is bounded by a UDP datagram's own size
 	binary.BigEndian.PutUint16(out[8:], hdr.ClientID)
 	binary.BigEndian.PutUint16(out[10:], hdr.SessionID)
 	out[12] = hdr.ProtoVer
@@ -110,28 +151,29 @@ func decodeFrame(b []byte) (Header, []byte, error) {
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 
-// Server listens for SOME/IP REQUEST datagrams and dispatches them to an
-// rcp.Controller. Responses are sent back as SOME/IP RESPONSE datagrams.
+// Server listens for SOME/IP REQUEST datagrams and forwards each to an
+// upstream *udp.Controller as one plain request, replying with a SOME/IP
+// RESPONSE datagram.
 type Server struct {
-	ctrl      rcp.Controller
-	zone      rcp.Zone
+	upstream  *udp.Controller
 	serviceID uint16
 	conn      *net.UDPConn
+	timeout   time.Duration
 	done      chan struct{}
 }
 
-// NewServer creates a Server backed by ctrl, listening on addr.
+// NewServer creates a Server forwarding to upstream, listening on addr.
 // serviceID is the SOME/IP service identifier to accept; use DefaultServiceID.
-func NewServer(ctrl rcp.Controller, addr *net.UDPAddr, serviceID uint16) (*Server, error) {
+func NewServer(upstream *udp.Controller, addr *net.UDPAddr, serviceID uint16) (*Server, error) {
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("rcp/someip: listen %s: %w", addr, err)
 	}
 	s := &Server{
-		ctrl:      ctrl,
-		zone:      ctrl.Zone(),
+		upstream:  upstream,
 		serviceID: serviceID,
 		conn:      conn,
+		timeout:   DefaultRequestTimeout,
 		done:      make(chan struct{}),
 	}
 	go s.readLoop()
@@ -168,26 +210,16 @@ func (s *Server) handle(frame []byte, remote *net.UDPAddr) {
 		return
 	}
 
-	cmd := &rcp.Command{
-		Zone:     s.zone,
-		Type:     rcp.CommandType(hdr.MethodID),
-		Priority: rcp.PriorityNormal,
-		Payload:  payload,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	resp, err := s.ctrl.Send(ctx, cmd)
+	resp, err := s.upstream.Request(ctx, addressFor(hdr.MethodID), controlFor(payload), payload)
 	retCode := retCodeOK
 	var respPayload []byte
-	if err != nil {
+	if err != nil || resp.Control.Has(acf.FlagError) {
 		retCode = retCodeNotOK
 	} else {
-		if resp.Status != rcp.StatusOK {
-			retCode = retCodeNotOK
-		}
-		respPayload = resp.Payload
+		respPayload = resp.Body
 	}
 
 	respHdr := Header{
@@ -205,54 +237,53 @@ func (s *Server) handle(frame []byte, remote *net.UDPAddr) {
 
 // ─── Controller ───────────────────────────────────────────────────────────────
 
-// Controller implements rcp.Controller by sending SOME/IP REQUEST datagrams
-// to a remote Server and correlating RESPONSE datagrams by session ID.
+// Controller reaches a remote someip.Server over SOME/IP datagrams,
+// presenting the same Request/Read/Write surface a *udp.Controller does.
 type Controller struct {
-	zone      rcp.Zone
 	serviceID uint16
-	server    *net.UDPAddr
 	conn      *net.UDPConn
 	nextSess  atomic.Uint32
 	closed    atomic.Bool
 	readDone  chan struct{}
 
 	mu      sync.Mutex
-	pending map[uint16]chan Header
+	pending map[uint16]chan pendingResult
 }
 
-// NewController dials a SOME/IP Server at serverAddr and returns an
-// rcp.Controller for zone. serviceID must match the server's service ID.
-func NewController(zone rcp.Zone, serverAddr *net.UDPAddr, serviceID uint16) (*Controller, error) {
+// pendingResult pairs a response Header with its payload, delivered together
+// on the same channel entry.
+type pendingResult struct {
+	hdr     Header
+	payload []byte
+}
+
+// NewController dials a SOME/IP Server at serverAddr. serviceID must match
+// the server's service ID.
+func NewController(serverAddr *net.UDPAddr, serviceID uint16) (*Controller, error) {
 	conn, err := net.DialUDP("udp", nil, serverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("rcp/someip: dial %s: %w", serverAddr, err)
 	}
 	c := &Controller{
-		zone:      zone,
 		serviceID: serviceID,
-		server:    serverAddr,
 		conn:      conn,
 		readDone:  make(chan struct{}),
-		pending:   make(map[uint16]chan Header),
+		pending:   make(map[uint16]chan pendingResult),
 	}
 	go c.readLoop()
 	return c, nil
 }
 
-// Zone implements rcp.Controller.
-func (c *Controller) Zone() rcp.Zone { return c.zone }
-
-// Send implements rcp.Controller — encodes cmd as a SOME/IP REQUEST.
-func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
+// Request sends one SOME/IP REQUEST addressed to addr (its low byte becomes
+// the SOME/IP MethodID) and blocks for the matching RESPONSE or ctx's
+// expiry, whichever comes first.
+func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
 	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/someip: zone %s: %w", c.zone, rcp.ErrClosed)
-	}
-	if cmd.Zone != c.zone {
-		return nil, fmt.Errorf("rcp/someip: zone %s: %w", c.zone, rcp.ErrZoneMismatch)
+		return acf.Message{}, fmt.Errorf("rcp/someip: %w", ErrClosed)
 	}
 
 	sessID := uint16(c.nextSess.Add(1))
-	ch := make(chan Header, 1)
+	ch := make(chan pendingResult, 1)
 	c.mu.Lock()
 	c.pending[sessID] = ch
 	c.mu.Unlock()
@@ -264,46 +295,45 @@ func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response,
 
 	reqHdr := Header{
 		ServiceID: c.serviceID,
-		MethodID:  uint16(cmd.Type),
+		MethodID:  uint16(addr),
 		ClientID:  0x0001,
 		SessionID: sessID,
 		ProtoVer:  0x01,
 		IfaceVer:  0x01,
 		MsgType:   msgTypeRequest,
 	}
-	if _, err := c.conn.Write(encodeFrame(reqHdr, cmd.Payload)); err != nil {
-		return nil, fmt.Errorf("rcp/someip: Send write: %w", err)
+	if _, err := c.conn.Write(encodeFrame(reqHdr, body)); err != nil {
+		return acf.Message{}, fmt.Errorf("rcp/someip: Request write: %w", err)
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("rcp/someip: zone %s: %w", c.zone, rcp.ErrTimeout)
-	case respHdr, ok := <-ch:
+		return acf.Message{}, fmt.Errorf("rcp/someip: %w", ctx.Err())
+	case result, ok := <-ch:
 		if !ok {
-			return nil, fmt.Errorf("rcp/someip: zone %s: %w", c.zone, rcp.ErrClosed)
+			return acf.Message{}, fmt.Errorf("rcp/someip: %w", ErrClosed)
 		}
-		status := rcp.StatusOK
-		if respHdr.ReturnCode != retCodeOK {
-			status = rcp.StatusError
+		respControl := acf.FlagResponse | (control & (acf.FlagRead | acf.FlagWrite))
+		if result.hdr.ReturnCode != retCodeOK {
+			respControl |= acf.FlagError
 		}
-		return &rcp.Response{Zone: c.zone, Status: status}, nil
+		return acf.Message{ByteBusID: addr, Control: respControl, Body: result.payload}, nil
 	case <-c.readDone:
-		return nil, fmt.Errorf("rcp/someip: zone %s: %w", c.zone, rcp.ErrClosed)
+		return acf.Message{}, fmt.Errorf("rcp/someip: %w", ErrClosed)
 	}
 }
 
-// Subscribe implements rcp.Controller — SOME/IP events require a separate
-// event group subscription; this stub returns an empty channel.
-func (c *Controller) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
-	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/someip: zone %s: %w", c.zone, rcp.ErrClosed)
-	}
-	ch := make(chan *rcp.Status)
-	go func() { <-c.readDone; close(ch) }()
-	return ch, nil
+// Read is Request with acf.FlagRead set and no body.
+func (c *Controller) Read(ctx context.Context, addr avtp.ByteBusID) (acf.Message, error) {
+	return c.Request(ctx, addr, acf.FlagRead, nil)
 }
 
-// Close implements rcp.Controller — idempotent.
+// Write is Request with acf.FlagWrite set and the given body.
+func (c *Controller) Write(ctx context.Context, addr avtp.ByteBusID, body []byte) (acf.Message, error) {
+	return c.Request(ctx, addr, acf.FlagWrite, body)
+}
+
+// Close implements idempotent shutdown.
 func (c *Controller) Close() error {
 	if !c.closed.CompareAndSwap(false, true) {
 		return nil
@@ -319,7 +349,7 @@ func (c *Controller) readLoop() {
 		if err != nil {
 			return
 		}
-		hdr, _, err := decodeFrame(buf[:n])
+		hdr, payload, err := decodeFrame(buf[:n])
 		if err != nil || hdr.MsgType != msgTypeResponse {
 			continue
 		}
@@ -327,8 +357,9 @@ func (c *Controller) readLoop() {
 		ch, ok := c.pending[hdr.SessionID]
 		c.mu.Unlock()
 		if ok {
+			result := pendingResult{hdr: hdr, payload: append([]byte(nil), payload...)}
 			select {
-			case ch <- hdr:
+			case ch <- result:
 			default:
 			}
 		}

@@ -1722,40 +1722,40 @@
     },
     {
       "id": "REQ-GRPC-001",
-      "title": "gRPC server registration",
-      "text": "RegisterServer shall register the Bridge gRPC service on a grpc.Server so remote clients can invoke Send and Subscribe RPCs.",
+      "title": "Controller connects to a registered Server",
+      "text": "grpcbridge.RegisterServer shall register the Bridge gRPC service on a grpc.Server, and grpcbridge.NewController shall successfully dial it.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GRPC-002",
-      "title": "Send RPC delivery",
-      "text": "Controller.Send shall transmit a Command over gRPC and return the Response from the remote zone controller.",
+      "title": "Controller.Request round-trips through the upstream endpoint",
+      "text": "grpcbridge.Controller.Request (via Write) shall transmit a request over gRPC to a Server wrapping an upstream *udp.Controller, and return the real endpoint's echoed response body.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GRPC-003",
-      "title": "Zone mismatch rejection",
-      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone.",
+      "title": "Unregistered-endpoint responses surface as FlagError",
+      "text": "grpcbridge.Controller.Read against an endpoint with no registered upstream handler shall return a response whose Control carries acf.FlagError, forwarded from the upstream's own wire-level error response, not a transport-level error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GRPC-004",
-      "title": "Payload round-trip",
-      "text": "Server.Send shall forward Command.Payload to the inner rcp.Controller unmodified and return the Response.Payload unchanged.",
+      "title": "Server.Request forwards the request payload unmodified",
+      "text": "grpcbridge.Server.Request shall forward RequestMsg.Body to the upstream *udp.Controller unmodified and return the endpoint's response body unchanged in ResponseMsg.Body.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GRPC-005",
-      "title": "Subscribe streaming",
-      "text": "Controller.Subscribe shall open a gRPC server-streaming RPC and deliver Status events received from the remote zone controller.",
+      "title": "Server.PublishTelemetry reaches Controller.Subscribe",
+      "text": "grpcbridge.Server.PublishTelemetry shall deliver a TelemetryEvent to every connected Controller.Subscribe stream.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1763,71 +1763,71 @@
     {
       "id": "REQ-GRPC-006",
       "title": "Idempotent close",
-      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "text": "grpcbridge.Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GRPC-007",
-      "title": "Closed send error",
-      "text": "Controller.Send shall return ErrClosed after Controller.Close has been called.",
+      "title": "Closed request error",
+      "text": "grpcbridge.Controller.Request (and Read/Write) shall return ErrClosed after Controller.Close has been called.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GRPC-008",
-      "title": "Inner error propagation",
-      "text": "Server.Send shall propagate the rcp.ResponseStatus from the inner controller in the SendResponse.",
+      "title": "Server.Request error propagation",
+      "text": "grpcbridge.Server.Request shall propagate an error from the upstream *udp.Controller (e.g. a request whose context has already expired) as a gRPC-level error to the calling Controller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-001",
-      "title": "HTTP send endpoint",
-      "text": "Server shall expose POST /v1/zones/{zone}/send to deliver a JSON-encoded Command to the inner rcp.Controller.",
+      "title": "HTTP request endpoint delivers to the upstream controller",
+      "text": "restbridge.Server shall expose POST /v1/endpoints/{addr}/request to forward a JSON-encoded request to the upstream *udp.Controller addressed to the given avtp.ByteBusID.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-002",
-      "title": "JSON response status",
-      "text": "Server shall return a JSON SendResponse containing the CommandID, Zone, Status, and optional Payload fields.",
+      "title": "JSON response includes the control field",
+      "text": "restbridge.Server shall return a JSON ResponseBody including byte_bus_id, transaction_num, control, and body fields, allowing a caller to distinguish a normal response from a wire-level error via the control field's FlagError bit.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-003",
-      "title": "Unknown zone rejection",
-      "text": "Server shall return HTTP 422 Unprocessable Entity when the zone path parameter does not match a valid rcp.Zone.",
+      "title": "Invalid endpoint address rejection",
+      "text": "restbridge.Server shall return HTTP 422 Unprocessable Entity when the {addr} path parameter does not parse as a valid avtp.ByteBusID (0-255).",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-004",
-      "title": "SSE events endpoint",
-      "text": "Server shall expose GET /v1/zones/{zone}/events as a Server-Sent Events stream delivering rcp.Status updates.",
+      "title": "SSE telemetry endpoint",
+      "text": "restbridge.Server shall expose GET /v1/telemetry as a Server-Sent Events stream delivering TelemetryEvents published via Server.PublishTelemetry.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-005",
-      "title": "Controller HTTP send",
-      "text": "Controller.Send shall POST the Command to the server and decode the JSON SendResponse into an rcp.Response.",
+      "title": "Controller.Write round-trips through the upstream endpoint",
+      "text": "restbridge.Controller.Write shall POST the request body to the server and decode the JSON ResponseBody into an acf.Message whose Body matches the real upstream endpoint's echoed response.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-006",
-      "title": "Zone mismatch rejection",
-      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone without making a network request.",
+      "title": "Unregistered-endpoint responses surface as FlagError",
+      "text": "restbridge.Controller.Read against an endpoint with no registered upstream handler shall return a response whose Control carries acf.FlagError, forwarded from the upstream's own wire-level error response, not an HTTP-level error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1835,63 +1835,63 @@
     {
       "id": "REQ-REST-007",
       "title": "Idempotent close",
-      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "text": "restbridge.Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-REST-008",
-      "title": "Closed send error",
-      "text": "Controller.Send shall return ErrClosed without making a network request after Controller.Close has been called.",
+      "title": "Closed request error",
+      "text": "restbridge.Controller.Request (and Read/Write) shall return ErrClosed without making a network request after Controller.Close has been called.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-001",
-      "title": "SOME/IP header encoding",
-      "text": "encodeFrame shall produce a 16-byte SOME/IP header with service ID, method ID, length, client ID, session ID, protocol/interface version, message type, and return code in big-endian byte order.",
+      "title": "SOME/IP header/payload round-trip over the wire path",
+      "text": "someip's Server/Controller pair shall round-trip a SOME/IP REQUEST/RESPONSE datagram end to end, with the RESPONSE payload matching the payload the upstream endpoint echoed.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-002",
-      "title": "SOME/IP header decoding",
-      "text": "decodeFrame shall parse a 16-byte SOME/IP header and return ErrMalformedFrame when the datagram is shorter than 16 bytes.",
+      "title": "Server ignores a REQUEST for a different ServiceID",
+      "text": "someip.Server shall not respond to a REQUEST datagram whose ServiceID does not match the Server's configured serviceID.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-003",
-      "title": "Server request dispatch",
-      "text": "Server shall accept UDP SOME/IP REQUEST datagrams and dispatch the embedded command to the inner rcp.Controller.",
+      "title": "Server forwards a REQUEST to the upstream controller",
+      "text": "someip.Server shall forward a REQUEST datagram's payload to the upstream *udp.Controller as one plain request addressed to the avtp.ByteBusID the MethodID's low byte names.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-004",
-      "title": "Server RESPONSE reply",
-      "text": "Server shall reply to each REQUEST with a SOME/IP RESPONSE datagram encoding the inner controller's ResponseStatus in the ReturnCode field.",
+      "title": "Server responds NOT_OK for an unregistered endpoint",
+      "text": "someip.Server shall reply with a RESPONSE datagram whose ReturnCode is NOT_OK when the upstream controller's response carries acf.FlagError (e.g. an unregistered endpoint).",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-005",
-      "title": "Controller send encoding",
-      "text": "Controller.Send shall encode the rcp.Command as a SOME/IP REQUEST datagram, correlate the RESPONSE by session ID, and decode the result into an rcp.Response.",
+      "title": "Controller.Read selects a read request via an empty payload",
+      "text": "someip.Controller.Read shall send a REQUEST with an empty payload, which someip.Server forwards upstream as a read request (acf.FlagRead).",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-006",
-      "title": "Zone mismatch rejection",
-      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone without sending a datagram.",
+      "title": "Controller.Write selects a write request via a non-empty payload",
+      "text": "someip.Controller.Write shall send a REQUEST whose payload is forwarded upstream as a write request (acf.FlagWrite) with that exact payload as the body.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1899,63 +1899,63 @@
     {
       "id": "REQ-SIPC-007",
       "title": "Idempotent close",
-      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "text": "someip.Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-SIPC-008",
-      "title": "Closed send error",
-      "text": "Controller.Send shall return ErrClosed without sending a datagram after Controller.Close has been called.",
+      "title": "Closed request error",
+      "text": "someip.Controller.Request (and Read/Write) shall return ErrClosed without sending a datagram after Controller.Close has been called.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-001",
-      "title": "CAN frame encoding",
-      "text": "Frame.Encode shall produce a 13-byte wire representation with CANID (4 bytes big-endian), DLC (1 byte), and data (8 bytes).",
+      "title": "Controller.Send validates and encodes a Frame",
+      "text": "canbr.Controller.Send shall reject an invalid can.Frame (per can.Frame.Validate) before forwarding it, and otherwise encode it via can.EncodeFrame and forward it as a write request to the wrapped can.Endpoint.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-002",
-      "title": "CAN frame decoding",
-      "text": "Decode shall parse a 13-byte buffer into a Frame and return ErrMalformedFrame when the buffer is shorter than 13 bytes.",
+      "title": "Controller.Receive decodes the response frame",
+      "text": "canbr.Controller.Receive shall issue a read request to the wrapped can.Endpoint and decode the response body via can.DecodeFrame into the returned can.Frame.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-003",
-      "title": "Bus broadcast delivery",
-      "text": "Bus.Send shall deliver a CAN frame to all active subscribers without blocking the sender.",
+      "title": "Send rejects an invalid frame without a wire round trip",
+      "text": "canbr.Controller.Send shall return an error without forwarding any request when the given can.Frame fails can.Frame.Validate.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-004",
-      "title": "Server frame dispatch",
-      "text": "Server shall subscribe to the Bus and forward incoming REQUEST frames to the inner rcp.Controller with the frame ID mapped to rcp.CommandType.",
+      "title": "Wire-level error responses are reported as ErrNotAResponse",
+      "text": "canbr's decodeResponse shall return ErrNotAResponse when a response carries acf.FlagError (e.g. an unregistered endpoint), rather than attempting to decode its body as a can.Frame.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-005",
-      "title": "Server response frame",
-      "text": "Server shall publish a RESPONSE frame (request ID | 0x400) onto the Bus after the inner controller responds.",
+      "title": "Undecodable response bodies are reported as ErrNotAResponse",
+      "text": "canbr's decodeResponse shall return ErrNotAResponse when a response body does not parse as a valid can.Frame via can.DecodeFrame.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-006",
-      "title": "Controller frame send",
-      "text": "Controller.Send shall publish a CAN REQUEST frame and correlate the matching RESPONSE frame by ID to produce an rcp.Response.",
+      "title": "StreamID delegates to the wrapped Controller",
+      "text": "canbr.Controller.StreamID shall return the wrapped *udp.Controller's own avtp.StreamID identity.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1963,15 +1963,15 @@
     {
       "id": "REQ-CAN-007",
       "title": "Idempotent close",
-      "text": "Controller.Close shall be idempotent; repeated calls after the first shall return nil without error.",
+      "text": "canbr.Controller.Close shall delegate to the wrapped *udp.Controller's Close and be idempotent; repeated calls after the first shall return nil without error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CAN-008",
-      "title": "Closed send error",
-      "text": "Controller.Send shall return ErrClosed after Controller.Close has been called.",
+      "title": "End-to-end round trip through a real CAN endpoint",
+      "text": "canbr.Controller.Send followed by canbr.Controller.Receive shall round-trip through a genuinely registered can.Endpoint reached via a udp.Router, not a stub, exercising Send's write path and Receive's independent read path against the endpoint's own received-frame state.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1979,7 +1979,7 @@
     {
       "id": "REQ-DDS-001",
       "title": "Domain topic registration",
-      "text": "Domain.NewTopic shall create and register a named Topic; subsequent NewTopic calls with the same name shall return the existing Topic.",
+      "text": "ddsbr.Domain.NewTopic shall create and register a named Topic; subsequent NewTopic calls with the same name shall return the existing Topic.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1987,7 +1987,7 @@
     {
       "id": "REQ-DDS-002",
       "title": "DataWriter broadcast delivery",
-      "text": "Topic.Write shall deliver the sample to all subscribed DataReaders without blocking the caller.",
+      "text": "ddsbr.Topic.Write shall deliver the sample to all subscribed DataReaders without blocking the caller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1995,31 +1995,31 @@
     {
       "id": "REQ-DDS-003",
       "title": "DataReader sample receipt",
-      "text": "DataReader.Read shall yield a channel that receives samples written to the topic after the DataReader was created.",
+      "text": "ddsbr.DataReader.Read shall yield a channel that receives samples written to the topic after the DataReader was created.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-DDS-004",
-      "title": "Bridge status publication",
-      "text": "Bridge shall subscribe to the inner rcp.Controller's status channel and publish each rcp.Status sample to the DataWriter.",
+      "title": "Bridge.PublishResponse fans out endpoint responses",
+      "text": "ddsbr.Bridge.PublishResponse shall publish a caller-supplied acf.Message response as a ResponseSample to the telemetry DataWriter's topic.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-DDS-005",
-      "title": "Bridge command dispatch",
-      "text": "Bridge shall read *rcp.Command samples from the DataReader and invoke rcp.Controller.Send for each one.",
+      "title": "Bridge.PublishTrigger fans out trigger-event counts",
+      "text": "ddsbr.Bridge.PublishTrigger shall publish a caller-supplied trigger-event count for an avtp.ByteBusID source as a TriggerSample to the telemetry DataWriter's topic.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-DDS-006",
-      "title": "Bridge close goroutines",
-      "text": "Bridge.Close shall stop the status publisher and command dispatcher goroutines and wait for them to exit.",
+      "title": "Bridge command dispatch",
+      "text": "ddsbr.Bridge shall read CommandSample values from cmdReader and forward each as a plain request to the upstream *udp.Controller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2027,7 +2027,7 @@
     {
       "id": "REQ-DDS-007",
       "title": "Bridge idempotent close",
-      "text": "Bridge.Close shall be idempotent; repeated calls after the first shall return without error or panic.",
+      "text": "ddsbr.Bridge.Close shall stop the command-forwarding goroutine, wait for it to exit, and be idempotent; repeated calls after the first shall return without blocking or panicking.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2035,7 +2035,7 @@
     {
       "id": "REQ-DDS-008",
       "title": "Topic not found error",
-      "text": "Domain.Lookup shall return ErrTopicNotFound when no topic with the requested name has been registered.",
+      "text": "ddsbr.Domain.Lookup shall return ErrTopicNotFound when no topic with the requested name has been registered.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2043,194 +2043,258 @@
     {
       "id": "REQ-MQTT-001",
       "text": "Broker routes PUBLISH messages to all matching subscribers on a topic.",
-      "asil": "B",
-      "package": "mqttbr"
+      "asil": "ASIL-B",
+      "title": "Broker routes PUBLISH messages to all matching subscribers on a topic.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-002",
-      "text": "Client.Publish delivers payload to all subscribers on the topic.",
-      "asil": "B",
-      "package": "mqttbr"
+      "text": "mqttbr.Client.Subscribe shall return the same channel for repeated Subscribe calls on the same topic from the same Client.",
+      "asil": "ASIL-B",
+      "title": "Client.Subscribe is idempotent per topic",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-003",
-      "text": "Client.Subscribe returns a channel that receives subsequent publishes to the topic.",
-      "asil": "B",
-      "package": "mqttbr"
+      "text": "mqttbr.Client.Unsubscribe shall remove the subscription so no further messages published to that topic are delivered to it.",
+      "asil": "ASIL-B",
+      "title": "Client.Unsubscribe stops delivery",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-004",
-      "text": "Client.Unsubscribe removes the subscription so no further messages are delivered.",
-      "asil": "B",
-      "package": "mqttbr"
+      "text": "mqttbr.Bridge.PublishResponse shall publish an acf.Message response to the status topic in a wire format mqttbr.DecodeStatus parses back as a non-trigger StatusMessage.",
+      "asil": "ASIL-B",
+      "title": "Bridge.PublishResponse publishes a decodable status message",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-005",
-      "text": "Bridge publishes encoded rcp.Status payloads to the configured status topic.",
-      "asil": "B",
-      "package": "mqttbr"
+      "text": "mqttbr.Bridge.PublishTrigger shall publish a trigger-event count to the status topic in a wire format mqttbr.DecodeStatus parses back as a trigger StatusMessage with the correct Count.",
+      "asil": "ASIL-B",
+      "title": "Bridge.PublishTrigger publishes a decodable trigger message",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-006",
-      "text": "Bridge subscribes to the command topic and dispatches decoded rcp.Command via Controller.Send.",
-      "asil": "B",
-      "package": "mqttbr"
+      "text": "mqttbr.Bridge shall decode command messages arriving on the command topic (via mqttbr.EncodeCommand's wire format) and forward each as a request to the upstream *udp.Controller.",
+      "asil": "ASIL-B",
+      "title": "Bridge command dispatch",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-007",
       "text": "Client.Close unsubscribes from all topics idempotently.",
-      "asil": "B",
-      "package": "mqttbr"
+      "asil": "ASIL-B",
+      "title": "Client.Close unsubscribes from all topics idempotently.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-MQTT-008",
       "text": "Bridge.Close stops background goroutines and is idempotent.",
-      "asil": "B",
-      "package": "mqttbr"
+      "asil": "ASIL-B",
+      "title": "Bridge.Close stops background goroutines and is idempotent.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-001",
-      "text": "EncodeFrame produces a valid 11-byte LIN frame with protected ID and classic checksum.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.EncodeFrame shall serialize a Frame using ChecksumClassic into [protected ID][data...][checksum] wire bytes that linbr.DecodeFrame parses back to the same ID and Data.",
+      "asil": "ASIL-B",
+      "title": "EncodeFrame produces PID+data+classic-checksum wire bytes",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-002",
-      "text": "DecodeFrame parses an encoded frame back to the original ID, DataLen, and Data bytes.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.DecodeFrame shall return ErrChecksumMismatch when the trailing checksum byte does not match the checksum computed over the frame's protected ID/data.",
+      "asil": "ASIL-B",
+      "title": "DecodeFrame detects a corrupted checksum",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-003",
-      "text": "DecodeFrame returns ErrChecksumMismatch when the checksum field is corrupted.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr's ChecksumEnhanced checksum (which folds in the protected ID byte) shall differ from ChecksumClassic for the same Frame, such that decoding an enhanced-checksum-encoded frame as ChecksumClassic fails with ErrChecksumMismatch.",
+      "asil": "ASIL-B",
+      "title": "Enhanced checksum is not interchangeable with classic",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-004",
-      "text": "Bus.Send delivers frames to all Slaves registered for the matching frame ID.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.EncodeFrame shall return ErrDataTooLong for a Frame whose Data exceeds the 8-byte LIN classic/enhanced frame payload limit, without producing any wire bytes.",
+      "asil": "ASIL-B",
+      "title": "EncodeFrame rejects oversized data",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-005",
-      "text": "Bus.Send does not deliver frames to Slaves registered for a different ID.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.DecodeFrame shall return ErrFrameTooShort for a buffer under 2 bytes, which cannot hold both a protected ID byte and a checksum byte.",
+      "asil": "ASIL-B",
+      "title": "DecodeFrame rejects undersized buffers",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-006",
-      "text": "Slave receives frames dispatched by the Bus on its registered ID.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.ScheduleTable.Next shall return each configured ScheduleEntry in order, wrap back to the first entry after the last, and report ok = false only when the table has no entries at all.",
+      "asil": "ASIL-B",
+      "title": "ScheduleTable.Next round-robins through its entries",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-007",
-      "text": "Bridge decodes LIN frames and dispatches them as rcp.Commands via Controller.Send.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.Controller.Transfer shall encode a Frame (see EncodeFrame), send it as a write request through the wrapped lin.Endpoint's raw byte-pass-through transfer, and decode the echoed response body back into a Frame with linbr.DecodeFrame.",
+      "asil": "ASIL-B",
+      "title": "Controller.Transfer round-trips through a real LIN endpoint",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-LIN-008",
-      "text": "Bridge.Close stops the dispatch goroutine and is idempotent.",
-      "asil": "B",
-      "package": "linbr"
+      "text": "linbr.Controller.StreamID shall return the wrapped *udp.Controller's own avtp.StreamID identity, and linbr.Controller.Close shall delegate to the wrapped Controller's Close and be idempotent.",
+      "asil": "ASIL-B",
+      "title": "StreamID/Close delegate to the wrapped Controller",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-001",
       "text": "BuildRequest produces a PDU with the correct SID, DID, and payload.",
-      "asil": "B",
-      "package": "udsbr"
+      "asil": "ASIL-B",
+      "title": "BuildRequest produces a PDU with the correct SID, DID, and payload.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-002",
       "text": "BuildPositiveResponse produces the correct response PDU with SID+0x40 prefix.",
-      "asil": "B",
-      "package": "udsbr"
+      "asil": "ASIL-B",
+      "title": "BuildPositiveResponse produces the correct response PDU with SID+0x40 prefix.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-003",
       "text": "BuildNegativeResponse produces a 0x7F PDU with the echoed SID and NRC byte.",
-      "asil": "B",
-      "package": "udsbr"
+      "asil": "ASIL-B",
+      "title": "BuildNegativeResponse produces a 0x7F PDU with the echoed SID and NRC byte.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-004",
-      "text": "Server.Handle dispatches WriteDataByIdentifier (0x2E) PDUs to rcp.Controller.Send.",
-      "asil": "B",
-      "package": "udsbr"
+      "text": "udsbr.Server.Handle shall forward a WriteDataByIdentifier (0x2E) PDU's payload to the upstream *udp.Controller as a write request addressed to the avtp.ByteBusID the DID's low byte names, and echo the endpoint's response body in a positive response PDU.",
+      "asil": "ASIL-B",
+      "title": "Server.Handle dispatches WriteDataByIdentifier to the upstream controller",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-005",
       "text": "Server.Handle returns ErrNegativeResponse for unsupported service IDs.",
-      "asil": "B",
-      "package": "udsbr"
+      "asil": "ASIL-B",
+      "title": "Server.Handle returns ErrNegativeResponse for unsupported service IDs.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-006",
-      "text": "Server.Handle(ReadDataByIdentifier, DIDRCPStatus) returns the current rcp.Status.",
-      "asil": "B",
-      "package": "udsbr"
+      "text": "udsbr.Server.Handle shall forward a ReadDataByIdentifier (0x22) PDU as a read request to the upstream *udp.Controller addressed to the avtp.ByteBusID the DID's low byte names, and return the endpoint's response body in a positive response PDU.",
+      "asil": "ASIL-B",
+      "title": "Server.Handle dispatches ReadDataByIdentifier to the upstream controller",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-007",
       "text": "Server.Handle returns ErrPDUTooShort when the PDU is shorter than 3 bytes.",
-      "asil": "B",
-      "package": "udsbr"
+      "asil": "ASIL-B",
+      "title": "Server.Handle returns ErrPDUTooShort when the PDU is shorter than 3 bytes.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-UDS-008",
       "text": "Server.Close prevents further Handle calls and is idempotent.",
-      "asil": "B",
-      "package": "udsbr"
+      "asil": "ASIL-B",
+      "title": "Server.Close prevents further Handle calls and is idempotent.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-001",
       "text": "BuildHeader produces an 8-byte DoIP header with the correct protocol version and payload type.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "BuildHeader produces an 8-byte DoIP header with the correct protocol version and payload type.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-002",
       "text": "ParseHeader reads and validates the DoIP header from an io.Reader.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "ParseHeader reads and validates the DoIP header from an io.Reader.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-003",
       "text": "ParseHeader returns ErrInvalidHeader for headers with incorrect version bytes.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "ParseHeader returns ErrInvalidHeader for headers with incorrect version bytes.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-004",
-      "text": "Server.Serve accepts TCP connections and processes DiagMessage PDUs.",
-      "asil": "B",
-      "package": "doipbr"
+      "text": "doipbr.Server.Serve shall accept TCP connections and process DiagMessage PDUs through its embedded udsbr.Server, which forwards to an upstream *udp.Controller reaching a real endpoint.",
+      "asil": "ASIL-B",
+      "title": "Server.Serve processes DiagMessage PDUs end to end",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-005",
       "text": "Client.Send transmits a diagnostic message and returns the UDS response payload.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "Client.Send transmits a diagnostic message and returns the UDS response payload.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-006",
       "text": "Server returns a DiagMessageNack for unsupported payload types.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "Server returns a DiagMessageNack for unsupported payload types.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-007",
       "text": "Server.Close stops the listener and is idempotent.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "Server.Close stops the listener and is idempotent.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-DOIP-008",
       "text": "Client.Close closes the connection and is idempotent.",
-      "asil": "B",
-      "package": "doipbr"
+      "asil": "ASIL-B",
+      "title": "Client.Close closes the connection and is idempotent.",
+      "standard": "iso26262",
+      "level": "ASIL-B"
     },
     {
       "id": "REQ-CAPI-001",
@@ -2686,7 +2750,7 @@
       "text": "ServeBackground() shall call wg.Add(1) synchronously before starting the Serve goroutine so that Close().wg.Wait() correctly blocks until Serve exits, avoiding data races on the WaitGroup.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "B"
+      "asil": "ASIL-B"
     },
     {
       "id": "REQ-OPT-001",

@@ -1,3 +1,24 @@
+// Package restbridge provides an HTTP/JSON + SSE bridge for go-RCP, for the
+// OPEN Alliance TC18 Remote Control Protocol (RCP), as described by the
+// "OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 56 (v0.69.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, the reasoning is identical to grpcbridge's —
+// browser/cloud HTTP access to an RC Server is orthogonal to TC18 RCP and
+// stays genuinely necessary, re-pointed at the new Controller-equivalent
+// interface, *udp.Controller (see grpcbridge's own package doc comment for
+// the fuller rationale; this package's Server/Controller shape mirrors
+// grpcbridge's exactly, one HTTP/SSE transport standing in for one gRPC
+// connection):
+//
+//	POST /v1/endpoints/{addr}/request — JSON request delivery
+//	GET  /v1/telemetry               — SSE telemetry stream
+//
+// Server exposes an upstream *udp.Controller over HTTP; Controller reaches
+// a remote restbridge Server over HTTP, presenting the same
+// Request/Read/Write surface a *udp.Controller does.
+package restbridge
+
 //fusa:req REQ-REST-001
 //fusa:req REQ-REST-002
 //fusa:req REQ-REST-003
@@ -7,125 +28,121 @@
 //fusa:req REQ-REST-007
 //fusa:req REQ-REST-008
 
-// Package restbridge provides an HTTP/JSON + SSE bridge for go-RCP.
-//
-// Server exposes an rcp.Controller over HTTP so browser tooling and cloud
-// services can send commands and stream status events without a gRPC client:
-//
-//	POST /v1/zones/{zone}/send  — JSON command delivery
-//	GET  /v1/zones/{zone}/events — SSE status stream
-//
-// Controller implements rcp.Controller over HTTP, reaching a remote Bridge
-// Server. Use NewController for the zone you want to control.
-package restbridge
-
 import (
 	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
+
+// ErrClosed is returned by Controller methods once Close has been called.
+var ErrClosed = errors.New("rcp/restbridge: closed")
 
 // ─── wire types ───────────────────────────────────────────────────────────────
 
-// SendRequest is the JSON body for POST /v1/zones/{zone}/send.
-type SendRequest struct {
-	Type     rcp.CommandType `json:"type"`
-	Priority rcp.Priority    `json:"priority"`
-	Payload  []byte          `json:"payload,omitempty"`
+// RequestBody is the JSON body for POST /v1/endpoints/{addr}/request.
+type RequestBody struct {
+	Control acf.ControlFlags `json:"control"`
+	Body    []byte           `json:"body,omitempty"`
 }
 
-// SendResponse is the JSON body returned by POST /v1/zones/{zone}/send.
-type SendResponse struct {
-	CommandID uint32             `json:"command_id"`
-	Zone      rcp.Zone           `json:"zone"`
-	Status    rcp.ResponseStatus `json:"status"`
-	Payload   []byte             `json:"payload,omitempty"`
+// ResponseBody is the JSON body returned by POST /v1/endpoints/{addr}/request.
+type ResponseBody struct {
+	ByteBusID      avtp.ByteBusID      `json:"byte_bus_id"`
+	TransactionNum avtp.TransactionNum `json:"transaction_num"`
+	Control        acf.ControlFlags    `json:"control"`
+	Body           []byte              `json:"body,omitempty"`
+}
+
+// TelemetryEvent is streamed by GET /v1/telemetry (see Server.PublishTelemetry).
+type TelemetryEvent struct {
+	ByteBusID avtp.ByteBusID   `json:"byte_bus_id"`
+	Control   acf.ControlFlags `json:"control"`
+	Body      []byte           `json:"body,omitempty"`
 }
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 
-// Server bridges HTTP requests to an rcp.Controller.
+// Server bridges HTTP requests to an upstream *udp.Controller.
 // Mount it on an http.ServeMux with Handler.
 type Server struct {
-	ctrl rcp.Controller
-	mux  *http.ServeMux
+	upstream *udp.Controller
+	mux      *http.ServeMux
+
+	mu   sync.Mutex
+	subs map[chan *TelemetryEvent]struct{}
 }
 
-// NewServer returns a Server wrapping ctrl.
-func NewServer(ctrl rcp.Controller) *Server {
+// NewServer returns a Server forwarding requests to upstream.
+func NewServer(upstream *udp.Controller) *Server {
 	s := &Server{
-		ctrl: ctrl,
-		mux:  http.NewServeMux(),
+		upstream: upstream,
+		mux:      http.NewServeMux(),
+		subs:     make(map[chan *TelemetryEvent]struct{}),
 	}
-	s.mux.HandleFunc("POST /v1/zones/{zone}/send", s.handleSend)
-	s.mux.HandleFunc("GET /v1/zones/{zone}/events", s.handleEvents)
+	s.mux.HandleFunc("POST /v1/endpoints/{addr}/request", s.handleRequest)
+	s.mux.HandleFunc("GET /v1/telemetry", s.handleTelemetry)
 	return s
 }
 
 // Handler returns the http.Handler for this server.
 func (s *Server) Handler() http.Handler { return s.mux }
 
-func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
-	zoneStr := r.PathValue("zone")
-	zone, err := parseZone(zoneStr)
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
+	addr, err := parseAddr(r.PathValue("addr"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 
-	var req SendRequest
+	var req RequestBody
 	if decErr := json.NewDecoder(r.Body).Decode(&req); decErr != nil {
 		http.Error(w, "invalid JSON body: "+decErr.Error(), http.StatusBadRequest)
 		return
 	}
 
-	cmd := &rcp.Command{
-		Zone:     zone,
-		Type:     req.Type,
-		Priority: req.Priority,
-		Payload:  req.Payload,
-	}
-	resp, err := s.ctrl.Send(r.Context(), cmd)
+	resp, err := s.upstream.Request(r.Context(), addr, req.Control, req.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(SendResponse{
-		CommandID: resp.CommandID,
-		Zone:      resp.Zone,
-		Status:    resp.Status,
-		Payload:   resp.Payload,
+	_ = json.NewEncoder(w).Encode(ResponseBody{
+		ByteBusID:      resp.ByteBusID,
+		TransactionNum: resp.TransactionNum,
+		Control:        resp.Control,
+		Body:           resp.Body,
 	})
 }
 
-func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
-	zoneStr := r.PathValue("zone")
-	if _, err := parseZone(zoneStr); err != nil {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-
+func (s *Server) handleTelemetry(w http.ResponseWriter, r *http.Request) {
 	f, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
-	ch, err := s.ctrl.Subscribe(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	ch := make(chan *TelemetryEvent, 16)
+	s.mu.Lock()
+	s.subs[ch] = struct{}{}
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.subs, ch)
+		s.mu.Unlock()
+	}()
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -135,11 +152,8 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
-		case st, ok := <-ch:
-			if !ok {
-				return
-			}
-			b, _ := json.Marshal(st)
+		case ev := <-ch:
+			b, _ := json.Marshal(ev)
 			fmt.Fprintf(w, "data: %s\n\n", b) //nolint:errcheck
 			f.Flush()
 		case <-r.Context().Done():
@@ -148,101 +162,106 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// parseZone converts a zone string (numeric or name) to rcp.Zone.
-func parseZone(s string) (rcp.Zone, error) {
-	if n, err := strconv.Atoi(s); err == nil {
-		z := rcp.Zone(n)
-		if z < rcp.ZoneFrontLeft || z > rcp.ZoneCentral {
-			return 0, fmt.Errorf("rcp/restbridge: zone %d out of range", n)
-		}
-		return z, nil
-	}
-	// try name
-	for z := rcp.ZoneFrontLeft; z <= rcp.ZoneCentral; z++ {
-		if z.String() == s {
-			return z, nil
+// PublishTelemetry fans ev out to every currently connected SSE stream. A
+// caller obtains ev however it likes, mirroring grpcbridge.Server's own
+// caller-driven PublishTelemetry.
+func (s *Server) PublishTelemetry(ev *TelemetryEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for ch := range s.subs {
+		select {
+		case ch <- ev:
+		default:
 		}
 	}
-	return 0, fmt.Errorf("rcp/restbridge: unknown zone %q", s)
+}
+
+// parseAddr converts a URL path segment to an avtp.ByteBusID.
+func parseAddr(s string) (avtp.ByteBusID, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 || n > 0xFF {
+		return 0, fmt.Errorf("rcp/restbridge: invalid endpoint address %q", s)
+	}
+	return avtp.ByteBusID(n), nil //nolint:gosec // bounds checked above
 }
 
 // ─── Client Controller ────────────────────────────────────────────────────────
 
-// Controller implements rcp.Controller over HTTP, reaching a restbridge Server.
+// Controller reaches a remote restbridge Server over HTTP, presenting the
+// same Request/Read/Write surface a *udp.Controller does.
 type Controller struct {
-	zone    rcp.Zone
 	baseURL string
 	client  *http.Client
 	closed  atomic.Bool
 }
 
-// NewController returns an rcp.Controller that talks to serverURL for zone.
-// serverURL should be the base URL of the restbridge Server (e.g. "http://host:8080").
-func NewController(zone rcp.Zone, serverURL string) *Controller {
+// NewController returns a Controller that talks to serverURL (the base URL
+// of a restbridge Server, e.g. "http://host:8080").
+func NewController(serverURL string) *Controller {
 	return &Controller{
-		zone:    zone,
 		baseURL: strings.TrimRight(serverURL, "/"),
 		client:  &http.Client{},
 	}
 }
 
-// Zone implements rcp.Controller.
-func (c *Controller) Zone() rcp.Zone { return c.zone }
-
-// Send implements rcp.Controller — POSTs the command and decodes the response.
-func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
+// Request POSTs one request to addr and decodes the response.
+func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
 	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/restbridge: zone %s: %w", c.zone, rcp.ErrClosed)
-	}
-	if cmd.Zone != c.zone {
-		return nil, fmt.Errorf("rcp/restbridge: zone %s: %w", c.zone, rcp.ErrZoneMismatch)
+		return acf.Message{}, fmt.Errorf("rcp/restbridge: %w", ErrClosed)
 	}
 
-	body, err := json.Marshal(SendRequest{
-		Type:     cmd.Type,
-		Priority: cmd.Priority,
-		Payload:  cmd.Payload,
-	})
+	reqBody, err := json.Marshal(RequestBody{Control: control, Body: body})
 	if err != nil {
-		return nil, err
+		return acf.Message{}, err
 	}
 
-	url := fmt.Sprintf("%s/v1/zones/%d/send", c.baseURL, c.zone)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	url := fmt.Sprintf("%s/v1/endpoints/%d/request", c.baseURL, addr)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(reqBody))
 	if err != nil {
-		return nil, err
+		return acf.Message{}, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("rcp/restbridge: Send: %w", err)
+		return acf.Message{}, fmt.Errorf("rcp/restbridge: Request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("rcp/restbridge: Send: status %d", resp.StatusCode)
+		return acf.Message{}, fmt.Errorf("rcp/restbridge: Request: status %d", resp.StatusCode)
 	}
 
-	var sr SendResponse
-	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
-		return nil, fmt.Errorf("rcp/restbridge: Send decode: %w", err)
+	var rb ResponseBody
+	if err := json.NewDecoder(resp.Body).Decode(&rb); err != nil {
+		return acf.Message{}, fmt.Errorf("rcp/restbridge: Request decode: %w", err)
 	}
-	return &rcp.Response{
-		CommandID: sr.CommandID,
-		Zone:      sr.Zone,
-		Status:    sr.Status,
-		Payload:   sr.Payload,
+	return acf.Message{
+		ByteBusID:      rb.ByteBusID,
+		TransactionNum: rb.TransactionNum,
+		Control:        rb.Control,
+		Body:           rb.Body,
 	}, nil
 }
 
-// Subscribe implements rcp.Controller — opens an SSE stream and parses events.
-func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
+// Read is Request with acf.FlagRead set and no body.
+func (c *Controller) Read(ctx context.Context, addr avtp.ByteBusID) (acf.Message, error) {
+	return c.Request(ctx, addr, acf.FlagRead, nil)
+}
+
+// Write is Request with acf.FlagWrite set and the given body.
+func (c *Controller) Write(ctx context.Context, addr avtp.ByteBusID, body []byte) (acf.Message, error) {
+	return c.Request(ctx, addr, acf.FlagWrite, body)
+}
+
+// Subscribe opens an SSE stream against /v1/telemetry and parses events
+// published by the remote Server's PublishTelemetry.
+func (c *Controller) Subscribe(ctx context.Context) (<-chan *TelemetryEvent, error) {
 	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/restbridge: zone %s: %w", c.zone, rcp.ErrClosed)
+		return nil, fmt.Errorf("rcp/restbridge: %w", ErrClosed)
 	}
 
-	url := fmt.Sprintf("%s/v1/zones/%d/events", c.baseURL, c.zone)
+	url := c.baseURL + "/v1/telemetry"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -252,31 +271,31 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 	resp, err := c.client.Do(req) //nolint:bodyclose // body transferred to SSE goroutine
 	if err != nil {
 		if resp != nil {
-			resp.Body.Close() //nolint:errcheck
+			_ = resp.Body.Close()
 		}
 		return nil, fmt.Errorf("rcp/restbridge: Subscribe: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("rcp/restbridge: Subscribe: status %d", resp.StatusCode)
 	}
 
-	ch := make(chan *rcp.Status, 16)
+	ch := make(chan *TelemetryEvent, 16)
 	go func() {
 		defer close(ch)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {
 				continue
 			}
-			var st rcp.Status
-			if err := json.Unmarshal([]byte(line[6:]), &st); err != nil {
+			var ev TelemetryEvent
+			if err := json.Unmarshal([]byte(line[6:]), &ev); err != nil {
 				continue
 			}
 			select {
-			case ch <- &st:
+			case ch <- &ev:
 			case <-ctx.Done():
 				return
 			}
@@ -285,7 +304,7 @@ func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) 
 	return ch, nil
 }
 
-// Close implements rcp.Controller — idempotent.
+// Close marks the Controller closed. Idempotent.
 func (c *Controller) Close() error {
 	c.closed.CompareAndSwap(false, true)
 	return nil
