@@ -12,12 +12,62 @@ package dyndata_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/dyndata"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
+
+const testEndpoint = avtp.ByteBusID(1)
+
+type recordingHandler struct {
+	mu       sync.Mutex
+	lastBody []byte
+}
+
+func (h *recordingHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	h.mu.Lock()
+	h.lastBody = req.Body
+	h.mu.Unlock()
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+func (h *recordingHandler) sawBody() []byte {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastBody
+}
+
+func dialedController(t *testing.T, h request.Handler) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testEndpoint, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	srv, err := udp.NewServer(avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
 
 var eventSchema = dyndata.Schema{
 	Name:    "motion_event",
@@ -120,15 +170,11 @@ func TestEncode_UnknownField(t *testing.T) {
 	}
 }
 
-// REQ-DYN-008: TypedController.SendTyped encodes payload and delegates to inner.Send.
+// REQ-DYN-008: TypedController.SendTyped encodes payload and delegates to
+// inner.Request.
 func TestTypedController_SendTyped(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, func(cmd *rcp.Command) *rcp.Response {
-		if len(cmd.Payload) == 0 {
-			t.Error("SendTyped sent empty payload")
-		}
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}
-	})
-	defer inner.Close()
+	h := &recordingHandler{}
+	inner := dialedController(t, h)
 
 	reg := dyndata.NewRegistry()
 	if err := reg.Register(eventSchema); err != nil {
@@ -137,36 +183,33 @@ func TestTypedController_SendTyped(t *testing.T) {
 	tc := dyndata.NewTypedController(inner, reg)
 	defer func() { _ = tc.Close() }()
 
-	cmd := &rcp.Command{
-		Zone:     rcp.ZoneFrontLeft,
-		Type:     rcp.CmdSet,
-		Priority: rcp.PriorityNormal,
-	}
 	p := dyndata.Payload{"zone_id": "front-left", "speed_ms": 7.2}
-	resp, err := tc.SendTyped(context.Background(), cmd, eventSchema.Name, p)
+	resp, err := tc.SendTyped(context.Background(), testEndpoint, acf.FlagWrite, eventSchema.Name, p)
 	if err != nil {
 		t.Fatalf("SendTyped: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("response status = %v, want StatusOK", resp.Status)
+	if !resp.Control.Has(acf.FlagResponse) {
+		t.Errorf("Control = %v, want FlagResponse set", resp.Control)
+	}
+	if len(h.sawBody()) == 0 {
+		t.Error("SendTyped sent empty payload")
 	}
 }
 
 func TestTypedController_SendTyped_SchemaNotFound(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer inner.Close()
+	inner := dialedController(t, &recordingHandler{})
 
 	tc := dyndata.NewTypedController(inner, dyndata.NewRegistry())
 	defer func() { _ = tc.Close() }()
 
-	_, err := tc.SendTyped(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft}, "missing", nil)
+	_, err := tc.SendTyped(context.Background(), testEndpoint, acf.FlagWrite, "missing", nil)
 	if !errors.Is(err, dyndata.ErrSchemaNotFound) {
 		t.Errorf("want ErrSchemaNotFound, got %v", err)
 	}
 }
 
 func TestTypedController_ClosedIdempotent(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
+	inner := dialedController(t, &recordingHandler{})
 	tc := dyndata.NewTypedController(inner, dyndata.NewRegistry())
 	if err := tc.Close(); err != nil {
 		t.Fatalf("first Close: %v", err)

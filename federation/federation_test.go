@@ -11,196 +11,180 @@ package federation_test
 
 import (
 	"errors"
+	"net"
 	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/federation"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-func ctrl(z rcp.Zone) *mock.Controller { return mock.NewController(z, nil) }
+// newController dials a *udp.Controller for registry bookkeeping tests.
+// UDP is connectionless, so dialing needs no listener on the other end —
+// only identity and registry semantics are under test here, not traffic.
+func newController(t *testing.T, suffix uint16) *udp.Controller {
+	t.Helper()
+	addr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9}
+	ctrl, err := udp.NewController(avtp.NewStreamID([6]byte{0x02, 0, 0, 0, 0, byte(suffix)}, suffix), addr)
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
 
-// TestFederation_RegisterAndLookup registers a zone and retrieves it (REQ-FED-001).
-func TestFederation_RegisterAndLookup(t *testing.T) {
-	reg := federation.NewRegistry()
-	c := ctrl(rcp.ZoneFrontLeft)
-
-	if err := reg.Register(rcp.ZoneFrontLeft, c); err != nil {
+// TestFederation_Register claims exclusive ownership for a key (REQ-FED-001).
+func TestFederation_Register(t *testing.T) {
+	r := federation.NewRegistry()
+	ctrl := newController(t, 1)
+	if err := r.Register("server-a", ctrl); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	got, err := reg.Lookup(rcp.ZoneFrontLeft)
+}
+
+// TestFederation_Lookup returns the owning controller (REQ-FED-002).
+func TestFederation_Lookup(t *testing.T) {
+	r := federation.NewRegistry()
+	ctrl := newController(t, 1)
+	_ = r.Register("server-a", ctrl)
+
+	got, err := r.Lookup("server-a")
 	if err != nil {
 		t.Fatalf("Lookup: %v", err)
 	}
-	if got != c {
-		t.Error("Lookup returned wrong controller")
+	if got != ctrl {
+		t.Errorf("Lookup returned wrong controller")
+	}
+
+	if _, err := r.Lookup("server-b"); !errors.Is(err, federation.ErrNotOwned) {
+		t.Errorf("Lookup(unregistered) err = %v, want ErrNotOwned", err)
 	}
 }
 
-// TestFederation_LookupUnknown returns ErrNotOwned for unregistered zone (REQ-FED-002).
-func TestFederation_LookupUnknown(t *testing.T) {
-	reg := federation.NewRegistry()
-	_, err := reg.Lookup(rcp.ZoneFrontLeft)
-	if !errors.Is(err, federation.ErrNotOwned) {
-		t.Errorf("err = %v, want ErrNotOwned", err)
-	}
-}
+// TestFederation_DoubleRegister returns ErrAlreadyOwned (REQ-FED-003).
+func TestFederation_DoubleRegister(t *testing.T) {
+	r := federation.NewRegistry()
+	first := newController(t, 1)
+	second := newController(t, 2)
+	_ = r.Register("server-a", first)
 
-// TestFederation_RegisterDuplicate returns ErrAlreadyOwned (REQ-FED-003).
-func TestFederation_RegisterDuplicate(t *testing.T) {
-	reg := federation.NewRegistry()
-	_ = reg.Register(rcp.ZoneFrontLeft, ctrl(rcp.ZoneFrontLeft))
-
-	err := reg.Register(rcp.ZoneFrontLeft, ctrl(rcp.ZoneFrontLeft))
-	if !errors.Is(err, federation.ErrAlreadyOwned) {
+	if err := r.Register("server-a", second); !errors.Is(err, federation.ErrAlreadyOwned) {
 		t.Errorf("err = %v, want ErrAlreadyOwned", err)
 	}
+	got, _ := r.Lookup("server-a")
+	if got != first {
+		t.Errorf("ownership changed after a rejected Register")
+	}
 }
 
-// TestFederation_Release removes ownership (REQ-FED-004).
+// TestFederation_Release removes ownership; releasing an unowned key
+// returns ErrNotOwned (REQ-FED-004).
 func TestFederation_Release(t *testing.T) {
-	reg := federation.NewRegistry()
-	_ = reg.Register(rcp.ZoneFrontLeft, ctrl(rcp.ZoneFrontLeft))
+	r := federation.NewRegistry()
+	ctrl := newController(t, 1)
+	_ = r.Register("server-a", ctrl)
 
-	if err := reg.Release(rcp.ZoneFrontLeft); err != nil {
+	if err := r.Release("server-a"); err != nil {
 		t.Fatalf("Release: %v", err)
 	}
-	_, err := reg.Lookup(rcp.ZoneFrontLeft)
-	if !errors.Is(err, federation.ErrNotOwned) {
-		t.Errorf("after Release: err = %v, want ErrNotOwned", err)
+	if _, err := r.Lookup("server-a"); !errors.Is(err, federation.ErrNotOwned) {
+		t.Errorf("Lookup after Release err = %v, want ErrNotOwned", err)
+	}
+	if err := r.Release("server-a"); !errors.Is(err, federation.ErrNotOwned) {
+		t.Errorf("Release(unowned) err = %v, want ErrNotOwned", err)
 	}
 }
 
-// TestFederation_ReleaseUnknown returns ErrNotOwned (REQ-FED-004).
-func TestFederation_ReleaseUnknown(t *testing.T) {
-	reg := federation.NewRegistry()
-	err := reg.Release(rcp.ZoneFrontRight)
-	if !errors.Is(err, federation.ErrNotOwned) {
-		t.Errorf("err = %v, want ErrNotOwned", err)
+// TestFederation_KeysAndOwner report the current registry state (REQ-FED-005).
+func TestFederation_KeysAndOwner(t *testing.T) {
+	r := federation.NewRegistry()
+	a := newController(t, 1)
+	b := newController(t, 2)
+	_ = r.Register("server-a", a)
+	_ = r.Register("server-b", b)
+
+	keys := r.Keys()
+	if len(keys) != 2 {
+		t.Fatalf("Keys() = %v, want 2 entries", keys)
+	}
+	if r.Owner("server-a") != a {
+		t.Errorf("Owner(server-a) wrong")
+	}
+	if r.Owner("unknown") != nil {
+		t.Errorf("Owner(unknown) = non-nil, want nil")
 	}
 }
 
-// TestFederation_Zones returns all registered zones (REQ-FED-005).
-func TestFederation_Zones(t *testing.T) {
-	reg := federation.NewRegistry()
-	want := []rcp.Zone{rcp.ZoneFrontLeft, rcp.ZoneRearRight}
-	for _, z := range want {
-		_ = reg.Register(z, ctrl(z))
-	}
-	got := reg.Zones()
-	if len(got) != len(want) {
-		t.Errorf("Zones() len = %d, want %d", len(got), len(want))
-	}
-	set := make(map[rcp.Zone]bool)
-	for _, z := range got {
-		set[z] = true
-	}
-	for _, z := range want {
-		if !set[z] {
-			t.Errorf("zone %v missing from Zones()", z)
-		}
-	}
-}
-
-// TestFederation_Owner returns nil for unowned zone (REQ-FED-005).
-func TestFederation_Owner(t *testing.T) {
-	reg := federation.NewRegistry()
-	if got := reg.Owner(rcp.ZoneFrontLeft); got != nil {
-		t.Errorf("Owner() = %v, want nil", got)
-	}
-	c := ctrl(rcp.ZoneFrontLeft)
-	_ = reg.Register(rcp.ZoneFrontLeft, c)
-	if got := reg.Owner(rcp.ZoneFrontLeft); got != c {
-		t.Error("Owner() returned wrong controller")
-	}
-}
-
-// TestFederation_TransferOwnership moves a zone atomically (REQ-FED-006).
+// TestFederation_TransferOwnership atomically reassigns a server between
+// HPCs (REQ-FED-006).
 func TestFederation_TransferOwnership(t *testing.T) {
-	reg := federation.NewRegistry()
-	hpc1 := ctrl(rcp.ZoneFrontLeft)
-	hpc2 := ctrl(rcp.ZoneFrontLeft)
-	_ = reg.Register(rcp.ZoneFrontLeft, hpc1)
+	r := federation.NewRegistry()
+	from := newController(t, 1)
+	to := newController(t, 2)
+	_ = r.Register("server-a", from)
 
-	if err := reg.TransferOwnership(rcp.ZoneFrontLeft, hpc1, hpc2); err != nil {
+	if err := r.TransferOwnership("server-a", from, to); err != nil {
 		t.Fatalf("TransferOwnership: %v", err)
 	}
-	got, _ := reg.Lookup(rcp.ZoneFrontLeft)
-	if got != hpc2 {
-		t.Error("after transfer, Lookup should return hpc2")
+	got, _ := r.Lookup("server-a")
+	if got != to {
+		t.Errorf("ownership did not transfer")
+	}
+
+	if err := r.TransferOwnership("server-a", from, to); !errors.Is(err, federation.ErrNotOwned) {
+		t.Errorf("TransferOwnership from stale owner err = %v, want ErrNotOwned", err)
 	}
 }
 
-// TestFederation_TransferOwnership_WrongOwner rejects transfer from non-owner (REQ-FED-006).
-func TestFederation_TransferOwnership_WrongOwner(t *testing.T) {
-	reg := federation.NewRegistry()
-	hpc1 := ctrl(rcp.ZoneFrontLeft)
-	hpc2 := ctrl(rcp.ZoneFrontLeft)
-	wrongHPC := ctrl(rcp.ZoneFrontLeft)
-	_ = reg.Register(rcp.ZoneFrontLeft, hpc1)
-
-	err := reg.TransferOwnership(rcp.ZoneFrontLeft, wrongHPC, hpc2)
-	if !errors.Is(err, federation.ErrNotOwned) {
-		t.Errorf("err = %v, want ErrNotOwned", err)
-	}
-}
-
-// TestFederation_Concurrent no race under concurrent register/lookup (REQ-FED-007).
-func TestFederation_Concurrent(t *testing.T) {
-	reg := federation.NewRegistry()
-	zones := []rcp.Zone{rcp.ZoneFrontLeft, rcp.ZoneFrontRight, rcp.ZoneRearLeft, rcp.ZoneRearRight}
-	for _, z := range zones {
-		_ = reg.Register(z, ctrl(z))
+// TestFederation_ConcurrentAccess exercises Register/Lookup/Release/Owner/
+// Keys/TransferOwnership concurrently without a data race (REQ-FED-007).
+func TestFederation_ConcurrentAccess(t *testing.T) {
+	r := federation.NewRegistry()
+	ctrls := make([]*udp.Controller, 8)
+	for i := range ctrls {
+		ctrls[i] = newController(t, uint16(i+1))
 	}
 
-	const n = 40
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := 0; i < n; i++ {
-		go func(i int) {
+	for i, ctrl := range ctrls {
+		wg.Add(1)
+		go func(i int, ctrl *udp.Controller) {
 			defer wg.Done()
-			z := zones[i%len(zones)]
-			_, _ = reg.Lookup(z)
-			_ = reg.Owner(z)
-		}(i)
+			key := "server"
+			_ = r.Register(key, ctrl)
+			_, _ = r.Lookup(key)
+			_ = r.Owner(key)
+			_ = r.Keys()
+			_ = r.Release(key)
+		}(i, ctrl)
 	}
 	wg.Wait()
 }
 
-// TestFederation_MultiHPC multiple HPCs own disjoint zones (REQ-FED-008).
-func TestFederation_MultiHPC(t *testing.T) {
-	reg := federation.NewRegistry()
+// TestFederation_MultipleHPCsDisjointOwnership several HPC-controller pairs
+// each own a disjoint set of servers; cross-HPC Lookup succeeds
+// transparently (REQ-FED-008).
+func TestFederation_MultipleHPCsDisjointOwnership(t *testing.T) {
+	r := federation.NewRegistry()
+	hpc1a, hpc1b := newController(t, 1), newController(t, 2)
+	hpc2a := newController(t, 3)
 
-	hpcA_fl := ctrl(rcp.ZoneFrontLeft)
-	hpcA_fr := ctrl(rcp.ZoneFrontRight)
-	hpcB_rl := ctrl(rcp.ZoneRearLeft)
-	hpcB_rr := ctrl(rcp.ZoneRearRight)
+	_ = r.Register("server-1", hpc1a)
+	_ = r.Register("server-2", hpc1b)
+	_ = r.Register("server-3", hpc2a)
 
-	for _, pair := range []struct {
-		z rcp.Zone
-		c rcp.Controller
-	}{
-		{rcp.ZoneFrontLeft, hpcA_fl},
-		{rcp.ZoneFrontRight, hpcA_fr},
-		{rcp.ZoneRearLeft, hpcB_rl},
-		{rcp.ZoneRearRight, hpcB_rr},
+	for key, want := range map[string]*udp.Controller{
+		"server-1": hpc1a,
+		"server-2": hpc1b,
+		"server-3": hpc2a,
 	} {
-		if err := reg.Register(pair.z, pair.c); err != nil {
-			t.Fatalf("Register %v: %v", pair.z, err)
+		got, err := r.Lookup(key)
+		if err != nil {
+			t.Fatalf("Lookup(%s): %v", key, err)
 		}
-	}
-
-	// HPC-B can reach HPC-A's zones via the shared registry.
-	got, err := reg.Lookup(rcp.ZoneFrontLeft)
-	if err != nil {
-		t.Fatalf("Lookup: %v", err)
-	}
-	if got != hpcA_fl {
-		t.Error("Lookup returned wrong controller for ZoneFrontLeft")
-	}
-
-	if len(reg.Zones()) != 4 {
-		t.Errorf("Zones() len = %d, want 4", len(reg.Zones()))
+		if got != want {
+			t.Errorf("Lookup(%s) returned wrong owner", key)
+		}
 	}
 }

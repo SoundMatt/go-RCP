@@ -8,7 +8,19 @@
 //fusa:req REQ-DYN-008
 
 // Package dyndata provides a runtime schema registry and typed payload codec
-// for schema-aware command delivery over any rcp.Controller transport.
+// for schema-aware request delivery over a *udp.Controller, for the OPEN
+// Alliance TC18 Remote Control Protocol (RCP), as described by the "OPEN
+// Alliance TC18 Remote Control Protocol Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 55 (v0.68.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "a runtime schema registry for interpreting
+// raw payload bytes is, if anything, more useful now — every endpoint's
+// request/response payload is raw bytes with type-specific shape, exactly
+// what this package already exists to decode." The Schema/Registry/
+// Encode/Decode machinery is unchanged; only TypedController's wrapped type
+// changes, from the retired rcp.Controller to *udp.Controller, and
+// SendTyped now addresses a request by (avtp.ByteBusID, acf.ControlFlags)
+// instead of building a *rcp.Command.
 package dyndata
 
 import (
@@ -19,7 +31,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
 // FieldKind is the allowed wire type for a schema field.
@@ -40,7 +54,7 @@ type Field struct {
 	Required bool
 }
 
-// Schema describes the typed structure of a command payload.
+// Schema describes the typed structure of a request payload.
 type Schema struct {
 	Name    string
 	Version int
@@ -101,7 +115,7 @@ func (r *Registry) List() []Schema {
 	return out
 }
 
-// Payload is a free-form key-value map that carries typed command data.
+// Payload is a free-form key-value map that carries typed request data.
 type Payload map[string]any
 
 // Encode validates p against s and serialises it to JSON bytes.
@@ -176,50 +190,44 @@ func checkKind(f Field, val any) error {
 	return nil
 }
 
-// TypedController wraps an rcp.Controller with schema-aware payload encoding.
-// Send and Subscribe delegate directly to the inner controller.
+// TypedController wraps a *udp.Controller with schema-aware payload
+// encoding. Request delegates directly to the inner controller.
 // Use SendTyped to have the payload encoded against a registered schema.
 type TypedController struct {
-	inner    rcp.Controller
+	inner    *udp.Controller
 	registry *Registry
 	closed   atomic.Bool
 }
 
 // NewTypedController wraps inner with schema-aware encoding using r.
-func NewTypedController(inner rcp.Controller, r *Registry) *TypedController {
+func NewTypedController(inner *udp.Controller, r *Registry) *TypedController {
 	return &TypedController{inner: inner, registry: r}
 }
 
-// Zone implements rcp.Controller.
-func (c *TypedController) Zone() rcp.Zone { return c.inner.Zone() }
+// StreamID returns the inner controller's own avtp.StreamID identity.
+func (c *TypedController) StreamID() avtp.StreamID { return c.inner.StreamID() }
 
-// Send implements rcp.Controller — delegates to the inner controller as-is.
-func (c *TypedController) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	return c.inner.Send(ctx, cmd)
+// Request delegates to the inner controller as-is.
+func (c *TypedController) Request(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
+	return c.inner.Request(ctx, addr, control, body)
 }
 
 // SendTyped encodes payload using the schema named schemaName, then calls
-// inner.Send with cmd.Payload set to the encoded bytes.
-func (c *TypedController) SendTyped(ctx context.Context, cmd *rcp.Command, schemaName string, payload Payload) (*rcp.Response, error) {
+// inner.Request with the encoded bytes as the request body.
+func (c *TypedController) SendTyped(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, schemaName string, payload Payload) (acf.Message, error) {
 	s, err := c.registry.Lookup(schemaName)
 	if err != nil {
-		return nil, err
+		return acf.Message{}, err
 	}
 	encoded, err := Encode(s, payload)
 	if err != nil {
-		return nil, err
+		return acf.Message{}, err
 	}
-	safe := *cmd
-	safe.Payload = encoded
-	return c.inner.Send(ctx, &safe)
+	return c.inner.Request(ctx, addr, control, encoded)
 }
 
-// Subscribe implements rcp.Controller.
-func (c *TypedController) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	return c.inner.Subscribe(ctx)
-}
-
-// Close implements rcp.Controller — idempotent.
+// Close implements the same idempotent-Close posture every other satellite
+// package's wrapper in this repo establishes.
 func (c *TypedController) Close() error {
 	if !c.closed.CompareAndSwap(false, true) {
 		return nil

@@ -7,11 +7,28 @@
 //fusa:req REQ-CFG-007
 //fusa:req REQ-CFG-008
 
-// Package config provides YAML/JSON zone registry configuration loading and
-// file-system hot-reload for zone addresses without restart.
+// Package config provides YAML/JSON server configuration loading and
+// file-system hot-reload without restart, for the OPEN Alliance TC18 Remote
+// Control Protocol (RCP), as described by the "OPEN Alliance TC18 Remote
+// Control Protocol Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 55 (v0.68.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "YAML/JSON config loading is reusable; the
+// schema moves from a zone registry to server/stream/register-map
+// configuration." The retired File described a flat zone registry (zone ID,
+// transport, address, certs); this package's File instead describes, per
+// server: its dial transport and address, its own avtp.StreamID identity,
+// and the declared endpoint topology (address + regmap.EndpointType pairs)
+// a caller would otherwise have to build up with repeated
+// server.Server.AddEndpoint calls by hand. This is a deliberately scoped
+// subset of "register-map configuration" — the declared topology, not the
+// full binary-encoded regmap.RegisterMap wire format (pin mapping, stream
+// limits, per-endpoint functional blocks), which is a server's own runtime
+// configuration state, not something this package duplicates in text form.
 package config
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,11 +38,12 @@ import (
 	"sync"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/regmap"
 	"gopkg.in/yaml.v3"
 )
 
-// Transport specifies the wire protocol for a zone controller endpoint.
+// Transport specifies the wire protocol for a server dial endpoint.
 type Transport string
 
 const (
@@ -34,30 +52,54 @@ const (
 	TransportTLS  Transport = "tls"
 )
 
-// ZoneEntry is the configuration for a single zone controller endpoint.
-type ZoneEntry struct {
-	Zone      rcp.Zone  `yaml:"zone"      json:"zone"`
-	Transport Transport `yaml:"transport" json:"transport"`
-	Address   string    `yaml:"address"   json:"address"`
-	CertFile  string    `yaml:"cert_file" json:"cert_file,omitempty"`
-	KeyFile   string    `yaml:"key_file"  json:"key_file,omitempty"`
-	CAFile    string    `yaml:"ca_file"   json:"ca_file,omitempty"`
+// EndpointEntry declares one endpoint a server presents: its address and
+// functional type. This mirrors what a caller would otherwise establish via
+// repeated server.Server.AddEndpoint calls.
+type EndpointEntry struct {
+	Address avtp.ByteBusID      `yaml:"address" json:"address"`
+	Type    regmap.EndpointType `yaml:"type"    json:"type"`
 }
 
-// File is the top-level structure of a zone registry configuration file.
+// ServerEntry is the configuration for a single RC Server dial endpoint.
+type ServerEntry struct {
+	Key       string          `yaml:"key"        json:"key"`
+	StreamID  string          `yaml:"stream_id"  json:"stream_id"` // 16 hex chars (8 bytes)
+	Transport Transport       `yaml:"transport"  json:"transport"`
+	Address   string          `yaml:"address"    json:"address"`
+	Endpoints []EndpointEntry `yaml:"endpoints"  json:"endpoints,omitempty"`
+	CertFile  string          `yaml:"cert_file"  json:"cert_file,omitempty"`
+	KeyFile   string          `yaml:"key_file"   json:"key_file,omitempty"`
+	CAFile    string          `yaml:"ca_file"    json:"ca_file,omitempty"`
+}
+
+// DecodeStreamID parses e's StreamID field (16 hex characters) into an
+// avtp.StreamID.
+func (e ServerEntry) DecodeStreamID() (avtp.StreamID, error) {
+	b, err := hex.DecodeString(e.StreamID)
+	if err != nil || len(b) != len(avtp.StreamID{}) {
+		return avtp.StreamID{}, fmt.Errorf("%w: server %s: stream_id %q", ErrInvalidStreamID, e.Key, e.StreamID)
+	}
+	var id avtp.StreamID
+	copy(id[:], b)
+	return id, nil
+}
+
+// File is the top-level structure of a server configuration file.
 type File struct {
-	Version int         `yaml:"version" json:"version"`
-	Zones   []ZoneEntry `yaml:"zones"   json:"zones"`
+	Version int           `yaml:"version" json:"version"`
+	Servers []ServerEntry `yaml:"servers" json:"servers"`
 }
 
 var (
-	ErrInvalidVersion = errors.New("rcp/config: unsupported config version")
-	ErrDuplicateZone  = errors.New("rcp/config: duplicate zone in config file")
-	ErrUnknownZone    = errors.New("rcp/config: unknown zone identifier")
+	ErrInvalidVersion   = errors.New("rcp/config: unsupported config version")
+	ErrDuplicateServer  = errors.New("rcp/config: duplicate server key in config file")
+	ErrInvalidStreamID  = errors.New("rcp/config: invalid stream_id")
+	ErrDuplicateAddress = errors.New("rcp/config: duplicate endpoint address within a server")
 )
 
-// Load reads a YAML or JSON config file from path and returns the parsed File.
-// The format is auto-detected from the file extension (.yaml/.yml → YAML, .json → JSON).
+// Load reads a YAML or JSON config file from path and returns the parsed
+// File. The format is auto-detected from the file extension
+// (.yaml/.yml -> YAML, .json -> JSON).
 func Load(path string) (*File, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -85,12 +127,22 @@ func Decode(r io.Reader, ext string) (*File, error) {
 	if cfg.Version != 1 {
 		return nil, fmt.Errorf("%w: %d", ErrInvalidVersion, cfg.Version)
 	}
-	seen := make(map[rcp.Zone]bool)
-	for _, z := range cfg.Zones {
-		if seen[z.Zone] {
-			return nil, fmt.Errorf("%w: zone %d", ErrDuplicateZone, z.Zone)
+	seenKeys := make(map[string]bool)
+	for _, s := range cfg.Servers {
+		if seenKeys[s.Key] {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateServer, s.Key)
 		}
-		seen[z.Zone] = true
+		seenKeys[s.Key] = true
+		if _, err := s.DecodeStreamID(); err != nil {
+			return nil, err
+		}
+		seenAddrs := make(map[avtp.ByteBusID]bool)
+		for _, e := range s.Endpoints {
+			if seenAddrs[e.Address] {
+				return nil, fmt.Errorf("%w: server %s address %d", ErrDuplicateAddress, s.Key, e.Address)
+			}
+			seenAddrs[e.Address] = true
+		}
 	}
 	return &cfg, nil
 }

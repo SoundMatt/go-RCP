@@ -1,20 +1,42 @@
-// Package proxy provides a transparent zone proxy for multi-hop zonal topologies.
+// Package proxy provides a transparent RCP-level proxy for multi-hop
+// topologies, for the OPEN Alliance TC18 Remote Control Protocol (RCP), as
+// described by the "OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC".
 //
-// A Proxy wraps an upstream rcp.Controller and presents the same rcp.Controller
-// interface to downstream callers. Commands are forwarded verbatim to the
-// upstream; responses and Status events are relayed back unchanged.
+// This is ROADMAP.md Milestone 55 (v0.68.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "the intercept/transform/forward pattern is
+// reusable, but a real RCP-level proxy must handle stream_id/byte_bus_id
+// remapping — an area the specification itself flags as a client-side
+// responsibility with no server-side safety net (Phase 13). Rebuild
+// carefully, not mechanically."
 //
-// The proxy adds one configurable behaviour: an optional ForwardTransform that
-// can inspect or rewrite a Command before forwarding (e.g. to add a routing
-// header or translate a zone alias). A nil transform is a no-op.
+// The retired package wrapped one upstream rcp.Controller and presented the
+// same interface downstream, forwarding a *rcp.Command verbatim (its Zone
+// field carried the only addressing information a caller could rewrite).
+// That shape does not survive: a downstream caller in the new model is not
+// another Controller wrapper chained in front of this one — it is a
+// requester stream sending a request.Handler-shaped call into whatever
+// routes to this proxy (typically a udp.Router.Register slot). So Handler,
+// this package's replacement for the old Controller, implements
+// request.Handler itself:
 //
-// Use cases:
-//   - HPC-A forwards zone commands to HPC-B's controller over a secondary link
-//   - A diagnostic gateway proxies commands between an external tool and a zone
-//   - A test harness intercepts and optionally transforms commands in-process
+//   - byte_bus_id remapping: TransformFunc, if set, may rewrite the
+//     inbound request's addr (and/or its body) before Handler forwards it
+//     to the upstream *udp.Controller.
+//   - stream_id remapping: Handler forwards through its own upstream
+//     *udp.Controller, which presents that Controller's own avtp.StreamID
+//     identity on the wire — never the original downstream requester's.
+//     The downstream requester's identity is available to TransformFunc
+//     (for logging/policy decisions) but is never itself put on the wire
+//     upstream; this is the deliberate "gateway," not "relay," posture the
+//     disposition table's own "no server-side safety net" warning is about
+//     getting right.
 //
-// Composable with authz, ratelimit, prioqueue, and faultinject wrappers on
-// either the upstream or the proxy itself.
+// The response Handler returns is repackaged to correlate with the
+// *original* downstream request (its own Kind/ByteBusID/TransactionNum),
+// exactly like every other Router-facing Handler in this repo (see e.g.
+// udp/ep0.go's responseFor) — the upstream remapping is entirely invisible
+// to the downstream caller.
 package proxy
 
 //fusa:req REQ-PX-001
@@ -28,60 +50,99 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// TransformFunc may inspect or rewrite a Command before it is forwarded.
-// It receives the original command and must return either a (possibly new)
-// command to forward, or an error to abort the send.
-// A nil TransformFunc is equivalent to the identity transform.
-type TransformFunc func(cmd *rcp.Command) (*rcp.Command, error)
+// ErrClosed is returned when HandleRequest is called after Close.
+var ErrClosed = errors.New("rcp/proxy: handler closed")
 
-// Controller is a transparent proxy in front of an upstream rcp.Controller.
-type Controller struct {
-	upstream  rcp.Controller
+// DefaultForwardTimeout bounds how long Handler waits for the upstream
+// controller's response, since request.Handler's own signature carries no
+// per-call context a downstream Router.Route could hand it (see
+// request.Handler's doc comment).
+const DefaultForwardTimeout = 5 * time.Second
+
+// TransformFunc may rewrite the byte_bus_id and/or body of an inbound
+// request before Handler forwards it upstream. It receives the original
+// downstream requester's avtp.StreamID (for logging or policy decisions —
+// never itself forwarded upstream, see the package doc comment), the
+// request's original addr, control flags, and body, and must return the
+// (possibly rewritten) addr and body to forward, or an error to abort the
+// forward. A nil TransformFunc forwards addr and body unchanged.
+type TransformFunc func(requester avtp.StreamID, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (avtp.ByteBusID, []byte, error)
+
+// Handler implements request.Handler by forwarding every request it
+// receives to an upstream *udp.Controller, presenting that Controller's own
+// StreamID identity rather than the original downstream requester's. It may
+// be registered directly into a udp.Router (via Router.Register) the same
+// as any native endpoint's Handler.
+type Handler struct {
+	upstream  *udp.Controller
 	transform TransformFunc
+	timeout   time.Duration
 	closed    atomic.Bool
 }
 
-// NewController creates a Proxy in front of upstream.
-// If transform is nil the command is forwarded unchanged.
-func NewController(upstream rcp.Controller, transform TransformFunc) *Controller {
-	return &Controller{upstream: upstream, transform: transform}
+// NewHandler creates a Handler forwarding to upstream. If transform is nil,
+// addr and body are forwarded unchanged. timeout bounds each forwarded
+// request; a non-positive timeout uses DefaultForwardTimeout.
+func NewHandler(upstream *udp.Controller, transform TransformFunc, timeout time.Duration) *Handler {
+	if timeout <= 0 {
+		timeout = DefaultForwardTimeout
+	}
+	return &Handler{upstream: upstream, transform: transform, timeout: timeout}
 }
 
-// Send optionally transforms cmd, then forwards to the upstream controller.
-// Returns ErrClosed if the proxy has been closed.
-func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/proxy: zone %s: %w", c.upstream.Zone(), rcp.ErrClosed)
+// HandleRequest implements request.Handler: it optionally transforms req's
+// addr/body, forwards the result to the upstream controller, and repackages
+// the upstream response to correlate with req (the original downstream
+// request), not the (possibly different) upstream request actually sent.
+func (h *Handler) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
+	if h.closed.Load() {
+		return acf.Message{}, ErrClosed
 	}
-	out := cmd
-	if c.transform != nil {
+
+	addr, body := req.ByteBusID, req.Body
+	if h.transform != nil {
 		var err error
-		out, err = c.transform(cmd)
+		addr, body, err = h.transform(requester, req.ByteBusID, req.Control, req.Body)
 		if err != nil {
-			return nil, fmt.Errorf("rcp/proxy: zone %s: transform: %w", c.upstream.Zone(), err)
+			return acf.Message{}, fmt.Errorf("rcp/proxy: transform: %w", err)
 		}
 	}
-	return c.upstream.Send(ctx, out)
+
+	ctx, cancel := context.WithTimeout(context.Background(), h.timeout)
+	defer cancel()
+
+	resp, err := h.upstream.Request(ctx, addr, req.Control, body)
+	if err != nil {
+		return acf.Message{}, err
+	}
+
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        resp.Control,
+		Pad:            resp.Pad,
+		Body:           resp.Body,
+	}, nil
 }
 
-// Zone delegates to the upstream controller.
-func (c *Controller) Zone() rcp.Zone { return c.upstream.Zone() }
-
-// Subscribe delegates to the upstream controller.
-func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	return c.upstream.Subscribe(ctx)
-}
+// Upstream returns the upstream controller this Handler forwards to.
+func (h *Handler) Upstream() *udp.Controller { return h.upstream }
 
 // Close closes the upstream controller. Safe to call multiple times.
-func (c *Controller) Close() error {
-	if !c.closed.CompareAndSwap(false, true) {
+func (h *Handler) Close() error {
+	if !h.closed.CompareAndSwap(false, true) {
 		return nil
 	}
-	return c.upstream.Close()
+	return h.upstream.Close()
 }

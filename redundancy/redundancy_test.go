@@ -15,226 +15,180 @@ import (
 	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/redundancy"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// errPrimary is the sentinel used to simulate primary failure.
-var errPrimary = errors.New("primary failed")
+type stubHandler struct{}
 
-// failOnce is a mock controller that returns errPrimary on the first Send then delegates.
-type failOnce struct {
-	inner  *mock.Controller
-	failed bool
-	mu     sync.Mutex
+func (stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
 }
 
-func (f *failOnce) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	f.mu.Lock()
-	if !f.failed {
-		f.failed = true
-		f.mu.Unlock()
-		return nil, errPrimary
+const testEndpoint = avtp.ByteBusID(1)
+
+// newWorkingController starts a fresh server and returns a dialed
+// *udp.Controller against it, presenting the given suffix to keep multiple
+// harness controllers' StreamIDs distinct.
+func newWorkingController(t *testing.T, suffix uint16) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testEndpoint, stubHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	f.mu.Unlock()
-	return f.inner.Send(ctx, cmd)
-}
-func (f *failOnce) Zone() rcp.Zone { return f.inner.Zone() }
-func (f *failOnce) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	return f.inner.Subscribe(ctx)
-}
-func (f *failOnce) Close() error { return f.inner.Close() }
-
-// alwaysFail returns errPrimary on every Send.
-type alwaysFail struct{ zone rcp.Zone }
-
-func (a *alwaysFail) Send(_ context.Context, _ *rcp.Command) (*rcp.Response, error) {
-	return nil, errPrimary
-}
-func (a *alwaysFail) Zone() rcp.Zone { return a.zone }
-func (a *alwaysFail) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
-	ch := make(chan *rcp.Status)
-	return ch, nil
-}
-func (a *alwaysFail) Close() error { return nil }
-
-// TestRedundancy_PrimarySucceeds sends via primary when healthy (REQ-RD-001).
-func TestRedundancy_PrimarySucceeds(t *testing.T) {
-	prim := mock.NewController(rcp.ZoneFrontLeft, nil)
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
-
-	resp, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
+	srv, err := udp.NewServer(avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, byte(suffix)}, suffix), "127.0.0.1:0", router)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("NewServer: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
-	}
-	if c.Failovers() != 0 {
-		t.Errorf("Failovers = %d, want 0", c.Failovers())
-	}
-}
+	t.Cleanup(func() { _ = srv.Close() })
 
-// TestRedundancy_FailoverOnPrimaryError standby takes over after primary fails (REQ-RD-002).
-func TestRedundancy_FailoverOnPrimaryError(t *testing.T) {
-	prim := &failOnce{inner: mock.NewController(rcp.ZoneFrontLeft, nil)}
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
-
-	// First send: primary fails → failover triggered, error returned.
-	_, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, errPrimary) {
-		t.Fatalf("first send: err = %v, want errPrimary", err)
-	}
-	if c.Failovers() != 1 {
-		t.Errorf("Failovers = %d, want 1", c.Failovers())
-	}
-
-	// Second send: now goes to standby → OK.
-	resp, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
+	ctrl, err := udp.NewController(avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, byte(suffix)}, suffix), srv.Addr())
 	if err != nil {
-		t.Fatalf("second send: %v", err)
+		t.Fatalf("NewController: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("second send Status = %v, want OK", resp.Status)
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
+
+// newFailingController returns an already-closed *udp.Controller, whose
+// every Request deterministically fails with udp.ErrClosed — a simple,
+// synchronous way to exercise failover without relying on network timeouts.
+func newFailingController(t *testing.T, suffix uint16) *udp.Controller {
+	t.Helper()
+	ctrl := newWorkingController(t, suffix)
+	_ = ctrl.Close()
+	return ctrl
+}
+
+// TestRedundancy_HealthyPrimary Requests go to the primary while it is
+// healthy (REQ-RD-001).
+func TestRedundancy_HealthyPrimary(t *testing.T) {
+	primary := newWorkingController(t, 1)
+	standby := newWorkingController(t, 2)
+	rc := redundancy.NewController(primary, standby, nil)
+	t.Cleanup(func() { _ = rc.Close() })
+
+	if _, err := rc.Read(context.Background(), testEndpoint); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if rc.Failovers() != 0 {
+		t.Errorf("Failovers() = %d, want 0", rc.Failovers())
+	}
+	if rc.Active() != primary {
+		t.Errorf("Active() != primary before any failure")
 	}
 }
 
-// TestRedundancy_ActiveAfterFailover returns the standby as active (REQ-RD-003).
-func TestRedundancy_ActiveAfterFailover(t *testing.T) {
-	prim := &failOnce{inner: mock.NewController(rcp.ZoneFrontLeft, nil)}
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
+// TestRedundancy_Failover a failing primary triggers a failover to the
+// standby, incrementing the counter and returning the primary's error
+// (REQ-RD-002). The next Request uses the new primary (REQ-RD-003).
+func TestRedundancy_Failover(t *testing.T) {
+	primary := newFailingController(t, 1)
+	standby := newWorkingController(t, 2)
+	rc := redundancy.NewController(primary, standby, nil)
+	t.Cleanup(func() { _ = rc.Close() })
 
-	_, _ = c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if c.Active() != stby {
-		t.Errorf("Active() after failover is not the standby")
+	_, err := rc.Read(context.Background(), testEndpoint)
+	if !errors.Is(err, udp.ErrClosed) {
+		t.Fatalf("first Read err = %v, want ErrClosed (primary failure surfaced)", err)
+	}
+	if rc.Failovers() != 1 {
+		t.Fatalf("Failovers() = %d, want 1", rc.Failovers())
+	}
+	if rc.Active() != standby {
+		t.Fatalf("Active() != standby after failover")
+	}
+
+	if _, err := rc.Read(context.Background(), testEndpoint); err != nil {
+		t.Errorf("second Read (via new primary): %v", err)
 	}
 }
 
-// TestRedundancy_PolicyPreventsFailover policy returning false keeps primary (REQ-RD-004).
-func TestRedundancy_PolicyPreventsFailover(t *testing.T) {
-	prim := &failOnce{inner: mock.NewController(rcp.ZoneFrontLeft, nil)}
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
+// TestRedundancy_PolicySuppresses a FailoverPolicy returning false leaves
+// the controllers unswapped (REQ-RD-004).
+func TestRedundancy_PolicySuppresses(t *testing.T) {
+	primary := newFailingController(t, 1)
+	standby := newWorkingController(t, 2)
+	rc := redundancy.NewController(primary, standby, func(error) bool { return false })
+	t.Cleanup(func() { _ = rc.Close() })
 
-	// Policy: never failover.
-	noFailover := redundancy.FailoverPolicy(func(_ error) bool { return false })
-	c := redundancy.NewController(prim, stby, noFailover)
-	t.Cleanup(func() { _ = c.Close() })
-
-	_, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err == nil {
-		t.Fatal("expected error from primary, got nil")
+	if _, err := rc.Read(context.Background(), testEndpoint); err == nil {
+		t.Fatalf("Read = nil error, want the suppressed primary error")
 	}
-	if c.Failovers() != 0 {
-		t.Errorf("Failovers = %d, want 0 (policy suppressed failover)", c.Failovers())
+	if rc.Failovers() != 0 {
+		t.Errorf("Failovers() = %d, want 0 (policy suppressed failover)", rc.Failovers())
 	}
-}
-
-// TestRedundancy_Zone returns the zone of the active controller (REQ-RD-005).
-func TestRedundancy_Zone(t *testing.T) {
-	prim := mock.NewController(rcp.ZoneRearLeft, nil)
-	stby := mock.NewController(rcp.ZoneRearLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
-
-	if got := c.Zone(); got != rcp.ZoneRearLeft {
-		t.Errorf("Zone() = %v, want ZoneRearLeft", got)
+	if rc.Active() != primary {
+		t.Errorf("Active() != primary; policy should have left it unswapped")
 	}
 }
 
-// TestRedundancy_Subscribe delegates to active controller (REQ-RD-005).
-func TestRedundancy_Subscribe(t *testing.T) {
-	prim := mock.NewController(rcp.ZoneFrontLeft, nil)
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
+// TestRedundancy_StreamID delegates to whichever controller is currently
+// primary (REQ-RD-005).
+func TestRedundancy_StreamID(t *testing.T) {
+	primary := newFailingController(t, 1)
+	standby := newWorkingController(t, 2)
+	rc := redundancy.NewController(primary, standby, nil)
+	t.Cleanup(func() { _ = rc.Close() })
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	ch, err := c.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
+	if got, want := rc.StreamID(), primary.StreamID(); got != want {
+		t.Errorf("StreamID() before failover = %v, want primary's %v", got, want)
 	}
-	_ = ch
+
+	_, _ = rc.Read(context.Background(), testEndpoint) // triggers failover
+
+	if got, want := rc.StreamID(), standby.StreamID(); got != want {
+		t.Errorf("StreamID() after failover = %v, want new primary's (standby's) %v", got, want)
+	}
 }
 
-// TestRedundancy_Close_Idempotent safe to call twice (REQ-RD-006).
+// TestRedundancy_Close_Idempotent Close closes both controllers and is safe
+// to call multiple times; Request after Close returns ErrClosed (REQ-RD-006).
 func TestRedundancy_Close_Idempotent(t *testing.T) {
-	prim := mock.NewController(rcp.ZoneFrontLeft, nil)
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	if err := c.Close(); err != nil {
+	primary := newWorkingController(t, 1)
+	standby := newWorkingController(t, 2)
+	rc := redundancy.NewController(primary, standby, nil)
+
+	if err := rc.Close(); err != nil {
 		t.Errorf("first Close: %v", err)
 	}
-	if err := c.Close(); err != nil {
+	if err := rc.Close(); err != nil {
 		t.Errorf("second Close: %v", err)
 	}
-}
-
-// TestRedundancy_Close_RejectsSend returns ErrClosed after Close (REQ-RD-006).
-func TestRedundancy_Close_RejectsSend(t *testing.T) {
-	prim := mock.NewController(rcp.ZoneFrontLeft, nil)
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	_ = c.Close()
-
-	_, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("err = %v, want ErrClosed", err)
+	if _, err := rc.Read(context.Background(), testEndpoint); !errors.Is(err, udp.ErrClosed) {
+		t.Errorf("Read after Close err = %v, want ErrClosed", err)
 	}
 }
 
-// TestRedundancy_Concurrent no race under concurrent sends with failover (REQ-RD-007).
+// TestRedundancy_Concurrent concurrent Requests during a failover are
+// race-free; the swap happens at most once (REQ-RD-007).
 func TestRedundancy_Concurrent(t *testing.T) {
-	prim := &alwaysFail{zone: rcp.ZoneFrontLeft}
-	stby := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
+	primary := newFailingController(t, 1)
+	standby := newWorkingController(t, 2)
+	rc := redundancy.NewController(primary, standby, nil)
+	t.Cleanup(func() { _ = rc.Close() })
 
-	ctx := context.Background()
 	const n = 40
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = c.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft})
+			_, _ = rc.Read(context.Background(), testEndpoint)
 		}()
 	}
 	wg.Wait()
-}
 
-// TestRedundancy_FailoverCount increments Failovers on each swap (REQ-RD-008).
-func TestRedundancy_FailoverCount(t *testing.T) {
-	prim := &failOnce{inner: mock.NewController(rcp.ZoneFrontLeft, nil)}
-	stby := &failOnce{inner: mock.NewController(rcp.ZoneFrontLeft, nil)}
-	c := redundancy.NewController(prim, stby, nil)
-	t.Cleanup(func() { _ = c.Close() })
-
-	// First failover: primary → standby.
-	_, _ = c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if c.Failovers() != 1 {
-		t.Errorf("after first failover: count = %d, want 1", c.Failovers())
-	}
-
-	// Second failover: standby → primary (both are failOnce, standby now fails once).
-	_, _ = c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if c.Failovers() != 2 {
-		t.Errorf("after second failover: count = %d, want 2", c.Failovers())
-	}
-
-	// Third send: original primary (now standby, already failed once) → OK.
-	resp, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err != nil {
-		t.Fatalf("third send: %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("third send Status = %v, want OK", resp.Status)
+	if rc.Failovers() != 1 {
+		t.Errorf("Failovers() = %d, want exactly 1 despite concurrent callers (REQ-RD-008)", rc.Failovers())
 	}
 }

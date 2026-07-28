@@ -15,190 +15,281 @@ import (
 	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/proxy"
+	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// TestProxy_TransparentForward forwards command and response unchanged (REQ-PX-001).
-func TestProxy_TransparentForward(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	p := proxy.NewController(upstream, nil)
-	t.Cleanup(func() { _ = p.Close() })
+// Compile-time assertion that Handler satisfies request.Handler, the
+// interface udp.Router.Register expects (REQ-PX-008).
+var _ request.Handler = (*proxy.Handler)(nil)
 
-	resp, err := p.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
+const (
+	downstreamAddr = avtp.ByteBusID(1)
+	upstreamAddr   = avtp.ByteBusID(5)
+)
+
+// recordingHandler answers with an echoed body and records the requester
+// StreamID it was last invoked with, so a test can assert what identity
+// actually reached the wire.
+type recordingHandler struct {
+	mu       sync.Mutex
+	lastFrom avtp.StreamID
+	calls    int
+}
+
+func (h *recordingHandler) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
+	h.mu.Lock()
+	h.lastFrom = requester
+	h.calls++
+	h.mu.Unlock()
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+// snapshot reads lastFrom/calls under the lock — a plain field read here
+// would race against HandleRequest's own locked write from the server's
+// goroutine even after a synchronous request/response round trip, since a
+// raw socket exchange establishes no happens-before edge the race detector
+// can see.
+func (h *recordingHandler) snapshot() (avtp.StreamID, int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastFrom, h.calls
+}
+
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
+
+func proxyStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xF0, 0xF0, 0xF0, 0xF0, 0xF0}, 1)
+}
+
+func upstreamServerStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
+
+func downstreamServerStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x99, 0x99, 0x99, 0x99, 0x99}, 1)
+}
+
+// harness wires client -> downstream udp.Server -> proxy.Handler ->
+// upstream udp.Server -> recordingHandler, and exposes both endpoints for
+// inspection.
+type harness struct {
+	client     *udp.Controller
+	upstream   *recordingHandler
+	handler    *proxy.Handler
+	downRouter *udp.Router
+}
+
+func newHarness(t *testing.T, transform proxy.TransformFunc) *harness {
+	t.Helper()
+
+	// Upstream side.
+	upHandler := &recordingHandler{}
+	upRouter := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := upRouter.Register(upstreamAddr, upHandler); err != nil {
+		t.Fatalf("upstream Register: %v", err)
+	}
+	// Also registered at downstreamAddr, so a no-transform ("forward
+	// unchanged") request — which reaches the upstream server still
+	// addressed at the original downstream addr — has somewhere to land.
+	if err := upRouter.Register(downstreamAddr, upHandler); err != nil {
+		t.Fatalf("upstream Register (downstreamAddr passthrough): %v", err)
+	}
+	upSrv, err := udp.NewServer(upstreamServerStream(), "127.0.0.1:0", upRouter)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("upstream NewServer: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
-	}
-}
+	t.Cleanup(func() { _ = upSrv.Close() })
 
-// TestProxy_NilTransform behaves identically to transparent forward (REQ-PX-001).
-func TestProxy_NilTransform(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	p := proxy.NewController(upstream, nil)
-	t.Cleanup(func() { _ = p.Close() })
-
-	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdGet, Priority: rcp.PriorityHigh}
-	resp, err := p.Send(context.Background(), cmd)
+	upCtrl, err := udp.NewController(proxyStream(), upSrv.Addr())
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("dial upstream: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
+
+	// Downstream side, fronted by the proxy Handler.
+	ph := proxy.NewHandler(upCtrl, transform, 0)
+	t.Cleanup(func() { _ = ph.Close() })
+
+	downRouter := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if regErr := downRouter.Register(downstreamAddr, ph); regErr != nil {
+		t.Fatalf("downstream Register: %v", regErr)
 	}
-}
-
-// TestProxy_TransformRewritesCommand the transform may alter the command (REQ-PX-002).
-func TestProxy_TransformRewritesCommand(t *testing.T) {
-	var received *rcp.Command
-	recordUpstream := &captureController{inner: mock.NewController(rcp.ZoneFrontLeft, nil), capture: &received}
-
-	transform := func(cmd *rcp.Command) (*rcp.Command, error) {
-		c := *cmd
-		c.Priority = rcp.PriorityCritical // escalate priority
-		return &c, nil
-	}
-	p := proxy.NewController(recordUpstream, transform)
-	t.Cleanup(func() { _ = p.Close() })
-
-	_, err := p.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Priority: rcp.PriorityNormal})
+	downSrv, err := udp.NewServer(downstreamServerStream(), "127.0.0.1:0", downRouter)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("downstream NewServer: %v", err)
 	}
-	if received == nil {
-		t.Fatal("upstream never received the command")
-	}
-	if received.Priority != rcp.PriorityCritical {
-		t.Errorf("upstream got Priority=%v, want PriorityCritical", received.Priority)
-	}
-}
+	t.Cleanup(func() { _ = downSrv.Close() })
 
-// TestProxy_TransformError aborts Send (REQ-PX-003).
-func TestProxy_TransformError(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	transformErr := errors.New("forbidden by transform")
-	p := proxy.NewController(upstream, func(_ *rcp.Command) (*rcp.Command, error) {
-		return nil, transformErr
-	})
-	t.Cleanup(func() { _ = p.Close() })
-
-	_, err := p.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err == nil {
-		t.Fatal("expected error from transform, got nil")
-	}
-	if !errors.Is(err, transformErr) {
-		t.Errorf("err = %v, does not wrap transformErr", err)
-	}
-}
-
-// TestProxy_Zone delegates to upstream (REQ-PX-004).
-func TestProxy_Zone(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneRearRight, nil)
-	p := proxy.NewController(upstream, nil)
-	t.Cleanup(func() { _ = p.Close() })
-
-	if got := p.Zone(); got != rcp.ZoneRearRight {
-		t.Errorf("Zone() = %v, want ZoneRearRight", got)
-	}
-}
-
-// TestProxy_Subscribe delegates to upstream (REQ-PX-005).
-func TestProxy_Subscribe(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	p := proxy.NewController(upstream, nil)
-	t.Cleanup(func() { _ = p.Close() })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch, err := p.Subscribe(ctx)
+	client, err := udp.NewController(clientStream(), downSrv.Addr())
 	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
+		t.Fatalf("dial downstream: %v", err)
 	}
-	_ = ch
+	t.Cleanup(func() { _ = client.Close() })
+
+	return &harness{client: client, upstream: upHandler, handler: ph, downRouter: downRouter}
 }
 
-// TestProxy_Close_Idempotent safe to call twice (REQ-PX-006).
+// TestProxy_ForwardsUnchanged with no transform, the request reaches the
+// upstream endpoint under the same addr and body (REQ-PX-001).
+func TestProxy_ForwardsUnchanged(t *testing.T) {
+	h := newHarness(t, nil)
+
+	resp, err := h.client.Write(context.Background(), downstreamAddr, []byte("hello"))
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if string(resp.Body) != "hello" {
+		t.Errorf("resp.Body = %q, want %q", resp.Body, "hello")
+	}
+}
+
+// TestProxy_TransformRemapsAddr TransformFunc rewrites the byte_bus_id
+// before forwarding upstream (REQ-PX-002).
+func TestProxy_TransformRemapsAddr(t *testing.T) {
+	var mu sync.Mutex
+	var gotAddr avtp.ByteBusID
+	transform := func(_ avtp.StreamID, addr avtp.ByteBusID, _ acf.ControlFlags, body []byte) (avtp.ByteBusID, []byte, error) {
+		mu.Lock()
+		gotAddr = addr
+		mu.Unlock()
+		return upstreamAddr, body, nil
+	}
+	h := newHarness(t, transform)
+
+	if _, err := h.client.Read(context.Background(), downstreamAddr); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	mu.Lock()
+	got := gotAddr
+	mu.Unlock()
+	if got != downstreamAddr {
+		t.Errorf("transform saw addr %d, want original downstream addr %d", got, downstreamAddr)
+	}
+	if _, calls := h.upstream.snapshot(); calls != 1 {
+		t.Errorf("upstream calls = %d, want 1 (remapped request must reach upstreamAddr)", calls)
+	}
+}
+
+// TestProxy_TransformErrorAborts a TransformFunc error aborts the forward
+// without reaching the upstream handler (REQ-PX-003).
+func TestProxy_TransformErrorAborts(t *testing.T) {
+	boom := errors.New("boom")
+	transform := func(avtp.StreamID, avtp.ByteBusID, acf.ControlFlags, []byte) (avtp.ByteBusID, []byte, error) {
+		return 0, nil, boom
+	}
+	h := newHarness(t, transform)
+
+	// HandleRequest returns an error which udp.Router reports as a
+	// wire-level error response (see udp/router.go's errorResponse), not a
+	// transport error to the caller.
+	resp, err := h.client.Read(context.Background(), downstreamAddr)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if !resp.Control.Has(acf.FlagError) {
+		t.Errorf("Control = %v, want FlagError (transform aborted)", resp.Control)
+	}
+	if _, calls := h.upstream.snapshot(); calls != 0 {
+		t.Errorf("upstream calls = %d, want 0 (transform error must not reach upstream)", calls)
+	}
+}
+
+// TestProxy_PresentsOwnStreamIdentity the upstream endpoint sees the
+// proxy's own StreamID as requester, never the original downstream
+// caller's — the stream_id remapping half of a real RCP-level proxy
+// (REQ-PX-004).
+func TestProxy_PresentsOwnStreamIdentity(t *testing.T) {
+	h := newHarness(t, nil)
+
+	if _, err := h.client.Read(context.Background(), downstreamAddr); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	lastFrom, _ := h.upstream.snapshot()
+	if lastFrom != proxyStream() {
+		t.Errorf("upstream saw requester %v, want the proxy's own identity %v", lastFrom, proxyStream())
+	}
+	if lastFrom == clientStream() {
+		t.Errorf("upstream saw the original downstream client's StreamID; it must never be forwarded")
+	}
+}
+
+// TestProxy_ResponseCorrelatesWithOriginalRequest the response is
+// repackaged against the original downstream request's ByteBusID/
+// TransactionNum, not whatever addr was actually used upstream
+// (REQ-PX-005).
+func TestProxy_ResponseCorrelatesWithOriginalRequest(t *testing.T) {
+	transform := func(_ avtp.StreamID, _ avtp.ByteBusID, _ acf.ControlFlags, body []byte) (avtp.ByteBusID, []byte, error) {
+		return upstreamAddr, body, nil
+	}
+	h := newHarness(t, transform)
+
+	resp, err := h.client.Read(context.Background(), downstreamAddr)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if resp.ByteBusID != downstreamAddr {
+		t.Errorf("resp.ByteBusID = %d, want original downstream addr %d", resp.ByteBusID, downstreamAddr)
+	}
+}
+
+// TestProxy_Close_Idempotent Close is safe to call multiple times, and a
+// closed Handler reports ErrClosed directly, without attempting to reach
+// upstream (REQ-PX-006).
 func TestProxy_Close_Idempotent(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	p := proxy.NewController(upstream, nil)
-	if err := p.Close(); err != nil {
+	h := newHarness(t, nil)
+
+	if err := h.handler.Close(); err != nil {
 		t.Errorf("first Close: %v", err)
 	}
-	if err := p.Close(); err != nil {
+	if err := h.handler.Close(); err != nil {
 		t.Errorf("second Close: %v", err)
 	}
-}
 
-// TestProxy_Close_RejectsSend returns ErrClosed after Close (REQ-PX-006).
-func TestProxy_Close_RejectsSend(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	p := proxy.NewController(upstream, nil)
-	_ = p.Close()
-
-	_, err := p.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("err = %v, want ErrClosed", err)
+	_, err := h.handler.HandleRequest(clientStream(), acf.Message{ByteBusID: downstreamAddr})
+	if !errors.Is(err, proxy.ErrClosed) {
+		t.Errorf("HandleRequest after Close err = %v, want ErrClosed", err)
 	}
 }
 
-// TestProxy_Concurrent no race under concurrent sends (REQ-PX-007).
+// TestProxy_Concurrent multiple goroutines may call HandleRequest
+// simultaneously without a data race (REQ-PX-007).
 func TestProxy_Concurrent(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
-	p := proxy.NewController(upstream, nil)
-	t.Cleanup(func() { _ = p.Close() })
+	h := newHarness(t, nil)
 
-	ctx := context.Background()
-	const n = 40
+	const n = 30
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = p.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft})
+			_, _ = h.client.Read(context.Background(), downstreamAddr)
 		}()
 	}
 	wg.Wait()
 }
 
-// TestProxy_Composable wraps proxy in a second proxy (REQ-PX-008).
-func TestProxy_Composable(t *testing.T) {
-	upstream := mock.NewController(rcp.ZoneFrontLeft, nil)
+// TestProxy_ComposableAsRouterHandler a Handler implements request.Handler,
+// so it composes into a udp.Router the same as any native endpoint's own
+// Handler, including a second registration on an entirely different Router
+// instance (REQ-PX-008).
+func TestProxy_ComposableAsRouterHandler(t *testing.T) {
+	h := newHarness(t, nil)
 
-	var hops int
-	countTransform := func(cmd *rcp.Command) (*rcp.Command, error) {
-		hops++
-		return cmd, nil
-	}
-
-	inner := proxy.NewController(upstream, countTransform)
-	outer := proxy.NewController(inner, countTransform)
-	t.Cleanup(func() { _ = outer.Close() })
-
-	_, err := outer.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	if hops != 2 {
-		t.Errorf("hops = %d, want 2 (each proxy fires transform once)", hops)
+	secondRouter := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := secondRouter.Register(downstreamAddr, h.handler); err != nil {
+		t.Fatalf("registering the same proxy.Handler into a second Router: %v", err)
 	}
 }
-
-// captureController records the last command received by Send.
-type captureController struct {
-	inner   rcp.Controller
-	capture **rcp.Command
-}
-
-func (c *captureController) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	*c.capture = cmd
-	return c.inner.Send(ctx, cmd)
-}
-func (c *captureController) Zone() rcp.Zone { return c.inner.Zone() }
-func (c *captureController) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	return c.inner.Subscribe(ctx)
-}
-func (c *captureController) Close() error { return c.inner.Close() }

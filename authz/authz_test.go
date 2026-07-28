@@ -15,201 +15,211 @@ import (
 	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/authz"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-func newCtrl(policy *authz.Policy, principal string) (*authz.Controller, *mock.Controller) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	return authz.NewController(inner, policy, principal), inner
+// stubHandler answers every request with FlagResponse set and an echoed
+// body, mirroring udp_test.go's own fixture.
+type stubHandler struct{}
+
+func (stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
 }
 
-// TestAuthz_AllowExact permits an exact-match principal/zone/cmd triple (REQ-AZ-001).
-func TestAuthz_AllowExact(t *testing.T) {
-	p := authz.NewPolicy()
-	p.Allow("ecm", rcp.ZoneFrontLeft, rcp.CmdSet)
+func clientStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
 
-	ctrl, _ := newCtrl(p, "ecm")
-	t.Cleanup(func() { _ = ctrl.Close() })
+func serverStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 1)
+}
 
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
+const testEndpoint = avtp.ByteBusID(1)
+
+// newHarness starts a udp.Server answering testEndpoint via stubHandler and
+// dials a *udp.Controller against it, returning a ready-to-wrap inner
+// controller.
+func newHarness(t *testing.T) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testEndpoint, stubHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
+	srv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(clientStream(), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
+
+// TestAuthz_AllowExact permits an exact-match principal/stream/endpoint
+// triple (REQ-AZ-001).
+func TestAuthz_AllowExact(t *testing.T) {
+	inner := newHarness(t)
+	p := authz.NewPolicy()
+	p.Allow("ecm", inner.StreamID(), testEndpoint)
+
+	ctrl := authz.NewController(inner, p, "ecm")
+	resp, err := ctrl.Read(context.Background(), testEndpoint)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if !resp.Control.Has(acf.FlagResponse) {
+		t.Errorf("Control = %v, want FlagResponse set", resp.Control)
 	}
 }
 
 // TestAuthz_DenyNoMatch denies when no policy entry matches (REQ-AZ-002).
 func TestAuthz_DenyNoMatch(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	// Allow ecm only on CmdGet, not CmdSet
-	p.Allow("ecm", rcp.ZoneFrontLeft, rcp.CmdGet)
+	p.Allow("ecm", inner.StreamID(), testEndpoint+1) // never matches testEndpoint
 
-	ctrl, _ := newCtrl(p, "ecm")
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
+	ctrl := authz.NewController(inner, p, "ecm")
+	_, err := ctrl.Read(context.Background(), testEndpoint)
 	if !errors.Is(err, authz.ErrDenied) {
 		t.Errorf("err = %v, want ErrDenied", err)
 	}
 }
 
-// TestAuthz_DenyExplicit explicit Deny entry returns ErrDenied (REQ-AZ-002).
+// TestAuthz_DenyExplicit an explicit Deny entry, evaluated before a later
+// Allow, wins (REQ-AZ-002).
 func TestAuthz_DenyExplicit(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	p.Allow("ecm", rcp.ZoneFrontLeft, authz.CmdTypeAny)
-	p.Deny("ecm", rcp.ZoneFrontLeft, rcp.CmdReset) // inserted after Allow-all; won't fire due to order
+	p.Deny("ecm", inner.StreamID(), testEndpoint)
+	p.Allow("ecm", inner.StreamID(), authz.EndpointAny)
 
-	// For deny-first ordering, put Deny before Allow:
-	p2 := authz.NewPolicy()
-	p2.Deny("ecm", rcp.ZoneFrontLeft, rcp.CmdReset)
-	p2.Allow("ecm", rcp.ZoneFrontLeft, authz.CmdTypeAny)
-
-	ctrl, _ := newCtrl(p2, "ecm")
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	// CmdReset should be denied
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdReset})
+	ctrl := authz.NewController(inner, p, "ecm")
+	_, err := ctrl.Read(context.Background(), testEndpoint)
 	if !errors.Is(err, authz.ErrDenied) {
-		t.Errorf("CmdReset err = %v, want ErrDenied", err)
-	}
-
-	// CmdSet should be allowed
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	if err != nil {
-		t.Fatalf("CmdSet: %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("CmdSet Status = %v, want OK", resp.Status)
+		t.Errorf("err = %v, want ErrDenied", err)
 	}
 }
 
 // TestAuthz_WildcardPrincipal empty principal matches any caller (REQ-AZ-003).
 func TestAuthz_WildcardPrincipal(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	p.Allow("", rcp.ZoneFrontLeft, rcp.CmdGet) // any principal
+	p.Allow("", inner.StreamID(), testEndpoint)
 
-	ctrl, _ := newCtrl(p, "anyone")
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdGet})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
+	ctrl := authz.NewController(inner, p, "anyone")
+	if _, err := ctrl.Read(context.Background(), testEndpoint); err != nil {
+		t.Fatalf("Read: %v", err)
 	}
 }
 
-// TestAuthz_WildcardZone ZoneUnknown matches any zone (REQ-AZ-003).
-func TestAuthz_WildcardZone(t *testing.T) {
+// TestAuthz_WildcardStream StreamAny matches any requester stream (REQ-AZ-003).
+func TestAuthz_WildcardStream(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	p.Allow("diag", rcp.ZoneUnknown, rcp.CmdGet) // any zone
+	p.Allow("diag", authz.StreamAny, testEndpoint)
 
-	inner := mock.NewController(rcp.ZoneRearRight, nil)
 	ctrl := authz.NewController(inner, p, "diag")
-	t.Cleanup(func() { _ = ctrl.Close() })
+	if _, err := ctrl.Read(context.Background(), testEndpoint); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+}
 
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneRearRight, Type: rcp.CmdGet})
+// TestAuthz_WildcardEndpoint EndpointAny matches every endpoint (REQ-AZ-003).
+func TestAuthz_WildcardEndpoint(t *testing.T) {
+	inner := newHarness(t)
+	p := authz.NewPolicy()
+	p.Allow("admin", inner.StreamID(), authz.EndpointAny)
+
+	ctrl := authz.NewController(inner, p, "admin")
+	if _, err := ctrl.Read(context.Background(), testEndpoint); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	// testEndpoint+1 has no registered server-side handler: the policy
+	// admits the request (EndpointAny), but the transport reports the
+	// unknown-endpoint failure as a wire-level error response rather than a
+	// Go error, exactly as udp.Router.Route documents.
+	resp, err := ctrl.Read(context.Background(), testEndpoint+1)
 	if err != nil {
-		t.Fatalf("Send: %v", err)
+		t.Fatalf("Read(testEndpoint+1): %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
-	}
-}
-
-// TestAuthz_WildcardCmdType CmdTypeAny matches every command type (REQ-AZ-003).
-func TestAuthz_WildcardCmdType(t *testing.T) {
-	p := authz.NewPolicy()
-	p.Allow("admin", rcp.ZoneFrontLeft, authz.CmdTypeAny)
-
-	ctrl, _ := newCtrl(p, "admin")
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	for _, ct := range []rcp.CommandType{rcp.CmdSet, rcp.CmdGet, rcp.CmdReset, rcp.CmdWatchdog} {
-		resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: ct})
-		if err != nil {
-			t.Errorf("cmd %d: %v", ct, err)
-			continue
-		}
-		if resp.Status != rcp.StatusOK {
-			t.Errorf("cmd %d Status = %v, want OK", ct, resp.Status)
-		}
+	if !resp.Control.Has(acf.FlagError) {
+		t.Errorf("Control = %v, want FlagError set for an unregistered endpoint", resp.Control)
 	}
 }
 
-// TestAuthz_ContextPrincipal WithPrincipal overrides the static principal (REQ-AZ-004).
+// TestAuthz_ContextPrincipal WithPrincipal overrides the static principal
+// (REQ-AZ-004).
 func TestAuthz_ContextPrincipal(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	p.Allow("privileged", rcp.ZoneFrontLeft, rcp.CmdReset)
+	p.Allow("privileged", inner.StreamID(), testEndpoint)
 
-	// Static principal "limited" has no reset permission.
-	ctrl, _ := newCtrl(p, "limited")
-	t.Cleanup(func() { _ = ctrl.Close() })
+	ctrl := authz.NewController(inner, p, "limited")
 
-	// Without context principal: denied.
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdReset})
+	_, err := ctrl.Read(context.Background(), testEndpoint)
 	if !errors.Is(err, authz.ErrDenied) {
 		t.Errorf("without ctx principal: err = %v, want ErrDenied", err)
 	}
 
-	// With context principal: allowed.
 	ctx := authz.WithPrincipal(context.Background(), "privileged")
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdReset})
-	if err != nil {
+	if _, err := ctrl.Read(ctx, testEndpoint); err != nil {
 		t.Fatalf("with ctx principal: %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
 	}
 }
 
 // TestAuthz_SetEntries replaces policy atomically (REQ-AZ-005).
 func TestAuthz_SetEntries(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	p.Allow("ecm", rcp.ZoneFrontLeft, rcp.CmdSet)
+	p.Allow("ecm", inner.StreamID(), testEndpoint)
 
-	ctrl, _ := newCtrl(p, "ecm")
-	t.Cleanup(func() { _ = ctrl.Close() })
+	ctrl := authz.NewController(inner, p, "ecm")
 
-	// Allowed before replacement.
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	if err != nil {
+	if _, err := ctrl.Read(context.Background(), testEndpoint); err != nil {
 		t.Fatalf("before SetEntries: %v", err)
 	}
 
-	// Replace with empty policy — deny all.
 	p.SetEntries(nil)
 
-	_, err = ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	if !errors.Is(err, authz.ErrDenied) {
+	if _, err := ctrl.Read(context.Background(), testEndpoint); !errors.Is(err, authz.ErrDenied) {
 		t.Errorf("after SetEntries(nil): err = %v, want ErrDenied", err)
 	}
 }
 
-// TestAuthz_DefaultDeny empty policy denies all commands (REQ-AZ-002).
+// TestAuthz_DefaultDeny empty policy denies all requests (REQ-AZ-002).
 func TestAuthz_DefaultDeny(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	ctrl, _ := newCtrl(p, "anyone")
-	t.Cleanup(func() { _ = ctrl.Close() })
+	ctrl := authz.NewController(inner, p, "anyone")
 
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
+	_, err := ctrl.Read(context.Background(), testEndpoint)
 	if !errors.Is(err, authz.ErrDenied) {
 		t.Errorf("err = %v, want ErrDenied", err)
 	}
 }
 
-// TestAuthz_Concurrent verifies no race under concurrent policy evaluation (REQ-AZ-006).
+// TestAuthz_Concurrent verifies no race under concurrent policy evaluation
+// (REQ-AZ-006).
 func TestAuthz_Concurrent(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	p.Allow("ecm", rcp.ZoneFrontLeft, authz.CmdTypeAny)
+	p.Allow("ecm", inner.StreamID(), authz.EndpointAny)
 
-	ctrl, _ := newCtrl(p, "ecm")
-	t.Cleanup(func() { _ = ctrl.Close() })
+	ctrl := authz.NewController(inner, p, "ecm")
 
 	ctx := context.Background()
 	const n = 40
@@ -218,50 +228,45 @@ func TestAuthz_Concurrent(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
+			_, _ = ctrl.Read(ctx, testEndpoint)
 		}()
 	}
-	// Concurrently replace the policy.
 	go func() {
 		p.SetEntries([]authz.Entry{
-			{Principal: "ecm", Zone: rcp.ZoneFrontLeft, CmdType: authz.CmdTypeAny, Action: authz.Allow},
+			{Principal: "ecm", Stream: inner.StreamID(), Endpoint: authz.EndpointAny, Action: authz.Allow},
 		})
 	}()
 	wg.Wait()
 }
 
-// TestAuthz_Zone delegates to inner controller (REQ-AZ-007).
-func TestAuthz_Zone(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneRearLeft, nil)
-	p := authz.NewPolicy()
+// TestAuthz_Discover bypasses the policy and delegates to the inner
+// controller (REQ-AZ-007).
+func TestAuthz_Discover(t *testing.T) {
+	inner := newHarness(t)
+	p := authz.NewPolicy() // empty: would deny everything else
 	ctrl := authz.NewController(inner, p, "")
-	t.Cleanup(func() { _ = ctrl.Close() })
 
-	if got := ctrl.Zone(); got != rcp.ZoneRearLeft {
-		t.Errorf("Zone() = %v, want ZoneRearLeft", got)
+	if _, err := ctrl.Discover(context.Background()); err != nil {
+		t.Fatalf("Discover: %v", err)
 	}
 }
 
-// TestAuthz_Subscribe delegates to inner controller (REQ-AZ-007).
-func TestAuthz_Subscribe(t *testing.T) {
+// TestAuthz_StreamID delegates to the inner controller (REQ-AZ-007).
+func TestAuthz_StreamID(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	ctrl, _ := newCtrl(p, "")
-	t.Cleanup(func() { _ = ctrl.Close() })
+	ctrl := authz.NewController(inner, p, "")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch, err := ctrl.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
+	if got, want := ctrl.StreamID(), inner.StreamID(); got != want {
+		t.Errorf("StreamID() = %v, want %v", got, want)
 	}
-	_ = ch
 }
 
 // TestAuthz_Close_Idempotent Close is safe to call twice (REQ-AZ-008).
 func TestAuthz_Close_Idempotent(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	ctrl, _ := newCtrl(p, "")
+	ctrl := authz.NewController(inner, p, "")
 	if err := ctrl.Close(); err != nil {
 		t.Errorf("first Close: %v", err)
 	}
@@ -270,14 +275,16 @@ func TestAuthz_Close_Idempotent(t *testing.T) {
 	}
 }
 
-// TestAuthz_Close_RejectsSend Send after Close returns ErrClosed (REQ-AZ-008).
-func TestAuthz_Close_RejectsSend(t *testing.T) {
+// TestAuthz_Close_RejectsRequest Request after Close returns ErrClosed
+// (REQ-AZ-008).
+func TestAuthz_Close_RejectsRequest(t *testing.T) {
+	inner := newHarness(t)
 	p := authz.NewPolicy()
-	ctrl, _ := newCtrl(p, "")
+	ctrl := authz.NewController(inner, p, "")
 	_ = ctrl.Close()
 
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, rcp.ErrClosed) {
+	_, err := ctrl.Read(context.Background(), testEndpoint)
+	if !errors.Is(err, udp.ErrClosed) {
 		t.Errorf("err = %v, want ErrClosed", err)
 	}
 }
