@@ -582,7 +582,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Wire & Server** | v0.57.0 | Wire format core | IEEE 1722 NTSCF/TSCF framing, ACF_ABB/ACF_GBB, the shared request-descriptor header, stream/transaction/bus-id addressing ✅ |
 | **TC18 Core — Wire & Server** | v0.58.0 | RC Server lifecycle | 3-state config lifecycle, generic/functional register-map split, EP0 ✅ |
 | **TC18 Core — Wire & Server** | v0.59.0 | Discovery | Discovery-stream claiming, timeout/lapse behaviour, register-0 read/response ✅ |
-| **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes |
+| **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes ✅ |
 | **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types |
 | **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers |
 | **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, cancellation types |
@@ -724,7 +724,24 @@ actually build a client workflow around it, per this milestone's own scope).
 ### Phase 14 — TC18 Core: Basic Endpoint Types
 ---
 
-### 47. GPIO + SPI Endpoints (v0.60.0)
+### 47. GPIO + SPI Endpoints (v0.60.0) ✅
+
+**Done (v0.60.0):** landed in two new packages, `gpio` (`gpio/doc.go`,
+`gpio/types.go`, `gpio/config.go`, `gpio/semantics.go`, `gpio/request.go`,
+`gpio/endpoint.go`) and `spi` (`spi/doc.go`, `spi/types.go`, `spi/config.go`,
+`spi/request.go`, `spi/endpoint.go`; see each package's doc.go for its
+package-level design notes, including the same explicit spec-fidelity
+call-out avtp/doc.go and server/doc.go established — the exact write-
+semantic count, request sub-opcode convention, and register byte layouts
+below are this implementation's own reasoned encoding pending confirmation
+against a public interoperability reference). Both packages build directly
+on `server` (Milestones 45/46): each endpoint's functional configuration is
+read/written through `server.Server.WriteFunctional`/`server.Server.ReadEndpoint`
+exactly like any other endpoint's `FunctionalBlock`, and each package's
+`Endpoint.HandleRequest` decodes and answers a plain `avtp.Message` using the
+same request-descriptor header every endpoint type shares. `server` itself
+is untouched by this milestone — no changes to its register-map, lifecycle,
+or access-control code were needed.
 
 - GPIO: up to 32 independently configured pins, a bitmask payload, and the
   eight write-semantics an incoming payload can combine with current state
