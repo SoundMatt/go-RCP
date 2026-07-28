@@ -586,7 +586,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types ✅ |
 | **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers ✅ |
 | **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, watchdog-driven safe-state entry ✅ |
-| **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred |
+| **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred ✅ |
 | **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified |
 | **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue, e2e rebuilt against the new model |
 | **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire, udp, tsn, shmem, loan adapted; mdns retired in favour of native discovery; tlstransport deprecated |
@@ -935,7 +935,7 @@ disposition table.
 ### Phase 16 — TC18 Core: Remaining Endpoints & Fragmentation
 ---
 
-### 51. Remaining Endpoint Types (v0.64.0)
+### 51. Remaining Endpoint Types (v0.64.0) ✅
 
 - LIN commander: raw byte pass-through only — no frame ID/checksum/
   schedule-table awareness at this protocol layer. Flag explicitly: any
@@ -965,6 +965,66 @@ disposition table.
   (LIN/CAN/ISELED all need conditional-request support to be useful in
   practice); Wakeup control additionally depends on Phase 13's server
   lifecycle (it drives that same state machine's power dimension)
+
+**Done (v0.64.0):** landed in five new packages, one per endpoint type —
+`lin`, `can`, `iseled`, `mdio`, `wakeup` — each following the
+doc.go/types.go/config.go/request.go/endpoint.go shape Phase 14's six
+packages established, each building on `server`'s register-map substrate
+(Milestones 45/46) and dropping into `request.Dispatcher` unmodified
+(Milestone 49) via the same `Endpoint.HandleRequest(avtp.StreamID,
+avtp.Message) (avtp.Message, error)` shape every endpoint type shares; no
+changes were needed to `server`, `avtp`, `request`, or `crcsafe`
+themselves, since their extension points (the endpoint-type enum and
+named-signal-index scheme in `server/types.go`) already anticipated these
+five types. `lin.Endpoint` is raw byte pass-through only, exactly as
+specified — it has no PID/checksum/schedule-table awareness at all,
+flagged explicitly in `lin/doc.go` as future LIN client-side logic's own
+responsibility to own, not this endpoint's. `can.Endpoint` selects
+Classical/FD/XL framing per request via `can.Frame.Format` (payload caps
+8/64/2048 bytes respectively), has no remote-frame field of any kind (data
+frames only, structurally rather than by runtime rejection), and carries
+CAN XL's extra header fields (`can.XLHeader`'s SDT/VCID/AF, reflecting the
+publicly documented ISO 11898-1 CAN XL frame format, not TC18-specific
+text); per Guiding Principle 10, `can/doc.go` documents CAN's absent
+trigger-signal table as an open gap rather than inventing one — `can`
+is the one Phase 16 package with no `DrainTriggers` method, a deliberate,
+documented omission. `iseled.Endpoint` models a daisy chain addressed by
+`iseled.Command`/`iseled.DeviceResponse`, each carrying its own
+ISELED-native CRC8 (`iseled.ComputeCRC`) layered on top of — not instead
+of — the general E2E mechanism `crcsafe` (Phase 15) already provides at
+the RCP-message level (a caller is free to additionally wrap
+`iseled.Endpoint` in `crcsafe.Guard`); `iseled.DeviceBroadcast` plus
+`iseled.AggregatedResponse` implement the optional multi-device response
+aggregation. `mdio.Endpoint` is minimal pass-through Clause 22/45-style
+register access (`mdio.Request`'s `AddressMode`-selected PHY/device/
+register addressing), useful even with no physical MDIO pins wired since
+its `Transport` abstraction never assumes a real electrical bus underneath
+it. `wakeup.Endpoint` is the dedicated power-management endpoint — its
+`wakeup.PowerState` write/read drives Normal/StandBy/Sleep transitions
+(`wakeup.PowerUnpowered` is deliberately never a requestable target or the
+endpoint's own current state, flagged in `wakeup/doc.go` as this
+implementation's own reasoned treatment of a state a running server cannot
+itself request or observe being in), a Sleep→Normal wake determines
+`wakeup.StartKind` (Hot/Cold, see `Endpoint.SetRetentionLost`) and queues
+`Config.WakeHandshakeRepeatCount` repeating `wakeup.WakeHandshake` trigger
+events for a caller's own transport loop to re-emit (`wakeup/doc.go`
+documents this package's own reasoned, flagged-as-unverified reading of how
+its power dimension relates to `server.LifecycleState`'s orthogonal
+configuration-readiness axis from Phase 13, since the roadmap text here
+does not spell out a more specific mechanical coupling and no
+`server/lifecycle.go` change was made to invent one). DAC remains entirely
+absent, as specified — no `dac` package exists. All five packages carry
+the same explicit spec-fidelity disclaimer already established across
+`avtp`/`server`/every endpoint package; `can`'s XL header field names and
+`iseled`'s CRC-8 parameter choice are called out individually in their own
+doc.go files as reflecting public reference material rather than
+TC18-specific text. 44 new `//fusa:req`/`//fusa:test`-tagged requirements
+(`REQ-LINEP-*`, `REQ-CANEP-*` — `EP` suffixes chosen specifically to avoid
+colliding with the pre-existing `canbr`/`linbr` satellite packages'
+already-claimed `REQ-CAN-*`/`REQ-LIN-*` IDs, since those are unrelated,
+separately-scoped Phase 17 migration candidates — `REQ-ISELED-*`,
+`REQ-MDIO-*`, `REQ-WAKEUP-*`) are 100% traced and tested per `gofusa
+check`/`gofusa trace`.
 
 ### 52. Fragmentation (v0.65.0) — **GO**
 

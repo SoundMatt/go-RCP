@@ -4631,6 +4631,358 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-001",
+      "title": "Config.Validate enforces a nonzero baud rate when enabled",
+      "text": "lin.Config.Validate shall return nil for a disabled bus regardless of BaudRate, and shall return ErrInvalidBaudRate for an enabled bus whose BaudRate is zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-002",
+      "title": "LIN Config encoder/decoder round-trips and never panics",
+      "text": "lin.EncodeConfig/DecodeConfig shall round-trip a Config, and DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-003",
+      "title": "HandleRequest rejects a non-write request, the wrong endpoint, and an ungranted stream",
+      "text": "lin.Endpoint.HandleRequest shall return ErrRequestMustWrite for a request without the Write control flag set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-004",
+      "title": "HandleRequest rejects a transfer against a disabled bus",
+      "text": "lin.Endpoint.HandleRequest shall return ErrBusNotConfigured for a transfer request handled against an endpoint whose Config.Enabled is false.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-005",
+      "title": "A transfer is performed through the configured Transport, defaulting to loopback",
+      "text": "lin.Endpoint.HandleRequest shall perform a transfer request through the Transport configured via SetTransport when one is set, and shall default to echoing the transmitted bytes back (loopback) when none is set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-006",
+      "title": "DrainTriggers returns queued transaction-complete events FIFO and clears the queue",
+      "text": "lin.Endpoint.DrainTriggers shall return every queued TriggerEvent in the order it was recorded, clear the queue, and return nil when no events are pending.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-007",
+      "title": "LIN decoders never panic on malformed input",
+      "text": "lin.DecodeConfig and lin.DecodeTransferRequest shall never panic on arbitrary input, including empty and truncated buffers.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-LINEP-008",
+      "title": "LIN golden vectors pin the frozen wire byte layout",
+      "text": "lin.EncodeConfig and lin.EncodeTransferRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-001",
+      "title": "Config.Validate enforces a nonzero nominal bitrate when enabled",
+      "text": "can.Config.Validate shall return nil for a disabled bus regardless of its bitrate fields, and shall return ErrInvalidBitrate for an enabled bus whose NominalBitrateKbps is zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-002",
+      "title": "CAN Config encoder/decoder round-trips and never panics",
+      "text": "can.EncodeConfig/DecodeConfig shall round-trip a Config, and DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-003",
+      "title": "Format.Valid recognizes exactly the three defined frame formats",
+      "text": "can.Format.Valid shall return true for exactly FormatClassical, FormatFD, and FormatXL, and false for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-004",
+      "title": "Frame.Validate enforces per-format payload caps, ID width, and field applicability",
+      "text": "can.Frame.Validate shall return ErrInvalidFormat for an unrecognized Format, ErrIDOutOfRange when ID exceeds its Extended/standard width, ErrPayloadTooLarge when Data exceeds Format's maximum payload length, ErrBitRateSwitchNotSupported for a FormatClassical frame with BitRateSwitch set, and ErrXLHeaderNotSupported for a non-FormatXL frame with a nonzero XLHeader.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-005",
+      "title": "CAN Frame encoder/decoder round-trips for every frame format and never panics",
+      "text": "can.EncodeFrame/DecodeFrame shall round-trip a Frame for FormatClassical, FormatFD, and FormatXL (including XLHeader and up to XLMaxPayload bytes of Data), and DecodeFrame shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-006",
+      "title": "HandleRequest rejects a request with neither flag, the wrong endpoint, and an ungranted stream",
+      "text": "can.Endpoint.HandleRequest shall return ErrRequestMustReadOrWrite for a request with neither FlagRead nor FlagWrite set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-007",
+      "title": "HandleRequest rejects a request against a disabled bus",
+      "text": "can.Endpoint.HandleRequest shall return ErrNotConfigured for a request handled against an endpoint whose Config.Enabled is false.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-008",
+      "title": "A write request validates, echoes, and transmits through the configured Transport",
+      "text": "can.Endpoint.HandleRequest shall reject a write request whose decoded Frame fails Validate before ever reaching Transport, shall echo an accepted Frame back in the response, and shall hand it to the Transport configured via SetTransport when one is set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-009",
+      "title": "A read request returns the most recently received Frame or fails explicitly",
+      "text": "can.Endpoint.HandleRequest shall return the Frame most recently recorded via SetReceivedFrame for a read request, and shall return ErrNoFrameReceived rather than a stale or zero-value Frame when none has been received yet.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CANEP-010",
+      "title": "CAN golden vectors pin the frozen wire byte layout",
+      "text": "can.EncodeConfig and can.EncodeFrame shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-001",
+      "title": "Config.Validate enforces a nonzero device count when enabled",
+      "text": "iseled.Config.Validate shall return nil for a disabled chain regardless of DeviceCount, and shall return ErrInvalidDeviceCount for an enabled chain whose DeviceCount is zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-002",
+      "title": "ISELED Config encoder/decoder round-trips and never panics",
+      "text": "iseled.EncodeConfig/DecodeConfig shall round-trip a Config, and DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-003",
+      "title": "Command encoder/decoder round-trips and detects a corrupted ISELED-native CRC",
+      "text": "iseled.EncodeCommand/DecodeCommand shall round-trip a Command, DecodeCommand shall return ErrCRCMismatch when the trailing CRC8 does not match the one ComputeCRC recomputes over the decoded Address and Data, and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-004",
+      "title": "AggregatedResponse encoder/decoder round-trips for zero, one, and several device responses",
+      "text": "iseled.EncodeAggregatedResponse/DecodeAggregatedResponse shall round-trip an AggregatedResponse of any length, and DecodeAggregatedResponse shall return ErrShortBuffer rather than panicking when the buffer does not contain enough bytes for its declared entry count.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-005",
+      "title": "HandleRequest rejects a non-write request, the wrong endpoint, and an ungranted stream",
+      "text": "iseled.Endpoint.HandleRequest shall return ErrRequestMustWrite for a request without the Write control flag set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-006",
+      "title": "HandleRequest rejects a command against a disabled chain or an out-of-range device address",
+      "text": "iseled.Endpoint.HandleRequest shall return ErrChainNotConfigured for a command handled against an endpoint whose Config.Enabled is false, and ErrDeviceAddressOutOfRange for a targeted Command whose Address is not DeviceBroadcast and is not less than the configured DeviceCount.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-007",
+      "title": "A targeted command exchanges through the default loopback or the configured Transport, and queues a trigger",
+      "text": "iseled.Endpoint.HandleRequest shall answer a targeted Command with a single-entry AggregatedResponse echoing its Data through the default loopback with no Transport configured, or through the Transport configured via SetTransport when one is set, and shall queue a TriggerEvent recording the response count on every exchange.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-008",
+      "title": "A DeviceBroadcast command's default loopback aggregates one response per configured device",
+      "text": "iseled.Endpoint.HandleRequest shall answer a Command addressed to DeviceBroadcast with an AggregatedResponse containing one entry per device 0..Config.DeviceCount-1, each echoing the command's Data, when no Transport is configured.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ISELED-009",
+      "title": "ISELED golden vectors pin the frozen wire byte layout",
+      "text": "iseled.EncodeConfig and iseled.EncodeCommand shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-001",
+      "title": "MDIO Config encoder/decoder round-trips and never panics",
+      "text": "mdio.EncodeConfig/DecodeConfig shall round-trip a Config, and DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-002",
+      "title": "AddressMode.Valid recognizes exactly the two defined address modes",
+      "text": "mdio.AddressMode.Valid shall return true for exactly ModeClause22 and ModeClause45, and false for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-003",
+      "title": "Request.Validate enforces mode-dependent PHY/device/register address widths",
+      "text": "mdio.Request.Validate shall return ErrInvalidAddressMode for an unrecognized Mode, ErrPhyAddrOutOfRange when PhyAddr exceeds its 5-bit width, ErrDevAddrNotSupported for a ModeClause22 Request with a nonzero DevAddr, ErrRegAddrOutOfRange for a ModeClause22 Request whose RegAddr exceeds its 5-bit width, and ErrDevAddrOutOfRange for a ModeClause45 Request whose DevAddr exceeds its 5-bit width.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-004",
+      "title": "MDIO read/write request and response encoders/decoders round-trip and never panic",
+      "text": "mdio.EncodeReadRequest/DecodeReadRequest, mdio.EncodeWriteRequest/DecodeWriteRequest, and mdio.EncodeResponse/DecodeResponse shall each round-trip their respective structures, and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-005",
+      "title": "HandleRequest rejects a request with neither flag, the wrong endpoint, and an ungranted stream",
+      "text": "mdio.Endpoint.HandleRequest shall return ErrRequestMustReadOrWrite for a request with neither FlagRead nor FlagWrite set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-006",
+      "title": "HandleRequest rejects a request against a disabled endpoint or an addressing-invalid Request",
+      "text": "mdio.Endpoint.HandleRequest shall return ErrNotConfigured for a request handled against an endpoint whose Config.Enabled is false, and shall return the Request.Validate error for a decoded Request that fails validation.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-007",
+      "title": "A register access is performed through the default in-memory store or the configured Transport, and queues a trigger",
+      "text": "mdio.Endpoint.HandleRequest shall read/write through an in-memory per-(Mode,PhyAddr,DevAddr,RegAddr) register store (reading as zero until written) with no Transport configured, or through the Transport configured via SetTransport when one is set, and shall queue a TriggerEvent recording the access on every read and write.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-008",
+      "title": "MDIO golden vectors pin the frozen wire byte layout",
+      "text": "mdio.EncodeConfig and mdio.EncodeReadRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-001",
+      "title": "Config.Validate enforces a nonzero wake-handshake interval and repeat count when enabled",
+      "text": "wakeup.Config.Validate shall return nil for a disabled endpoint regardless of its other fields, ErrInvalidHandshakeInterval for an enabled endpoint whose WakeHandshakeIntervalMillis is zero, and ErrInvalidHandshakeRepeatCount for an enabled endpoint whose WakeHandshakeRepeatCount is zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-002",
+      "title": "Wakeup Config encoder/decoder round-trips and never panics",
+      "text": "wakeup.EncodeConfig/DecodeConfig shall round-trip a Config, and DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-003",
+      "title": "PowerState.Valid and String cover exactly the four defined power states",
+      "text": "wakeup.PowerState.Valid shall return true for exactly PowerNormal, PowerStandBy, PowerSleep, and PowerUnpowered and false for any other value, and PowerState.String/StartKind.String shall render a distinct, non-empty name for each of their defined values and \"Unknown\" for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-004",
+      "title": "PowerState request/response and WakeHandshake encoders/decoders round-trip and never panic",
+      "text": "wakeup.EncodePowerStateRequest/DecodePowerStateRequest and wakeup.EncodeWakeHandshake/DecodeWakeHandshake shall each round-trip their respective structures, and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-005",
+      "title": "HandleRequest rejects a request with neither flag, the wrong endpoint, and an ungranted stream",
+      "text": "wakeup.Endpoint.HandleRequest shall return ErrRequestMustReadOrWrite for a request with neither FlagRead nor FlagWrite set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-006",
+      "title": "HandleRequest rejects a request against a disabled endpoint and a write targeting PowerUnpowered",
+      "text": "wakeup.Endpoint.HandleRequest shall return ErrNotConfigured for a request handled against an endpoint whose Config.Enabled is false, and shall return ErrCannotRequestUnpowered without changing State for a write request targeting PowerUnpowered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-007",
+      "title": "A write request transitions and echoes State, a read reports it, and a same-state write is an idempotent no-op",
+      "text": "wakeup.Endpoint.HandleRequest shall apply a write request's target PowerState, echo it in the response, and reflect it in a subsequent Endpoint.State call, a read request shall report the current PowerState, and a write request targeting the state the endpoint is already in shall succeed as a no-op without queuing an additional TriggerPowerStateChanged event.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-008",
+      "title": "A Sleep-to-Normal wake determines StartKind, queues the configured wake-handshake repeats, and AcknowledgeWake discards the rest",
+      "text": "wakeup.Endpoint.transitionTo shall determine Endpoint.LastStartKind as StartHot on a Sleep-to-Normal wake by default and StartCold when Endpoint.SetRetentionLost was called since the preceding Normal-to-Sleep transition, shall queue exactly Config.WakeHandshakeRepeatCount TriggerWakeHandshake events with sequentially increasing Sequence numbers on that wake, and Endpoint.AcknowledgeWake shall discard every not-yet-drained TriggerWakeHandshake event while leaving every other queued TriggerEvent untouched.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-WAKEUP-009",
+      "title": "Wakeup golden vectors pin the frozen wire byte layout",
+      "text": "wakeup.EncodeConfig and wakeup.EncodePowerStateRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }

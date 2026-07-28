@@ -1,0 +1,155 @@
+//fusa:test REQ-MDIO-005
+//fusa:test REQ-MDIO-006
+//fusa:test REQ-MDIO-007
+
+package mdio_test
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/mdio"
+	"github.com/SoundMatt/go-RCP/server"
+)
+
+func readReq(r mdio.Request) avtp.Message {
+	return avtp.Message{
+		Kind:      avtp.KindShort,
+		ByteBusID: avtp.ByteBusID(1),
+		Control:   avtp.FlagRead,
+		Body:      mdio.EncodeReadRequest(r),
+	}
+}
+
+func writeReq(r mdio.Request, data uint16) avtp.Message {
+	return avtp.Message{
+		Kind:      avtp.KindShort,
+		ByteBusID: avtp.ByteBusID(1),
+		Control:   avtp.FlagWrite,
+		Body:      mdio.EncodeWriteRequest(r, data),
+	}
+}
+
+// recordingTransport is a Transport test double backed by its own register
+// map, so tests can tell the configured Transport actually ran rather than
+// the default in-memory store.
+type recordingTransport struct {
+	regs  map[uint16]uint16
+	reads int
+}
+
+func newRecordingTransport() *recordingTransport {
+	return &recordingTransport{regs: make(map[uint16]uint16)}
+}
+
+func (r *recordingTransport) ReadRegister(req mdio.Request) (uint16, error) {
+	r.reads++
+	return r.regs[req.RegAddr] + 1, nil // offset by 1 so tests can distinguish from the default store
+}
+
+func (r *recordingTransport) WriteRegister(req mdio.Request, data uint16) error {
+	r.regs[req.RegAddr] = data
+	return nil
+}
+
+// TestHandleRequest_RequiresReadOrWriteWrongEndpointOrAccess checks a
+// request with neither Read nor Write set, one addressed to the wrong
+// endpoint, and one from a stream with no access grant are all rejected
+// (REQ-MDIO-005).
+func TestHandleRequest_RequiresReadOrWriteWrongEndpointOrAccess(t *testing.T) {
+	ep, root := newDeclaredEndpoint(t)
+	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+
+	neither := avtp.Message{Kind: avtp.KindShort, ByteBusID: avtp.ByteBusID(1)}
+	if _, err := ep.HandleRequest(root, neither); !errors.Is(err, mdio.ErrRequestMustReadOrWrite) {
+		t.Errorf("HandleRequest(neither flag) err = %v, want ErrRequestMustReadOrWrite", err)
+	}
+
+	wrongAddr := readReq(mdio.Request{})
+	wrongAddr.ByteBusID = 2
+	if _, err := ep.HandleRequest(root, wrongAddr); !errors.Is(err, mdio.ErrWrongEndpoint) {
+		t.Errorf("HandleRequest(wrong addr) err = %v, want ErrWrongEndpoint", err)
+	}
+
+	stranger := avtp.NewStreamID([6]byte{0x06, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE}, 9)
+	if _, err := ep.HandleRequest(stranger, readReq(mdio.Request{})); !errors.Is(err, server.ErrAccessDenied) {
+		t.Errorf("HandleRequest(no grant) err = %v, want server.ErrAccessDenied", err)
+	}
+}
+
+// TestHandleRequest_RejectsDisabledEndpointAndInvalidRequest checks a
+// request against a disabled endpoint, and an addressing-invalid Request,
+// are both rejected (REQ-MDIO-006).
+func TestHandleRequest_RejectsDisabledEndpointAndInvalidRequest(t *testing.T) {
+	ep, root := newDeclaredEndpoint(t)
+	if _, err := ep.HandleRequest(root, readReq(mdio.Request{})); !errors.Is(err, mdio.ErrNotConfigured) {
+		t.Errorf("HandleRequest(disabled) err = %v, want ErrNotConfigured", err)
+	}
+
+	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+	bad := mdio.Request{Mode: mdio.ModeClause22, DevAddr: 1}
+	if _, err := ep.HandleRequest(root, readReq(bad)); !errors.Is(err, mdio.ErrDevAddrNotSupported) {
+		t.Errorf("HandleRequest(invalid request) err = %v, want ErrDevAddrNotSupported", err)
+	}
+}
+
+// TestHandleRequest_DefaultStoreAndTransport checks a write/read round trip
+// through the default in-memory register store, and through a configured
+// Transport instead, and that each access queues a trigger (REQ-MDIO-007).
+func TestHandleRequest_DefaultStoreAndTransport(t *testing.T) {
+	ep, root := newDeclaredEndpoint(t)
+	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+	r := mdio.Request{Mode: mdio.ModeClause45, PhyAddr: 1, DevAddr: 2, RegAddr: 0x10}
+
+	// Default store: reads as zero until written.
+	resp, err := ep.HandleRequest(root, readReq(r))
+	if err != nil {
+		t.Fatalf("HandleRequest(read, default): %v", err)
+	}
+	if got, _ := mdio.DecodeResponse(resp.Body); got != 0 {
+		t.Errorf("HandleRequest(read, unset) = %#x, want 0", got)
+	}
+
+	if _, werr := ep.HandleRequest(root, writeReq(r, 0x4242)); werr != nil {
+		t.Fatalf("HandleRequest(write, default): %v", werr)
+	}
+	resp, err = ep.HandleRequest(root, readReq(r))
+	if err != nil {
+		t.Fatalf("HandleRequest(read after write, default): %v", err)
+	}
+	if got, _ := mdio.DecodeResponse(resp.Body); got != 0x4242 {
+		t.Errorf("HandleRequest(read after write) = %#x, want 0x4242", got)
+	}
+
+	triggers := ep.DrainTriggers()
+	if len(triggers) != 3 {
+		t.Fatalf("DrainTriggers() len = %d, want 3", len(triggers))
+	}
+	if triggers[0].Write || triggers[1].Write != true || triggers[2].Write {
+		t.Errorf("DrainTriggers() Write flags = %v, want [false true false]", triggers)
+	}
+
+	// Configured Transport.
+	tr := newRecordingTransport()
+	ep.SetTransport(tr)
+	if _, werr := ep.HandleRequest(root, writeReq(r, 0x0100)); werr != nil {
+		t.Fatalf("HandleRequest(write, transport): %v", werr)
+	}
+	resp, err = ep.HandleRequest(root, readReq(r))
+	if err != nil {
+		t.Fatalf("HandleRequest(read, transport): %v", err)
+	}
+	if got, _ := mdio.DecodeResponse(resp.Body); got != 0x0101 { // transport reads back written+1
+		t.Errorf("HandleRequest(read, transport) = %#x, want 0x0101", got)
+	}
+	if tr.reads != 1 {
+		t.Errorf("Transport.ReadRegister calls = %d, want 1", tr.reads)
+	}
+}
