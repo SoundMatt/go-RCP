@@ -4047,6 +4047,318 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-001",
+      "title": "Config.Validate enforces bus speed validity when enabled",
+      "text": "i2c.Config.Validate shall return nil for a disabled bus regardless of Speed, and shall return ErrInvalidSpeed for an enabled bus whose Speed is not one of this package's five recognized values.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-002",
+      "title": "BusSpeed.Valid recognizes exactly the five defined speed classes",
+      "text": "i2c.BusSpeed.Valid shall return true for exactly SpeedStandard through SpeedUltraFast and false for any other value; this package's numbering is its own reasoned resolution of an ambiguous/colliding bus-speed enumeration in the source behavioral description, flagged as an open item pending confirmation against a public interoperability reference.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-003",
+      "title": "I2C Config encoders/decoders round-trip and never panic",
+      "text": "i2c.EncodeConfig/DecodeConfig shall round-trip a Config value and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-004",
+      "title": "HandleRequest requires Write, the right endpoint, and access",
+      "text": "i2c.Endpoint.HandleRequest shall return ErrRequestMustWrite when a request does not set FlagWrite, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-005",
+      "title": "HandleRequest rejects a transfer against a disabled bus",
+      "text": "i2c.Endpoint.HandleRequest shall return ErrBusNotConfigured when a transfer request is handled against an endpoint whose Config.Enabled is false.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-006",
+      "title": "A configured Transport performs the transfer, defaulting to loopback",
+      "text": "i2c.Endpoint.HandleRequest shall perform a transfer through its configured Transport when one is set via SetTransport, and shall default to a loopback echo of the transmitted bytes when none is set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-007",
+      "title": "Every transfer queues a transaction-complete trigger with its byte count",
+      "text": "i2c.Endpoint shall queue a TriggerEvent carrying the number of bytes received for every completed transfer, and Endpoint.DrainTriggers shall return queued events in FIFO order and clear the queue.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-008",
+      "title": "I2C decoders never panic on malformed input",
+      "text": "i2c.DecodeConfig and i2c.DecodeTransferRequest shall never panic on arbitrary input, including empty and truncated buffers.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-009",
+      "title": "I2C golden vectors pin the frozen wire byte layout",
+      "text": "i2c.EncodeConfig and i2c.EncodeTransferRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-001",
+      "title": "Config.Validate enforces baud rate, data bits, parity, and stop bits when enabled",
+      "text": "uart.Config.Validate shall return nil for a disabled endpoint regardless of its other fields, and for an enabled endpoint shall return ErrZeroBaudRate, ErrInvalidDataBits, ErrInvalidParity, or ErrInvalidStopBits as appropriate for an implausible field.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-002",
+      "title": "Parity.Valid and StopBits.Valid recognize exactly their defined values",
+      "text": "uart.Parity.Valid shall return true for exactly ParityNone through ParitySpace and false otherwise; uart.StopBits.Valid shall return true for exactly StopBitsOne through StopBitsTwo and false otherwise.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-003",
+      "title": "UART Config encoders/decoders round-trip and never panic",
+      "text": "uart.EncodeConfig/DecodeConfig shall round-trip a Config value and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-004",
+      "title": "HandleRequest routes Write to TX and Read to RX, rejecting neither flag or a non-payload-less read",
+      "text": "uart.Endpoint.HandleRequest shall dispatch a request with FlagWrite set to TX and a request with FlagRead set to RX, shall return ErrRequestMustReadOrWrite for a request with neither flag set, and shall return ErrReadRequestNotPayloadLess for a read request carrying a nonempty body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-005",
+      "title": "HandleRequest rejects the wrong endpoint, an ungranted stream, or a disabled endpoint",
+      "text": "uart.Endpoint.HandleRequest shall return ErrWrongEndpoint when a request's ByteBusID does not match the endpoint's own address, the underlying server.ErrAccessDenied when the requesting stream has no access grant, and ErrUARTNotConfigured when the endpoint's Config.Enabled is false.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-006",
+      "title": "TX uses the configured Transport, defaults to TX-to-RX loopback, and queues a TX-complete trigger",
+      "text": "uart.Endpoint shall transmit through its configured Transport when one is set via SetTransport, shall default to looping transmitted bytes directly into its own RX FIFO when none is set, and shall queue a TriggerTXComplete event carrying the accepted byte count for every TX write.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-007",
+      "title": "RX read drains the FIFO up to the requested count and reports partial delivery on underfill",
+      "text": "uart.Endpoint's RX read handling shall drain up to the request's ReadSizeOrSegment bytes from the RX FIFO, reporting complete=false and returning fewer bytes when the FIFO cannot fill the full request, and complete=true once the full requested count is available.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-008",
+      "title": "Receive appends to the RX FIFO and queues an RX-data-available trigger",
+      "text": "uart.Endpoint.Receive shall append its argument to the RX FIFO and queue a TriggerRXDataAvailable event carrying the newly arrived byte count, and Endpoint.DrainTriggers shall return queued events in FIFO order and clear the queue.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-009",
+      "title": "UART decoders never panic on malformed input",
+      "text": "uart.DecodeConfig, uart.DecodeReadResponse, and uart.DecodeWriteResponse shall never panic on arbitrary input, including empty and truncated buffers.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UART-010",
+      "title": "UART golden vectors pin the frozen wire byte layout",
+      "text": "uart.EncodeConfig and uart.EncodeReadResponse shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-001",
+      "title": "Config.Validate enforces resolution, sample count, and enum bounds when enabled",
+      "text": "adc.Config.Validate shall return nil for a disabled channel regardless of its other fields, and for an enabled channel shall return ErrInvalidResolution, ErrInvalidSampleCount, ErrInvalidCombineMode, or ErrInvalidTriggerMode as appropriate for an implausible field.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-002",
+      "title": "CombineMode.Valid and TriggerMode.Valid recognize exactly their defined values",
+      "text": "adc.CombineMode.Valid shall return true for exactly CombineReplace and CombineRollingAverage and false otherwise; adc.TriggerMode.Valid shall return true for exactly TriggerModeOnDemand through TriggerModeSelf and false otherwise.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-003",
+      "title": "ADC Config encoders/decoders round-trip and never panic",
+      "text": "adc.EncodeConfig/DecodeConfig shall round-trip a Config value and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-004",
+      "title": "Trigger samples, averages, and combines, masked to the configured resolution",
+      "text": "adc.Endpoint.Trigger shall take Config.SampleCount raw readings from the configured Transport, arithmetic-average them, combine the average with the endpoint's previous value under Config.Combine, mask the result to Config.ResolutionBits, and queue a TriggerMeasurementDone event carrying that value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-005",
+      "title": "Trigger rejects a disabled channel and defaults to an always-zero sample source",
+      "text": "adc.Endpoint.Trigger shall return ErrChannelNotConfigured when Config.Enabled is false, and shall treat every raw sample as zero when no Transport is set via SetTransport.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-006",
+      "title": "HandleRequest routes Read/Write, rejecting neither flag, the wrong endpoint, or an ungranted stream",
+      "text": "adc.Endpoint.HandleRequest shall perform a manual trigger for a request with FlagWrite set, shall return ErrRequestMustReadOrWrite for a request with neither flag set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, and the underlying server.ErrAccessDenied when the requesting stream has no access grant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-007",
+      "title": "A plain read samples fresh under TriggerModeOnDemand and returns the cached value otherwise",
+      "text": "adc.Endpoint.HandleRequest shall perform a fresh Trigger for a read request when Config.TriggerMode is TriggerModeOnDemand, and shall instead return the endpoint's latest already-measured value without sampling when TriggerMode is TriggerModeExternal or TriggerModeSelf.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-008",
+      "title": "DrainTriggers returns queued measurement-done events FIFO and clears the queue",
+      "text": "adc.Endpoint.DrainTriggers shall return every queued TriggerEvent in the order it was recorded, clear the queue, and return nil when no events are pending.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-009",
+      "title": "ADC decoders never panic on malformed input",
+      "text": "adc.DecodeConfig and adc.DecodeValue shall never panic on arbitrary input, including empty and truncated buffers.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-ADC-010",
+      "title": "ADC golden vectors pin the frozen wire byte layout",
+      "text": "adc.EncodeConfig and adc.EncodeValue shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-001",
+      "title": "Config.Validate enforces role and the default output waveform's active/period invariant",
+      "text": "pwm.Config.Validate shall return nil for a disabled endpoint regardless of its other fields, ErrInvalidRole for an enabled endpoint whose Role is not recognized, and ErrActiveExceedsPeriod for an enabled RoleOutput endpoint whose DefaultActiveMicros exceeds DefaultPeriodMicros.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-002",
+      "title": "Role.Valid recognizes exactly the two defined roles",
+      "text": "pwm.Role.Valid shall return true for exactly RoleOutput and RoleInput and false for any other value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-003",
+      "title": "PWM Config and waveform encoders/decoders round-trip and never panic",
+      "text": "pwm.EncodeConfig/DecodeConfig and pwm.EncodeWaveform/DecodeWaveform shall round-trip their respective structures and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-004",
+      "title": "HandleRequest routes Read/Write, rejecting neither flag, the wrong endpoint, an ungranted stream, or a disabled endpoint",
+      "text": "pwm.Endpoint.HandleRequest shall return ErrRequestMustReadOrWrite for a request with neither FlagRead nor FlagWrite set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, the underlying server.ErrAccessDenied when the requesting stream has no access grant, and ErrNotConfigured when the endpoint's Config.Enabled is false.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-005",
+      "title": "A write request is only accepted for a RoleOutput endpoint and rejects an implausible waveform",
+      "text": "pwm.Endpoint.HandleRequest shall return ErrWriteNotSupportedForInput for a write request against a RoleInput endpoint, and shall return ErrActiveExceedsPeriod for a write request whose ActiveMicros exceeds its PeriodMicros.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-006",
+      "title": "Configure applies a RoleOutput endpoint's default waveform, and writes go through the configured OutputTransport",
+      "text": "pwm.Endpoint.Configure shall immediately apply a RoleOutput Config's default waveform exactly as a write request would, and Endpoint.HandleRequest shall apply subsequent write requests through the configured OutputTransport when one is set via SetOutputTransport, defaulting to storing the waveform for readback when none is set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-007",
+      "title": "A RoleInput read returns the captured waveform and fails explicitly on signal loss",
+      "text": "pwm.Endpoint.HandleRequest shall return the most recently captured waveform for a read request against a RoleInput endpoint, through the configured InputTransport when one is set via SetInputTransport or via SetCapturedWaveform/SetSignalLost otherwise, and shall return ErrSignalLost rather than stale data when no valid waveform has been captured or signal loss was most recently reported.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-008",
+      "title": "DrainTriggers returns queued output/capture/signal-loss events FIFO and clears the queue",
+      "text": "pwm.Endpoint.DrainTriggers shall return every queued TriggerEvent in the order it was recorded, clear the queue, and return nil when no events are pending.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-009",
+      "title": "PWM decoders never panic on malformed input",
+      "text": "pwm.DecodeConfig and pwm.DecodeWaveform shall never panic on arbitrary input, including empty and truncated buffers.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-010",
+      "title": "PWM golden vectors pin the frozen wire byte layout",
+      "text": "pwm.EncodeConfig and pwm.EncodeWaveform shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
     }
   ]
 }
