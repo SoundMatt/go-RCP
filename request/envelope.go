@@ -70,13 +70,25 @@ func EncodeCompound(c Conditional, innerControl avtp.ControlFlags, innerBody []b
 	return buf
 }
 
-// DecodeCompound parses a KindCompound envelope. It never panics on
-// malformed input.
+// EncodeCompoundSafety is EncodeCompound's safety-request ("MSB-set")
+// counterpart (ROADMAP.md Milestone 50): same body layout, tagged
+// KindCompoundSafety instead of KindCompound so Dispatcher only executes it
+// once the addressed endpoint's configured safe state is active, and so it
+// survives Dispatcher.PurgeNonSafety.
+func EncodeCompoundSafety(c Conditional, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+	body := EncodeCompound(c, innerControl, innerBody)
+	body[0] = byte(KindCompoundSafety)
+	return body
+}
+
+// DecodeCompound parses a KindCompound or KindCompoundSafety envelope — the
+// body layout is identical between the two; only the leading Kind byte
+// differs. It never panics on malformed input.
 func DecodeCompound(body []byte) (Conditional, avtp.ControlFlags, []byte, error) {
 	if len(body) < 1+conditionalLen+1 {
 		return Conditional{}, 0, nil, ErrShortBuffer
 	}
-	if Kind(body[0]) != KindCompound {
+	if Kind(body[0]).Base() != KindCompound {
 		return Conditional{}, 0, nil, ErrWrongKind
 	}
 	c, err := decodeConditional(body[1 : 1+conditionalLen])
@@ -103,13 +115,21 @@ func EncodeCompoundWait(c Conditional) []byte {
 	return buf
 }
 
-// DecodeCompoundWait parses a KindCompoundWait envelope. It never panics on
-// malformed input.
+// EncodeCompoundWaitSafety is EncodeCompoundWait's safety-request
+// counterpart; see EncodeCompoundSafety's doc comment.
+func EncodeCompoundWaitSafety(c Conditional) []byte {
+	body := EncodeCompoundWait(c)
+	body[0] = byte(KindCompoundWaitSafety)
+	return body
+}
+
+// DecodeCompoundWait parses a KindCompoundWait or KindCompoundWaitSafety
+// envelope. It never panics on malformed input.
 func DecodeCompoundWait(body []byte) (Conditional, error) {
 	if len(body) < 1+conditionalLen {
 		return Conditional{}, ErrShortBuffer
 	}
-	if Kind(body[0]) != KindCompoundWait {
+	if Kind(body[0]).Base() != KindCompoundWait {
 		return Conditional{}, ErrWrongKind
 	}
 	if len(body) > 1+conditionalLen {
@@ -131,13 +151,21 @@ func EncodeTriggered(source avtp.ByteBusID, innerControl avtp.ControlFlags, inne
 	return buf
 }
 
-// DecodeTriggered parses a KindTriggered envelope. It never panics on
-// malformed input.
+// EncodeTriggeredSafety is EncodeTriggered's safety-request counterpart; see
+// EncodeCompoundSafety's doc comment.
+func EncodeTriggeredSafety(source avtp.ByteBusID, innerControl avtp.ControlFlags, innerBody []byte) []byte {
+	body := EncodeTriggered(source, innerControl, innerBody)
+	body[0] = byte(KindTriggeredSafety)
+	return body
+}
+
+// DecodeTriggered parses a KindTriggered or KindTriggeredSafety envelope. It
+// never panics on malformed input.
 func DecodeTriggered(body []byte) (avtp.ByteBusID, avtp.ControlFlags, []byte, error) {
 	if len(body) < 3 {
 		return 0, 0, nil, ErrShortBuffer
 	}
-	if Kind(body[0]) != KindTriggered {
+	if Kind(body[0]).Base() != KindTriggered {
 		return 0, 0, nil, ErrWrongKind
 	}
 	source := avtp.ByteBusID(body[1])

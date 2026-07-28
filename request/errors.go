@@ -58,4 +58,20 @@ var (
 	// ticket a cancellation request (KindCancelAll/CancelTransaction/
 	// CancelSequencer) cleared before it reached StateExecuting.
 	ErrTicketCancelled = errors.New("rcp/request: ticket cancelled before execution")
+
+	// ErrSafeStateNotConfigured is returned by Submit when a request's Kind
+	// is a safety-request ("MSB-set") variant (ROADMAP.md Milestone 50) but
+	// this Dispatcher has no SafeStateCheck configured (see
+	// Dispatcher.SetSafeStateCheck). Safety requests are only meaningful
+	// against an endpoint that has actually opted into a configured safe
+	// state; admitting one with no way to ever evaluate that gate would
+	// leave it pending forever instead of surfacing the misconfiguration.
+	ErrSafeStateNotConfigured = errors.New("rcp/request: safety-request kind submitted but no SafeStateCheck configured")
+
+	// ErrPurgedByWatchdog is the error Dispatcher.Response reports for a
+	// ticket Dispatcher.PurgeNonSafety cleared. It is deliberately distinct
+	// from ErrTicketCancelled: a watchdog-driven purge is this Dispatcher's
+	// own fault-response action, not a request the client itself made (see
+	// PurgeNonSafety's doc comment).
+	ErrPurgedByWatchdog = errors.New("rcp/request: ticket purged by watchdog-driven safe-state entry")
 )

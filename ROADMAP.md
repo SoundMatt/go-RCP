@@ -585,7 +585,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Basic Endpoints** | v0.60.0 | GPIO + SPI | First two endpoint types — simplest request/response shapes ✅ |
 | **TC18 Core — Basic Endpoints** | v0.61.0 | I²C / UART / ADC / PWM | Remaining "basic" endpoint types ✅ |
 | **TC18 Core — Requests** | v0.62.0 | Conditional request taxonomy | Compound, compound-wait, triggered, chained, timed requests + sequencers ✅ |
-| **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, cancellation types |
+| **TC18 Core — Safety** | v0.63.0 | E2E CRC safe points | CRC32 safe-point mechanism, safety-request variants, watchdog-driven safe-state entry ✅ |
 | **TC18 Core — Remaining Endpoints** | v0.64.0 | LIN / CAN incl. CAN XL / ISELED / MDIO / Wakeup | Remaining fully-specified endpoint types; DAC explicitly deferred |
 | **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified |
 | **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue, e2e rebuilt against the new model |
@@ -885,29 +885,51 @@ the source specification's own split.
   the old protocol has no equivalent request model of any kind, so this
   milestone is additive complexity, not a refactor of something existing
 
-### 50. E2E CRC Safe Points & Safety Requests (v0.63.0)
+### 50. E2E CRC Safe Points & Safety Requests (v0.63.0) ✅
 
-- The CRC32 safe-point mechanism as an explicit per-endpoint opt-in mode,
-  fully replacing the ad hoc CRC-16/CCITT-FALSE scheme the old `e2e`
-  package used — different polynomial, different coverage (spans the
-  frame's addressing/timestamp fields plus the whole message, not just the
-  payload), and different failure handling (skip execution, respond with a
-  dedicated CRC error code, rather than the old package's replay-guard
-  framing)
-- The safety-request ("MSB-set") variants of compound/compound-wait/
-  triggered requests: only executable once the addressed endpoint is
-  actually in its configured safe state, and specifically the ones that
-  *survive* a watchdog-driven purge of ordinary pending requests — this is
-  a materially new safety mechanism with no analogue in the old protocol
-  at all
-- Per-stream watchdog/sequence-monotonicity/overflow configuration driving
-  automatic safe-state entry, distinct from (and replacing) the old
-  client-push `watchdog` package's model — this one lives at the server,
-  timed from request arrival, not pushed periodically by the client
-- Depends on Phase 15's request-lifecycle work (safety variants are a
-  tagged subclass of the request kinds just built) and interacts directly
-  with fragmentation (Phase 16): only a fragmented message's final segment
-  carries a CRC, computed over all segments combined
+**Done (v0.63.0):** landed in one new package, `crcsafe`
+(`crcsafe/doc.go`, `crcsafe/crc.go`, `crcsafe/guard.go`,
+`crcsafe/watchdog.go`), plus a targeted extension of `request`'s own Kind
+enum from Milestone 49 (`request/kind.go`, `request/envelope.go`,
+`request/dispatcher.go`, `request/errors.go`; see `crcsafe/doc.go` and
+request/doc.go's own "Milestone 50 addendum" for the design notes,
+including the same explicit spec-fidelity call-out avtp/doc.go,
+server/doc.go, and request/doc.go already established — the CRC32
+polynomial choice, the exact covered-field byte layout, the
+KindSafetyFlag bit position, and the StreamConfig field set are this
+implementation's own reasoned encoding pending confirmation against a
+public interoperability reference). `crcsafe.Compute`/`Protect`/`Verify`
+implement the CRC32 safe-point mechanism as an explicit per-endpoint
+opt-in mode, fully replacing the ad hoc CRC-16/CCITT-FALSE scheme the old
+`e2e` package used — different polynomial (crc32.IEEE), different
+coverage (the enclosing stream's addressing plus every field of the RCP
+message: ByteBusID, TransactionNum, Control, ReadSizeOrSegment, Timestamp,
+and Body — not just a bespoke payload), and different failure handling
+(`crcsafe.Guard` skips calling the wrapped `request.Handler` outright and
+reports the dedicated `ErrCRCMismatch` error, rather than the old
+package's separate replay-guard framing); `crcsafe.ComputeFragmented` pins
+down, ahead of Milestone 52, how this CRC coverage interacts with a
+message reassembled from multiple segments (only the final segment
+carries a CRC, computed over all segments combined). `request.Kind` gained
+three safety-request ("MSB-set") variants — `KindCompoundSafety`,
+`KindCompoundWaitSafety`, `KindTriggeredSafety` (see `Kind.IsSafety` and
+`Kind.Base`) — only executable once `request.Dispatcher`'s configured
+`SafeStateCheck` reports the requester's addressed endpoint is actually in
+its configured safe state (`Dispatcher.Submit` refuses to admit one at all
+with no `SafeStateCheck` configured), and specifically the ones that
+*survive* `Dispatcher.PurgeNonSafety`, the new watchdog-driven purge of
+every other pending ticket — a materially new safety mechanism with no
+analogue in the old protocol at all. `crcsafe.Supervisor` is the per-stream
+watchdog/sequence-monotonicity/overflow configuration driving that purge,
+distinct from (and replacing, not adapting) the old client-push
+`watchdog` package's model: it lives entirely server-side, timed from
+request arrival via `Supervisor.Observe`, computes `InSafeState`
+verdicts lazily against an injectable clock rather than pushing anything
+on the wire, and adapts directly to `request.SafeStateCheck` via
+`Supervisor.CheckFunc` for wiring into a `Dispatcher`. Neither the old
+`e2e` nor the old `watchdog` package was touched — both remain fully
+intact pending their own Milestone 53 (v0.66.0) migration, per Phase 17's
+disposition table.
 
 ---
 ### Phase 16 — TC18 Core: Remaining Endpoints & Fragmentation

@@ -86,15 +86,40 @@
 // resolve immediately, mirroring the signature every Phase 14 endpoint's own
 // HandleRequest already has.
 //
+// # Milestone 50 addendum: safety-request Kinds and the watchdog-driven purge
+//
+// ROADMAP.md Milestone 50 (v0.63.0) extends this package in place rather
+// than adding a separate layer above it: KindCompoundSafety,
+// KindCompoundWaitSafety, and KindTriggeredSafety are the safety-request
+// ("MSB-set") variants of KindCompound/KindCompoundWait/KindTriggered (see
+// KindSafetyFlag, Kind.IsSafety, Kind.Base) — a tag on the same envelope
+// shape, not a fourth taxonomy. Dispatcher.Pump only ever lets one of these
+// three advance to StateExecuting once the configured SafeStateCheck
+// reports the requester's addressed endpoint is actually in its configured
+// safe state (see SafeStateCheck and Dispatcher.SetSafeStateCheck); Submit
+// refuses to admit one at all when no SafeStateCheck is configured
+// (ErrSafeStateNotConfigured), the same "opt in explicitly or don't get the
+// mechanism" posture the CRC safe-point mechanism takes (see the crcsafe
+// package). The other new property this milestone adds — no analogue
+// anywhere in the old protocol — is that these three Kinds specifically
+// survive Dispatcher.PurgeNonSafety, the watchdog-driven bulk clear of every
+// other pending ticket a caller invokes once a crcsafe.Supervisor judges a
+// stream's request-arrival watchdog has tripped. This package does not
+// itself compute either the safe-state verdict or the watchdog trip
+// condition — both are the new crcsafe package's job; this package only
+// consumes them through SafeStateCheck and PurgeNonSafety, mirroring how it
+// already consumes an AccessCheck it does not itself define the policy for.
+//
 // # Explicit non-goal
 //
-// This package does not implement the E2E CRC safe-point mechanism or the
-// safety-request ("MSB-set") variants of these same request kinds —
-// ROADMAP.md Milestone 50 (v0.63.0), which explicitly depends on this
-// package's lifecycle work, is where those land. It also does not implement
-// multi-AVTPDU fragmentation (ROADMAP.md Milestone 52); a KindChained
-// envelope's segments are still delivered within one AVTPDU, same as every
-// Phase 14 request today.
+// This package does not implement the CRC32 safe-point wire mechanism
+// itself (envelope-independent — it protects the whole Message, plain
+// requests included, not just conditional-request envelopes) — see the new
+// crcsafe package for that, plus the per-stream watchdog/sequence-
+// monotonicity/overflow configuration that decides when to call
+// PurgeNonSafety. It also does not implement multi-AVTPDU fragmentation
+// (ROADMAP.md Milestone 52); a KindChained envelope's segments are still
+// delivered within one AVTPDU, same as every Phase 14 request today.
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
@@ -133,3 +158,7 @@ package request
 //fusa:req REQ-REQ-019
 //fusa:req REQ-REQ-020
 //fusa:req REQ-REQ-021
+//fusa:req REQ-REQ-022
+//fusa:req REQ-REQ-023
+//fusa:req REQ-REQ-024
+//fusa:req REQ-REQ-025
