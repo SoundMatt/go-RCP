@@ -762,8 +762,8 @@
     },
     {
       "id": "REQ-RL-001",
-      "title": "Token bucket refills at Config.Rate tokens per second",
-      "text": "ratelimit.Controller shall refill its token bucket at Config.Rate tokens per second. After N seconds with no sends, the bucket shall contain min(N*Rate, Burst) additional tokens.",
+      "title": "Each endpoint's token bucket refills at Config.Rate tokens per second",
+      "text": "ratelimit.Controller shall refill the token bucket for a given avtp.ByteBusID at Config.Rate tokens per second. After N seconds with no requests to that endpoint, its bucket shall contain min(N*Rate, Burst) additional tokens. Buckets for different endpoints are tracked independently.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -771,39 +771,39 @@
     {
       "id": "REQ-RL-002",
       "title": "Bucket token count is capped at Config.Burst",
-      "text": "ratelimit.Controller shall cap the token bucket at Config.Burst. Accumulated tokens from refill shall never exceed Burst regardless of elapsed time.",
+      "text": "ratelimit.Controller shall cap each endpoint's token bucket at Config.Burst. Accumulated tokens from refill shall never exceed Burst regardless of elapsed time.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RL-003",
-      "title": "Send returns rcp.ErrBusy immediately when bucket is exhausted",
-      "text": "ratelimit.Controller.Send shall return an error wrapping rcp.ErrBusy immediately (without blocking) when the token bucket contains fewer than one token. No command shall be forwarded to the inner controller on an ErrBusy return.",
+      "title": "Request returns ErrBusy immediately when the addressed bucket is exhausted",
+      "text": "ratelimit.Controller.Request shall return an error wrapping ratelimit.ErrBusy immediately (without blocking) when the target endpoint's token bucket contains fewer than one token. No request shall be forwarded to the inner controller on an ErrBusy return.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RL-004",
-      "title": "PriorityCritical commands bypass the bucket when ExemptCritical is true",
-      "text": "When Config.ExemptCritical is true, ratelimit.Controller shall forward PriorityCritical commands to the inner controller without consuming a token and without returning ErrBusy. When ExemptCritical is false, PriorityCritical commands are subject to the same bucket check as all other priorities.",
+      "title": "Cancellation-kind requests bypass the bucket when ExemptCancellation is true",
+      "text": "When Config.ExemptCancellation is true, ratelimit.Controller shall forward a request whose request.Kind.IsCancellation() is true to the inner controller without consuming a token and without returning ErrBusy. When ExemptCancellation is false, cancellation-kind requests are subject to the same bucket check as all other kinds.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RL-005",
-      "title": "Zone() and Subscribe() delegate to the inner controller",
-      "text": "ratelimit.Controller.Zone() shall return the inner controller's zone. ratelimit.Controller.Subscribe() shall delegate to and return the inner controller's Subscribe result.",
+      "title": "StreamID() delegates to the inner controller",
+      "text": "ratelimit.Controller.StreamID() shall return the inner controller's own avtp.StreamID identity.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RL-006",
-      "title": "Close() is idempotent and subsequent Sends return ErrClosed",
-      "text": "ratelimit.Controller.Close() shall be safe to call multiple times and shall return nil on all calls. After Close(), Send shall return an error wrapping rcp.ErrClosed without forwarding to the inner controller.",
+      "title": "Close() is idempotent and subsequent Requests return ErrClosed",
+      "text": "ratelimit.Controller.Close() shall be safe to call multiple times and shall return nil on all calls. After Close(), Request shall return an error wrapping udp.ErrClosed without forwarding to the inner controller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -811,15 +811,15 @@
     {
       "id": "REQ-RL-007",
       "title": "Controller is safe for concurrent use",
-      "text": "ratelimit.Controller shall be safe for concurrent use by multiple goroutines each calling Send simultaneously, without data races or incorrect token accounting.",
+      "text": "ratelimit.Controller shall be safe for concurrent use by multiple goroutines each calling Request simultaneously, without data races or incorrect per-endpoint token accounting.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RL-008",
-      "title": "Bucket starts full; DefaultConfig returns ASIL-B recommended values",
-      "text": "A newly created ratelimit.Controller shall start with tokens equal to Config.Burst (bucket full). DefaultConfig() shall return a Config with positive Rate, positive Burst, and ExemptCritical=true.",
+      "title": "Each bucket starts full; DefaultConfig returns ASIL-B recommended values",
+      "text": "A newly created endpoint bucket shall start with tokens equal to Config.Burst (bucket full). DefaultConfig() shall return a Config with positive Rate, positive Burst, and ExemptCancellation=true.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -954,16 +954,16 @@
     },
     {
       "id": "REQ-AZ-001",
-      "title": "Allow entry permits exact principal/zone/cmd triple",
-      "text": "authz.Policy.Evaluate shall return true for a (principal, zone, cmdType) triple that matches an Allow entry before any Deny entry in the ordered list.",
+      "title": "Allow entry permits exact principal/stream/endpoint triple",
+      "text": "authz.Policy.Evaluate shall return true for a (principal, requester avtp.StreamID, target avtp.ByteBusID) triple that matches an Allow entry before any Deny entry in the ordered list.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-AZ-002",
-      "title": "Unmatched commands are denied by default",
-      "text": "If no policy entry matches the (principal, zone, cmdType) triple, authz.Policy.Evaluate shall return false (default deny). An explicit Deny entry shall also return false.",
+      "title": "Unmatched requests are denied by default",
+      "text": "If no policy entry matches the (principal, stream, endpoint) triple, authz.Policy.Evaluate shall return false (default deny). An explicit Deny entry evaluated before a later Allow shall also return false.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -971,7 +971,7 @@
     {
       "id": "REQ-AZ-003",
       "title": "Wildcard fields match any value in that dimension",
-      "text": "An empty Principal shall match any caller. ZoneUnknown shall match any zone. CmdTypeAny (0xFFFF) shall match any CommandType. Wildcards enable broad permit/deny entries without enumerating every value.",
+      "text": "An empty Principal shall match any caller. authz.StreamAny (the IEEE 802 broadcast address, never a legitimate unicast sender StreamID) shall match any requester stream. authz.EndpointAny (0xFF) shall match any avtp.ByteBusID. Wildcards enable broad permit/deny entries without enumerating every value.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -979,7 +979,7 @@
     {
       "id": "REQ-AZ-004",
       "title": "Per-call principal override via context",
-      "text": "authz.WithPrincipal shall embed a principal string in the context. authz.Controller.Send shall prefer the context principal over the static principal supplied at construction.",
+      "text": "authz.WithPrincipal shall embed a principal string in the context. authz.Controller.Request shall prefer the context principal over the static principal supplied at construction.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -987,7 +987,7 @@
     {
       "id": "REQ-AZ-005",
       "title": "Policy entries may be replaced atomically",
-      "text": "authz.Policy.SetEntries shall replace all entries in a single critical section so that concurrent Send calls see either the old set or the new set, never a partial mix.",
+      "text": "authz.Policy.SetEntries shall replace all entries in a single critical section so that concurrent Evaluate calls see either the old set or the new set, never a partial mix.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1002,16 +1002,16 @@
     },
     {
       "id": "REQ-AZ-007",
-      "title": "Zone and Subscribe delegate to the inner controller",
-      "text": "authz.Controller.Zone and authz.Controller.Subscribe shall delegate directly to the wrapped inner controller without applying policy checks.",
+      "title": "StreamID and Discover delegate to the inner controller without a policy check",
+      "text": "authz.Controller.StreamID and authz.Controller.Discover shall delegate directly to the wrapped *udp.Controller without applying policy checks, mirroring regmap.AccessController's own deliberate universal, grant-independent discovery exception server-side.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-AZ-008",
-      "title": "Close is idempotent; Send after Close returns ErrClosed",
-      "text": "Calling authz.Controller.Close more than once shall be safe and return nil. Any Send call after the first Close shall return rcp.ErrClosed without forwarding to the inner controller.",
+      "title": "Close is idempotent; Request after Close returns ErrClosed",
+      "text": "Calling authz.Controller.Close more than once shall be safe and return nil. Any Request call after the first Close shall return udp.ErrClosed without forwarding to the inner controller.",
       "standard": "iso21434",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1082,16 +1082,16 @@
     },
     {
       "id": "REQ-ZG-001",
-      "title": "Broadcast delivers command to all group members concurrently",
-      "text": "zonegroup.Group.Broadcast shall send the command to every member controller concurrently and wait for all responses before returning, achieving atomic multi-zone delivery within the context deadline.",
+      "title": "Broadcast delivers the request to all group members concurrently",
+      "text": "zonegroup.Group.Broadcast shall send the same (avtp.ByteBusID, acf.ControlFlags, body) request to every member *udp.Controller concurrently and wait for all responses before returning, achieving atomic multi-target delivery within the context deadline.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ZG-002",
-      "title": "cmd.Zone is overridden per member before Send",
-      "text": "Broadcast shall set cmd.Zone to each member controller's Zone() value before calling Send, ensuring the command targets the correct zone regardless of the caller-supplied Zone field.",
+      "title": "Each result records the responding member's own StreamID",
+      "text": "Broadcast shall record each member's own avtp.StreamID identity in that member's MemberResult, so a broadcast to several members is distinguishable per member regardless of the addr common to all of them.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1099,23 +1099,23 @@
     {
       "id": "REQ-ZG-003",
       "title": "BroadcastResult.OK is false if any member fails",
-      "text": "BroadcastResult.OK shall return false if any member returns a non-nil error or a Response with Status != StatusOK. All results are collected regardless of individual failures.",
+      "text": "BroadcastResult.OK shall return false if any member returns a non-nil transport error or a response with acf.FlagError set. All results are collected regardless of individual failures.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ZG-004",
-      "title": "Context cancellation propagates to all member Sends",
-      "text": "If the context passed to Broadcast is cancelled or times out, that same context is forwarded to each member Send call so all in-flight commands are cancelled simultaneously.",
+      "title": "Context cancellation propagates to all member Requests",
+      "text": "If the context passed to Broadcast is cancelled or times out, that same context is forwarded to each member Request call so all in-flight requests are cancelled simultaneously.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ZG-005",
-      "title": "Zones and Len report the group membership",
-      "text": "Group.Zones shall return the Zone() of each member in insertion order. Group.Len shall return the number of members.",
+      "title": "StreamIDs and Len report the group membership",
+      "text": "Group.StreamIDs shall return the avtp.StreamID of each member in insertion order. Group.Len shall return the number of members.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1131,7 +1131,7 @@
     {
       "id": "REQ-ZG-007",
       "title": "Close is idempotent; Broadcast after Close returns ErrClosed",
-      "text": "Group.Close shall close every member controller exactly once and be safe to call multiple times. Any Broadcast call after the first Close shall return rcp.ErrClosed.",
+      "text": "Group.Close shall close every member controller exactly once and be safe to call multiple times. Any Broadcast call after the first Close shall return udp.ErrClosed.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1139,79 +1139,79 @@
     {
       "id": "REQ-ZG-008",
       "title": "Concurrent Broadcasts are race-free",
-      "text": "Multiple goroutines may call Broadcast simultaneously on the same Group without data races. The Group's internal state is immutable after construction.",
+      "text": "Multiple goroutines may call Broadcast simultaneously on the same Group without data races. The Group's member list is immutable after construction.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-001",
-      "title": "Proxy forwards commands to upstream transparently",
-      "text": "proxy.Controller.Send shall forward the command to the upstream rcp.Controller and return the upstream response and error unchanged when no transform is set or the transform returns the command unmodified.",
+      "title": "Handler forwards requests to the upstream endpoint transparently",
+      "text": "proxy.Handler.HandleRequest shall forward the request to the upstream *udp.Controller and return the upstream response unchanged when no TransformFunc is set.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-002",
-      "title": "TransformFunc may rewrite the command before forwarding",
-      "text": "If a TransformFunc is set, proxy.Controller.Send shall call it with the original command before forwarding. The returned command (which may differ from the input) is sent to the upstream controller.",
+      "title": "TransformFunc may remap the byte_bus_id and rewrite the body before forwarding",
+      "text": "If a TransformFunc is set, proxy.Handler.HandleRequest shall call it with the original downstream requester, addr, control flags, and body before forwarding. The returned (addr, body), which may differ from the input, is sent to the upstream controller \u2014 the byte_bus_id-remapping half of a real RCP-level proxy.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-003",
-      "title": "TransformFunc error aborts the Send without reaching upstream",
-      "text": "If TransformFunc returns a non-nil error, Send shall return that error immediately and not forward the command to the upstream controller.",
+      "title": "TransformFunc error aborts the forward without reaching upstream",
+      "text": "If TransformFunc returns a non-nil error, HandleRequest shall return that error immediately and not forward the request to the upstream controller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-004",
-      "title": "Zone delegates to the upstream controller",
-      "text": "proxy.Controller.Zone shall return the upstream controller's Zone() without modification.",
+      "title": "Handler presents its own upstream StreamID identity, never the downstream requester's",
+      "text": "proxy.Handler shall forward every request through its own upstream *udp.Controller, which frames the AVTPDU with that Controller's own avtp.StreamID \u2014 the original downstream requester's StreamID is never itself put on the wire upstream, the stream_id-remapping half of a real RCP-level proxy.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-005",
-      "title": "Subscribe delegates to the upstream controller",
-      "text": "proxy.Controller.Subscribe shall delegate to the upstream controller and return its channel and error unchanged.",
+      "title": "The response is repackaged to correlate with the original downstream request",
+      "text": "HandleRequest shall return a response whose Kind, ByteBusID, and TransactionNum match the original downstream request's own values, regardless of what addr was actually used upstream, so the upstream remapping is invisible to the downstream caller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-006",
-      "title": "Close is idempotent; Send after Close returns ErrClosed",
-      "text": "Calling proxy.Controller.Close more than once is safe and returns nil. Any Send call after the first Close shall return rcp.ErrClosed without forwarding to upstream.",
+      "title": "Close is idempotent; HandleRequest after Close returns ErrClosed",
+      "text": "Calling proxy.Handler.Close more than once is safe and returns nil. Any HandleRequest call after the first Close shall return proxy.ErrClosed without attempting to reach the upstream controller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-007",
-      "title": "Concurrent Sends are race-free",
-      "text": "Multiple goroutines may call Send simultaneously on the same proxy.Controller. The proxy's closed flag is accessed via atomic operations; the transform is called concurrently without internal locking.",
+      "title": "Concurrent HandleRequest calls are race-free",
+      "text": "Multiple goroutines may call HandleRequest simultaneously on the same proxy.Handler. The Handler's closed flag is accessed via atomic operations.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-PX-008",
-      "title": "Proxy is composable: a proxy may wrap another proxy",
-      "text": "proxy.Controller implements rcp.Controller so it may be used as the upstream argument to a second proxy.NewController call, enabling multi-hop transformation chains.",
+      "title": "Handler is composable as an ordinary request.Handler",
+      "text": "proxy.Handler implements request.Handler, so it may be registered into a udp.Router the same as any native endpoint's own Handler, including being registered into more than one Router instance, enabling a further hop to be chained in front of it.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RD-001",
-      "title": "Sends go to the primary controller when it is healthy",
-      "text": "redundancy.Controller.Send shall forward commands to the primary controller and return its response when the primary returns no error.",
+      "title": "Requests go to the primary controller when it is healthy",
+      "text": "redundancy.Controller.Request shall forward requests to the primary *udp.Controller and return its response when the primary returns no error.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1219,7 +1219,7 @@
     {
       "id": "REQ-RD-002",
       "title": "Primary failure triggers failover to standby",
-      "text": "When the primary controller returns a qualifying error, redundancy.Controller shall swap primary and standby atomically, increment the failover counter, and return the primary error to the caller. The next Send uses the former standby as the new primary.",
+      "text": "When the primary controller returns a qualifying error, redundancy.Controller shall swap primary and standby atomically, increment the failover counter, and return the primary error to the caller. The next Request uses the former standby as the new primary.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1227,7 +1227,7 @@
     {
       "id": "REQ-RD-003",
       "title": "Active returns the currently active controller",
-      "text": "redundancy.Controller.Active shall return the controller that will be used for the next Send, reflecting any completed failovers.",
+      "text": "redundancy.Controller.Active shall return the *udp.Controller that will be used for the next Request, reflecting any completed failovers.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1242,24 +1242,24 @@
     },
     {
       "id": "REQ-RD-005",
-      "title": "Zone and Subscribe delegate to the active controller",
-      "text": "redundancy.Controller.Zone and Subscribe shall delegate to whichever controller is currently primary, reflecting the post-failover state.",
+      "title": "StreamID delegates to the active controller",
+      "text": "redundancy.Controller.StreamID shall delegate to whichever controller is currently primary, reflecting the post-failover state.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RD-006",
-      "title": "Close is idempotent; Send after Close returns ErrClosed",
-      "text": "Close shall close both primary and standby controllers and be safe to call multiple times. Any Send after the first Close shall return rcp.ErrClosed.",
+      "title": "Close is idempotent; Request after Close returns ErrClosed",
+      "text": "Close shall close both primary and standby controllers and be safe to call multiple times. Any Request after the first Close shall return udp.ErrClosed.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-RD-007",
-      "title": "Concurrent Sends are race-free during failover",
-      "text": "Multiple goroutines may call Send simultaneously. The primary/standby swap is guarded by a mutex so that at most one goroutine triggers the swap and all subsequent Sends see the new primary.",
+      "title": "Concurrent Requests are race-free during failover",
+      "text": "Multiple goroutines may call Request simultaneously. The primary/standby swap is guarded by a mutex so that at most one goroutine triggers the swap and all subsequent Requests see the new primary.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1267,55 +1267,55 @@
     {
       "id": "REQ-RD-008",
       "title": "Failovers counter reports the total number of primary swaps",
-      "text": "redundancy.Controller.Failovers shall return the cumulative number of times the active controller has been swapped, enabling callers to detect repeated failovers.",
+      "text": "redundancy.Controller.Failovers shall return the cumulative number of times the active controller has been swapped, remaining exactly one per qualifying failure even under concurrent callers, enabling callers to detect repeated failovers.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-001",
-      "title": "Register claims exclusive zone ownership for an HPC",
-      "text": "federation.Registry.Register shall associate zone with ctrl and return nil. If no other controller owns the zone, the registration succeeds.",
+      "title": "Register claims exclusive server ownership for an HPC",
+      "text": "federation.Registry.Register shall associate a caller-chosen server key with ctrl and return nil. If no other controller owns the key, the registration succeeds.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-002",
-      "title": "Lookup returns the owning controller for a registered zone",
-      "text": "federation.Registry.Lookup shall return the controller registered for zone. If no controller owns the zone, it shall return ErrNotOwned.",
+      "title": "Lookup returns the owning controller for a registered server key",
+      "text": "federation.Registry.Lookup shall return the *udp.Controller registered for a key. If no controller owns the key, it shall return ErrNotOwned.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-003",
-      "title": "Registering an already-owned zone returns ErrAlreadyOwned",
-      "text": "If zone is already registered to any controller, a subsequent Register call shall return ErrAlreadyOwned without modifying ownership.",
+      "title": "Registering an already-owned key returns ErrAlreadyOwned",
+      "text": "If a key is already registered to any controller, a subsequent Register call shall return ErrAlreadyOwned without modifying ownership.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-004",
-      "title": "Release removes zone ownership; releasing an unowned zone returns ErrNotOwned",
-      "text": "federation.Registry.Release shall remove the zone from the registry. If the zone has no owner, Release shall return ErrNotOwned.",
+      "title": "Release removes key ownership; releasing an unowned key returns ErrNotOwned",
+      "text": "federation.Registry.Release shall remove the key from the registry. If the key has no owner, Release shall return ErrNotOwned.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-005",
-      "title": "Zones and Owner report the current registry state",
-      "text": "Zones shall return the set of all registered zones. Owner shall return the controller for a given zone, or nil if unowned.",
+      "title": "Keys and Owner report the current registry state",
+      "text": "Keys shall return the set of all registered server keys. Owner shall return the controller for a given key, or nil if unowned.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-006",
-      "title": "TransferOwnership atomically reassigns a zone between HPCs",
-      "text": "TransferOwnership shall atomically replace the owner of zone from the from controller to the to controller. If from does not own the zone, it shall return ErrNotOwned.",
+      "title": "TransferOwnership atomically reassigns a server between HPCs",
+      "text": "TransferOwnership shall atomically replace the owner of a key from the from controller to the to controller. If from does not own the key, it shall return ErrNotOwned.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1323,15 +1323,15 @@
     {
       "id": "REQ-FED-007",
       "title": "All Registry operations are race-free under concurrent access",
-      "text": "Register, Release, Lookup, Owner, Zones, and TransferOwnership shall use a readers-writer lock ensuring no data race under concurrent read and write operations.",
+      "text": "Register, Release, Lookup, Owner, Keys, and TransferOwnership shall use a readers-writer lock ensuring no data race under concurrent read and write operations.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-FED-008",
-      "title": "Multiple HPCs may own disjoint zone subsets in the same Registry",
-      "text": "A federation.Registry shall support any number of HPC-controller pairs each owning a disjoint set of zones. Cross-HPC Lookup succeeds transparently.",
+      "title": "Multiple HPCs may own disjoint server subsets in the same Registry",
+      "text": "A federation.Registry shall support any number of HPC-controller pairs each owning a disjoint set of server keys. Cross-HPC Lookup succeeds transparently.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1402,32 +1402,32 @@
     },
     {
       "id": "REQ-ADM-001",
-      "title": "GET /zones lists all zones",
-      "text": "The admin server shall return a JSON array of ZoneInfo for all registered zones on GET /zones.",
+      "title": "GET /servers lists all registered servers",
+      "text": "The admin server shall return a JSON array of ServerInfo for every server key Registered on GET /servers.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ADM-002",
-      "title": "GET /zones/{zone} returns zone detail",
-      "text": "The admin server shall return a JSON ZoneInfo for a known zone on GET /zones/{zone}, and 404 for an unknown zone.",
+      "title": "GET /servers/{key} returns server detail",
+      "text": "The admin server shall return a JSON ServerInfo for a known server key on GET /servers/{key}, and 404 for an unregistered key.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ADM-003",
-      "title": "POST /zones/{zone}/send dispatches command",
-      "text": "The admin server shall parse the JSON body, dispatch the command via the registry, and return the JSON response on POST /zones/{zone}/send.",
+      "title": "POST /servers/{key}/request dispatches a request",
+      "text": "The admin server shall parse the JSON body (endpoint, write, body), dispatch it via the registered *udp.Controller for key, and return the JSON-encoded acf.Message response on POST /servers/{key}/request. It shall return 404 for an unregistered key and 400 for an unparsable body.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ADM-004",
-      "title": "Bearer auth on write endpoints",
-      "text": "When BearerToken is configured, POST /zones/{zone}/send shall return 401 if the Authorization header does not match.",
+      "title": "Bearer auth on the request endpoint",
+      "text": "When BearerToken is configured, POST /servers/{key}/request shall return 401 if the Authorization header does not match.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1435,7 +1435,7 @@
     {
       "id": "REQ-ADM-005",
       "title": "GET /events SSE stream",
-      "text": "The admin server shall stream zone health events as Server-Sent Events on GET /events, one event per Flush boundary.",
+      "text": "The admin server shall stream per-server health events as Server-Sent Events on GET /events, one event per Flush boundary, and shall reject a non-GET method with 405.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1443,23 +1443,23 @@
     {
       "id": "REQ-ADM-006",
       "title": "GET /metrics Prometheus format",
-      "text": "The admin server shall emit zone health, command count, error count, and deadline miss count in Prometheus text format on GET /metrics.",
+      "text": "The admin server shall emit per-server health, request count, error count, and deadline miss count in Prometheus text format on GET /metrics.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ADM-007",
-      "title": "RecordSend updates telemetry",
-      "text": "The admin server shall update zone health, last-seen timestamp, error count, and deadline miss count when RecordSend is called.",
+      "title": "RecordRequest updates telemetry",
+      "text": "The admin server shall update per-server health, last-seen timestamp, request count, error count, and deadline miss count when RecordRequest is called, on both the first (create) and subsequent (existing-entry) calls for a given key.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ADM-008",
-      "title": "Concurrent RecordSend race-free",
-      "text": "The admin server shall be safe for concurrent RecordSend and HTTP handler invocations without data races.",
+      "title": "Register rejects a duplicate key; concurrent access is race-free",
+      "text": "Server.Register shall return udp.ErrAlreadyExists for a key that is already registered. The admin server shall be safe for concurrent RecordRequest and HTTP handler invocations without data races.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1530,16 +1530,16 @@
     },
     {
       "id": "REQ-CFG-001",
-      "title": "Load parses YAML config file",
-      "text": "The config package shall parse a v1 YAML zone registry config file and return a validated File struct.",
+      "title": "Load parses a YAML server config file",
+      "text": "The config package shall parse a v1 YAML server configuration file \u2014 one ServerEntry per declared server, including its stream_id and declared endpoint topology \u2014 and return a validated File struct.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-CFG-002",
-      "title": "Load parses JSON config file",
-      "text": "The config package shall parse a v1 JSON zone registry config file and return a validated File struct.",
+      "title": "Load parses a JSON server config file",
+      "text": "The config package shall parse a v1 JSON server configuration file and return a validated File struct.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1562,8 +1562,8 @@
     },
     {
       "id": "REQ-CFG-005",
-      "title": "ErrDuplicateZone on repeated zone ID",
-      "text": "Load shall return a wrapped ErrDuplicateZone when the same zone ID appears more than once in the zones list.",
+      "title": "ErrDuplicateServer on a repeated server key",
+      "text": "Load shall return a wrapped ErrDuplicateServer when the same server key appears more than once in the servers list, and a wrapped ErrDuplicateAddress when the same endpoint address appears more than once within one server's declared endpoints. It shall also return a wrapped ErrInvalidStreamID when a server's stream_id is not 16 hex characters.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1715,7 +1715,7 @@
     {
       "id": "REQ-DYN-008",
       "title": "Typed send delegation",
-      "text": "TypedController.SendTyped shall encode the Payload using the named registered Schema and delegate to the inner rcp.Controller.Send with the encoded bytes as Command.Payload.",
+      "text": "TypedController.SendTyped shall encode the Payload using the named registered Schema and delegate to the inner *udp.Controller.Request with the encoded bytes as the request body, addressed at the caller-supplied avtp.ByteBusID and acf.ControlFlags.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

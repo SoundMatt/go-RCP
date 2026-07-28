@@ -590,7 +590,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **TC18 Core — Fragmentation** | v0.65.0 | Fragmentation (GO) | Multi-AVTPDU fragmentation — explicit go decision below, justified ✅ |
 | **Satellite Migration** | v0.66.0 | Safety & liveness rebuild | powerstate, watchdog, deadline, prioqueue rebuilt against the new model; e2e retired in favour of crcsafe ✅ |
 | **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire retired (no successor), udp rebuilt on avtp/acf, tsn/shmem/loan adapted; mdns's role narrowed to an optional rendezvous helper; tlstransport deprecated ✅ |
-| **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata |
+| **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata all re-keyed off avtp.StreamID/avtp.ByteBusID and re-pointed at *udp.Controller/udp.Router ✅ |
 | **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge |
 | **Satellite Migration** | v0.70.0 | Tooling & test-double rebuild | mock, sim, capi, codegen, record, observe, faultinject, firmware |
 | **Satellite Migration** | v0.71.0 | Certification refresh | formal, iso21434, certgap, safety re-scoped to the new state machines and attack surface |
@@ -1370,13 +1370,106 @@ No other package in this repo imported `wire`, `udp`, `tsn`, `shmem`,
 `loan`, `mdns`, or `tlstransport` outside their own test files, so no
 additional call sites needed updating.
 
-### 55. Control-Plane & Topology Adaptation (v0.68.0)
+### 55. Control-Plane & Topology Adaptation (v0.68.0) ✅
 
 - Adapt `authz`, `ratelimit`, `redundancy`, `federation`, `zonegroup`,
   `proxy`, `admin`, `config`, `dyndata` per the table above
 - Depends on Phase 53/54 landing first (these packages compose on top of
   the Controller-equivalent and health/priority primitives those phases
   define)
+
+**Done (v0.68.0):** all nine ADAPT-flagged packages this milestone names
+are rebuilt on top of `*udp.Controller`/`udp.Router` (Milestone 54) and
+`request.Kind` (Milestone 49), per each one's own disposition-table
+rationale — every one keeps its retired algorithm/pattern intact and only
+re-keys off `avtp.StreamID`/`avtp.ByteBusID` in place of the retired
+`rcp.Zone`/`rcp.CommandType`/`rcp.Priority` types, following the "wrap the
+concrete transport type directly, since the caller/inner interface contract
+is a Phase 18 root-module concern" precedent Milestone 54's `loan` package
+already established for wrapping `*udp.Controller`:
+
+- **`authz` re-keyed to (principal, requester `avtp.StreamID`, target
+  `avtp.ByteBusID`)**, explicitly positioned as a complement to —
+  never a duplicate of — `regmap.AccessController`'s own server-side
+  root-client/grant enforcement (Milestone 45): `Controller.Discover`
+  bypasses the policy entirely, mirroring `AccessController`'s own
+  universal, grant-independent discovery exception, so this package adds a
+  caller-local restriction only where the server has no equivalent
+  concept to complement. `StreamAny` (the IEEE 802 broadcast address,
+  never a legitimate unicast sender identity) and `EndpointAny` (0xFF)
+  replace the retired `ZoneUnknown`/`CmdTypeAny` wildcards.
+- **`ratelimit` re-keyed to one token bucket per target endpoint** rather
+  than one bucket per `Controller` (a `*udp.Controller` addresses many
+  endpoints on one stream, unlike the retired one-Controller-per-zone
+  shape), so a flood aimed at one endpoint cannot starve requests to an
+  unrelated endpoint on the same stream. `ExemptCancellation` replaces
+  `ExemptCritical`: `request.Kind.Priority()` (Milestone 49) has no
+  client-assigned priority enum to exempt by value, so exemption now keys
+  on `Kind.IsCancellation()` — the closest surviving analogue to
+  "safety-critical traffic is never throttled," since a cancellation
+  exists specifically to retire other pending work.
+- **`redundancy` unchanged in algorithm**, just re-pointed at
+  `*udp.Controller`: the hot-standby failover swap, `FailoverPolicy`, and
+  failover counter are identical to the retired package's own; only
+  `Zone()` becomes `StreamID()`.
+- **`federation` re-keyed by a caller-chosen string label** in place of
+  the retired `rcp.Zone` enum, the exact "a caller is free to use a
+  server's discovered `avtp.StreamID.String()`, its dialed address, or any
+  other identity scheme that suits it" pattern `udp.Registry`'s own doc
+  comment (Milestone 54) already forward-referenced this milestone for.
+- **`zonegroup` re-targeted at endpoint groups**: a `Group` member is now a
+  whole `*udp.Controller` (one destination RC Server, mirroring the
+  retired "one member per zone" shape) and `Broadcast` addresses one
+  `avtp.ByteBusID` across every member, in place of the retired
+  `rcp.Command`'s per-member Zone override.
+- **`proxy` rebuilt around `request.Handler`, not mechanically ported**:
+  the retired `Controller`-wrapping-`Controller` shape had no way to
+  express the specification's own byte_bus_id/stream_id remapping
+  responsibility (Phase 13's "no server-side safety net" framing), so the
+  replacement `Handler` implements `request.Handler` itself — directly
+  registrable into a `udp.Router` — forwards through its own upstream
+  `*udp.Controller` (never relaying the original downstream requester's
+  own `avtp.StreamID` upstream), and lets an optional `TransformFunc`
+  remap the `avtp.ByteBusID` and rewrite the body. The response is
+  repackaged to correlate with the *original* downstream request's own
+  Kind/ByteBusID/TransactionNum, so the remapping is invisible to the
+  downstream caller.
+- **`admin`'s data model moves from zones to servers**: `Server.Register`
+  makes a `*udp.Controller` inspectable/requestable under a caller-chosen
+  key (the same re-keying `federation`/`udp.Registry` use), and
+  `GET /servers`, `GET /servers/{key}`, `POST /servers/{key}/request`,
+  `/events`, and `/metrics` replace the retired `/zones` surface with an
+  equivalent one addressed by key instead of `rcp.Zone`.
+- **`config`'s schema moves from a zone registry to per-server
+  configuration**: `ServerEntry` declares a server's dial transport/
+  address, its own `avtp.StreamID` identity (16 hex chars), and its
+  declared endpoint topology (`avtp.ByteBusID` + `regmap.EndpointType`
+  pairs) — a deliberately scoped subset of "register-map configuration"
+  covering the declared topology a caller would otherwise build up via
+  repeated `server.Server.AddEndpoint` calls, not the full binary-encoded
+  `regmap.RegisterMap` wire format (pin mapping, stream limits,
+  per-endpoint functional blocks), which remains a server's own runtime
+  state. YAML/JSON loading and the file-system hot-reload `Watcher` are
+  otherwise unchanged.
+- **`dyndata` needed the least adaptation of the nine**: its
+  Schema/Registry/Encode/Decode machinery already treated a request payload
+  as opaque bytes with a caller-supplied shape, exactly what every Phase
+  14/16 endpoint's own request/response body already is. Only
+  `TypedController`'s wrapped type changes, from the retired
+  `rcp.Controller` to `*udp.Controller`, and `SendTyped` now addresses a
+  request by `(avtp.ByteBusID, acf.ControlFlags)` instead of building a
+  `*rcp.Command`.
+
+72 `//fusa:req`/`//fusa:test`-tagged requirements are rewritten in place
+under their original prefixes (`REQ-AZ-*`, `REQ-RL-*`, `REQ-RD-*`,
+`REQ-FED-*`, `REQ-ZG-*`, `REQ-PX-*`, `REQ-ADM-*`, `REQ-CFG-*`,
+`REQ-DYN-*`) — the same "rewrite in place rather than renumber" precedent
+Milestone 53 established — since every one of the nine packages keeps its
+original name and role; none are added or dropped, unlike Milestone 53/54's
+occasional "no successor family" retirements. 100% traced and tested per
+`gofusa check`/`gofusa trace`. No other package in this repo imported any
+of the nine outside their own test files, so no additional call sites
+needed updating.
 
 ### 56. Protocol Bridge Adaptation (v0.69.0)
 

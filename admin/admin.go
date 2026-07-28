@@ -7,15 +7,26 @@
 //fusa:req REQ-ADM-007
 //fusa:req REQ-ADM-008
 
-// Package admin provides an HTTP admin interface for runtime registry inspection.
+// Package admin provides an HTTP admin interface for runtime *udp.Controller
+// inspection, for the OPEN Alliance TC18 Remote Control Protocol (RCP), as
+// described by the "OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC".
+//
+// This is ROADMAP.md Milestone 55 (v0.68.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "HTTP inspection surface is reusable; the
+// data model moves from zones to servers/endpoints." A caller Registers
+// each *udp.Controller it wants inspectable under a caller-chosen key —
+// the same "re-key ownership by server/endpoint identity instead of Zone"
+// pattern federation and udp.Registry already establish (see
+// udp/registry.go) — in place of the retired rcp.Zone enum.
 //
 // Endpoints:
 //
-//	GET  /zones                  — list all registered zones
-//	GET  /zones/{zone}           — single-zone detail
-//	POST /zones/{zone}/send      — send a command (Bearer auth required)
-//	GET  /events                 — SSE stream of health/power events
-//	GET  /metrics                — Prometheus text format metrics
+//	GET  /servers                 — list all registered servers
+//	GET  /servers/{key}           — single-server detail
+//	POST /servers/{key}/request   — issue a request (Bearer auth required)
+//	GET  /events                  — SSE stream of health events
+//	GET  /metrics                 — Prometheus text format metrics
 package admin
 
 import (
@@ -28,77 +39,101 @@ import (
 	"sync/atomic"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// ZoneInfo is the JSON body returned by GET /zones/{zone}.
-type ZoneInfo struct {
-	Zone     string    `json:"zone"`
-	Healthy  bool      `json:"healthy"`
-	LastSeen time.Time `json:"last_seen"`
-	CmdRate  float64   `json:"cmd_rate_per_sec"`
-	ErrCount int64     `json:"error_count"`
-	DeadMiss int64     `json:"deadline_miss_count"`
+// ServerInfo is the JSON body returned by GET /servers/{key}.
+type ServerInfo struct {
+	Key               string    `json:"key"`
+	StreamID          string    `json:"stream_id"`
+	Healthy           bool      `json:"healthy"`
+	LastSeen          time.Time `json:"last_seen"`
+	RequestCount      int64     `json:"request_count"`
+	ErrorCount        int64     `json:"error_count"`
+	DeadlineMissCount int64     `json:"deadline_miss_count"`
 }
 
 // Event is a single server-sent event delivered on GET /events.
 type Event struct {
 	Type    string      `json:"type"`
-	Zone    string      `json:"zone"`
+	Key     string      `json:"key"`
 	Payload interface{} `json:"payload,omitempty"`
 }
 
-// zoneState is live per-zone telemetry.
-type zoneState struct {
+// serverState is live per-server telemetry.
+type serverState struct {
 	mu       sync.RWMutex
 	healthy  bool
 	lastSeen time.Time
-	cmdCount atomic.Int64
+	reqCount atomic.Int64
 	errCount atomic.Int64
 	deadMiss atomic.Int64
 }
 
 // Server is the HTTP admin server.
 type Server struct {
-	registry rcp.Registry
-	bearer   string // required token for write endpoints; empty = no auth
+	bearer string // required token for write endpoints; empty = no auth
 
-	mu    sync.RWMutex
-	zones map[rcp.Zone]*zoneState
-	subs  map[chan Event]struct{}
+	mu     sync.RWMutex
+	ctrls  map[string]*udp.Controller
+	states map[string]*serverState
+	subs   map[chan Event]struct{}
 }
 
 // Config configures the admin server.
 type Config struct {
-	// BearerToken, if non-empty, is required on POST /zones/{zone}/send.
+	// BearerToken, if non-empty, is required on POST /servers/{key}/request.
 	BearerToken string
 }
 
-// New creates an admin Server wrapping registry.
-func New(registry rcp.Registry, cfg Config) *Server {
+// New creates an empty admin Server. Callers Register each *udp.Controller
+// they want inspectable.
+func New(cfg Config) *Server {
 	return &Server{
-		registry: registry,
-		bearer:   cfg.BearerToken,
-		zones:    make(map[rcp.Zone]*zoneState),
-		subs:     make(map[chan Event]struct{}),
+		bearer: cfg.BearerToken,
+		ctrls:  make(map[string]*udp.Controller),
+		states: make(map[string]*serverState),
+		subs:   make(map[chan Event]struct{}),
 	}
+}
+
+// Register makes ctrl inspectable and requestable under key. Returns
+// udp.ErrAlreadyExists if key is already registered.
+func (s *Server) Register(key string, ctrl *udp.Controller) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ctrls[key]; ok {
+		return fmt.Errorf("rcp/admin: server key %s: %w", key, udp.ErrAlreadyExists)
+	}
+	s.ctrls[key] = ctrl
+	return nil
+}
+
+// Deregister removes key from this Server's inspectable set. It is a no-op
+// for a key with nothing registered.
+func (s *Server) Deregister(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.ctrls, key)
 }
 
 // Handler returns an http.Handler for mounting. Safe to call multiple times.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/zones", s.handleZoneList)
-	mux.HandleFunc("/zones/", s.handleZone)
+	mux.HandleFunc("/servers", s.handleServerList)
+	mux.HandleFunc("/servers/", s.handleServer)
 	mux.HandleFunc("/events", s.handleEvents)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	return mux
 }
 
-// RecordSend updates telemetry for a completed Send. Call this from your
-// transport or observability layer after each Send returns.
-func (s *Server) RecordSend(zone rcp.Zone, healthy bool, err error, deadlineMiss bool) {
-	z := s.getOrCreate(zone)
-	z.cmdCount.Add(1)
+// RecordRequest updates telemetry for a completed Request. Call this from
+// your transport or observability layer after each Request returns.
+func (s *Server) RecordRequest(key string, healthy bool, err error, deadlineMiss bool) {
+	z := s.getOrCreate(key)
+	z.reqCount.Add(1)
 	if err != nil {
 		z.errCount.Add(1)
 	}
@@ -110,17 +145,17 @@ func (s *Server) RecordSend(zone rcp.Zone, healthy bool, err error, deadlineMiss
 	z.lastSeen = time.Now()
 	z.mu.Unlock()
 
-	s.publish(Event{Type: "health", Zone: zone.String(), Payload: map[string]bool{"healthy": healthy}})
+	s.publish(Event{Type: "health", Key: key, Payload: map[string]bool{"healthy": healthy}})
 }
 
-func (s *Server) getOrCreate(zone rcp.Zone) *zoneState {
+func (s *Server) getOrCreate(key string) *serverState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if z, ok := s.zones[zone]; ok {
+	if z, ok := s.states[key]; ok {
 		return z
 	}
-	z := &zoneState{lastSeen: time.Now()}
-	s.zones[zone] = z
+	z := &serverState{lastSeen: time.Now()}
+	s.states[key] = z
 	return z
 }
 
@@ -135,34 +170,44 @@ func (s *Server) publish(e Event) {
 	}
 }
 
-// handleZoneList serves GET /zones.
-func (s *Server) handleZoneList(w http.ResponseWriter, r *http.Request) {
+// handleServerList serves GET /servers.
+func (s *Server) handleServerList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	ctrls := s.registry.Controllers()
-	infos := make([]ZoneInfo, 0, len(ctrls))
-	for _, ctrl := range ctrls {
-		infos = append(infos, s.zoneInfoFor(ctrl.Zone()))
+	s.mu.RLock()
+	keys := make([]string, 0, len(s.ctrls))
+	for k := range s.ctrls {
+		keys = append(keys, k)
+	}
+	s.mu.RUnlock()
+
+	infos := make([]ServerInfo, 0, len(keys))
+	for _, k := range keys {
+		infos = append(infos, s.serverInfoFor(k))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(infos) //nolint:errcheck
 }
 
-// handleZone serves GET /zones/{zone} and POST /zones/{zone}/send.
-func (s *Server) handleZone(w http.ResponseWriter, r *http.Request) {
-	// path: /zones/{zone} or /zones/{zone}/send
-	path := strings.TrimPrefix(r.URL.Path, "/zones/")
+// handleServer serves GET /servers/{key} and POST /servers/{key}/request.
+func (s *Server) handleServer(w http.ResponseWriter, r *http.Request) {
+	// path: /servers/{key} or /servers/{key}/request
+	path := strings.TrimPrefix(r.URL.Path, "/servers/")
 	parts := strings.SplitN(path, "/", 2)
-	zone, err := parseZone(parts[0])
-	if err != nil {
-		http.Error(w, "unknown zone", http.StatusNotFound)
+	key := parts[0]
+
+	s.mu.RLock()
+	_, known := s.ctrls[key]
+	s.mu.RUnlock()
+	if !known {
+		http.Error(w, "unknown server", http.StatusNotFound)
 		return
 	}
 
-	if len(parts) == 2 && parts[1] == "send" {
-		s.handleSend(w, r, zone)
+	if len(parts) == 2 && parts[1] == "request" {
+		s.handleRequest(w, r, key)
 		return
 	}
 
@@ -171,18 +216,20 @@ func (s *Server) handleZone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := s.registry.Lookup(zone); err != nil {
-		http.Error(w, "zone not found", http.StatusNotFound)
-		return
-	}
-
-	info := s.zoneInfoFor(zone)
+	info := s.serverInfoFor(key)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info) //nolint:errcheck
 }
 
-// handleSend serves POST /zones/{zone}/send.
-func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, zone rcp.Zone) {
+// requestBody is the JSON body POST /servers/{key}/request accepts.
+type requestBody struct {
+	Endpoint avtp.ByteBusID `json:"endpoint"`
+	Write    bool           `json:"write"`
+	Body     []byte         `json:"body"` // base64 in JSON
+}
+
+// handleRequest serves POST /servers/{key}/request.
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request, key string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -195,33 +242,27 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, zone rcp.Zon
 		}
 	}
 
-	var body struct {
-		Type     rcp.CommandType `json:"type"`
-		Priority rcp.Priority    `json:"priority"`
-		Payload  []byte          `json:"payload"`
-	}
+	var body requestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 
-	ctrl, err := s.registry.Lookup(zone)
-	if err != nil {
-		http.Error(w, "zone not found", http.StatusNotFound)
-		return
-	}
+	s.mu.RLock()
+	ctrl := s.ctrls[key]
+	s.mu.RUnlock()
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	resp, err := ctrl.Send(ctx, &rcp.Command{
-		Zone:     zone,
-		Type:     body.Type,
-		Priority: body.Priority,
-		Payload:  body.Payload,
-	})
+	control := acf.FlagRead
+	if body.Write {
+		control = acf.FlagWrite
+	}
+	resp, err := ctrl.Request(ctx, body.Endpoint, control, body.Body)
+	s.RecordRequest(key, err == nil, err, false)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("send error: %v", err), http.StatusBadGateway)
+		http.Error(w, fmt.Sprintf("request error: %v", err), http.StatusBadGateway)
 		return
 	}
 
@@ -279,48 +320,36 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	for zone, z := range s.zones {
+	for key, z := range s.states {
 		healthy := 0
 		if z.healthy {
 			healthy = 1
 		}
-		fmt.Fprintf(w, "rcp_zone_healthy{zone=%q} %d\n", zone.String(), healthy)                       //nolint:errcheck
-		fmt.Fprintf(w, "rcp_zone_cmd_total{zone=%q} %d\n", zone.String(), z.cmdCount.Load())           //nolint:errcheck
-		fmt.Fprintf(w, "rcp_zone_error_total{zone=%q} %d\n", zone.String(), z.errCount.Load())         //nolint:errcheck
-		fmt.Fprintf(w, "rcp_zone_deadline_miss_total{zone=%q} %d\n", zone.String(), z.deadMiss.Load()) //nolint:errcheck
+		fmt.Fprintf(w, "rcp_server_healthy{key=%q} %d\n", key, healthy)                       //nolint:errcheck
+		fmt.Fprintf(w, "rcp_server_request_total{key=%q} %d\n", key, z.reqCount.Load())       //nolint:errcheck
+		fmt.Fprintf(w, "rcp_server_error_total{key=%q} %d\n", key, z.errCount.Load())         //nolint:errcheck
+		fmt.Fprintf(w, "rcp_server_deadline_miss_total{key=%q} %d\n", key, z.deadMiss.Load()) //nolint:errcheck
 	}
 }
 
-func (s *Server) zoneInfoFor(zone rcp.Zone) ZoneInfo {
+func (s *Server) serverInfoFor(key string) ServerInfo {
 	s.mu.RLock()
-	z, ok := s.zones[zone]
+	ctrl := s.ctrls[key]
+	z, ok := s.states[key]
 	s.mu.RUnlock()
 
-	info := ZoneInfo{Zone: zone.String(), Healthy: true, LastSeen: time.Now()}
+	info := ServerInfo{Key: key, Healthy: true, LastSeen: time.Now()}
+	if ctrl != nil {
+		info.StreamID = ctrl.StreamID().String()
+	}
 	if ok {
 		z.mu.RLock()
 		info.Healthy = z.healthy
 		info.LastSeen = z.lastSeen
 		z.mu.RUnlock()
-		info.ErrCount = z.errCount.Load()
-		info.DeadMiss = z.deadMiss.Load()
+		info.RequestCount = z.reqCount.Load()
+		info.ErrorCount = z.errCount.Load()
+		info.DeadlineMissCount = z.deadMiss.Load()
 	}
 	return info
-}
-
-func parseZone(s string) (rcp.Zone, error) {
-	switch s {
-	case "front-left":
-		return rcp.ZoneFrontLeft, nil
-	case "front-right":
-		return rcp.ZoneFrontRight, nil
-	case "rear-left":
-		return rcp.ZoneRearLeft, nil
-	case "rear-right":
-		return rcp.ZoneRearRight, nil
-	case "central":
-		return rcp.ZoneCentral, nil
-	default:
-		return rcp.ZoneUnknown, fmt.Errorf("unknown zone %q", s)
-	}
 }

@@ -12,185 +12,225 @@ package zonegroup_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/udp"
 	"github.com/SoundMatt/go-RCP/zonegroup"
 )
 
-func zones(zs ...rcp.Zone) []rcp.Controller {
-	ctrls := make([]rcp.Controller, len(zs))
-	for i, z := range zs {
-		ctrls[i] = mock.NewController(z, nil)
-	}
-	return ctrls
+type stubHandler struct {
+	fail bool
 }
 
-// TestZoneGroup_BroadcastAllOK all zones reply StatusOK (REQ-ZG-001).
-func TestZoneGroup_BroadcastAllOK(t *testing.T) {
-	g, err := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft, rcp.ZoneFrontRight, rcp.ZoneRearLeft))
+func (h stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	if h.fail {
+		return acf.Message{}, errBoom
+	}
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+		Body:           req.Body,
+	}, nil
+}
+
+var errBoom = errors.New("boom")
+
+const testEndpoint = avtp.ByteBusID(1)
+
+func newMember(t *testing.T, suffix uint16, fail bool) *udp.Controller {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testEndpoint, stubHandler{fail: fail}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	srv, err := udp.NewServer(avtp.NewStreamID([6]byte{0x02, 0xAA, 0xBB, 0xCC, 0xDD, byte(suffix)}, suffix), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	ctrl, err := udp.NewController(avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, byte(suffix)}, suffix), srv.Addr())
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	t.Cleanup(func() { _ = ctrl.Close() })
+	return ctrl
+}
+
+// TestZoneGroup_BroadcastAll delivers the request to every member
+// concurrently and collects all responses (REQ-ZG-001).
+func TestZoneGroup_BroadcastAll(t *testing.T) {
+	a := newMember(t, 1, false)
+	b := newMember(t, 2, false)
+	g, err := zonegroup.NewGroup([]*udp.Controller{a, b})
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
 	t.Cleanup(func() { _ = g.Close() })
 
-	res, err := g.Broadcast(context.Background(), &rcp.Command{Type: rcp.CmdSet})
+	res, err := g.Read(context.Background(), testEndpoint)
 	if err != nil {
-		t.Fatalf("Broadcast: %v", err)
+		t.Fatalf("Read: %v", err)
+	}
+	if len(res.Results) != 2 {
+		t.Fatalf("len(Results) = %d, want 2", len(res.Results))
 	}
 	if !res.OK() {
-		t.Errorf("OK() = false, want true; errors: %v", res.Errors())
-	}
-	if len(res.Results) != 3 {
-		t.Errorf("Results len = %d, want 3", len(res.Results))
+		t.Errorf("OK() = false, want true: %v", res.Errors())
 	}
 }
 
-// TestZoneGroup_CmdZoneOverride cmd.Zone is overridden per member (REQ-ZG-002).
-func TestZoneGroup_CmdZoneOverride(t *testing.T) {
-	var gotZones []rcp.Zone
-
-	g, err := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft, rcp.ZoneRearRight))
+// TestZoneGroup_MemberStreamRecorded each result carries the member's own
+// StreamID, so a broadcast to several addressable members is distinguishable
+// per member (REQ-ZG-002).
+func TestZoneGroup_MemberStreamRecorded(t *testing.T) {
+	a := newMember(t, 1, false)
+	g, err := zonegroup.NewGroup([]*udp.Controller{a})
 	if err != nil {
 		t.Fatalf("NewGroup: %v", err)
 	}
 	t.Cleanup(func() { _ = g.Close() })
 
-	// The command starts with ZoneCentral; Broadcast must override per member.
-	res, err := g.Broadcast(context.Background(), &rcp.Command{Zone: rcp.ZoneCentral, Type: rcp.CmdGet})
+	res, err := g.Read(context.Background(), testEndpoint)
 	if err != nil {
-		t.Fatalf("Broadcast: %v", err)
+		t.Fatalf("Read: %v", err)
 	}
-	for _, zr := range res.Results {
-		gotZones = append(gotZones, zr.Zone)
-	}
-	for _, z := range gotZones {
-		if z == rcp.ZoneCentral {
-			t.Errorf("zone was not overridden: got ZoneCentral in result")
-		}
+	if res.Results[0].Stream != a.StreamID() {
+		t.Errorf("Results[0].Stream = %v, want %v", res.Results[0].Stream, a.StreamID())
 	}
 }
 
-// TestZoneGroup_PartialFailure BroadcastResult.OK false when a member errors (REQ-ZG-003).
+// TestZoneGroup_PartialFailure OK is false if any member fails, and all
+// results are still collected (REQ-ZG-003).
 func TestZoneGroup_PartialFailure(t *testing.T) {
-	// Mix a healthy mock with a closed (error-returning) mock.
-	healthy := mock.NewController(rcp.ZoneFrontLeft, nil)
-	sick := mock.NewController(rcp.ZoneFrontRight, nil)
-	_ = sick.Close() // closed → returns ErrClosed on Send
-
-	g, _ := zonegroup.NewGroup([]rcp.Controller{healthy, sick})
-	// Don't close g here — it would try to close already-closed sick again.
-
-	res, err := g.Broadcast(context.Background(), &rcp.Command{Type: rcp.CmdGet})
+	good := newMember(t, 1, false)
+	bad := newMember(t, 2, true)
+	g, err := zonegroup.NewGroup([]*udp.Controller{good, bad})
 	if err != nil {
-		t.Fatalf("Broadcast: %v", err)
+		t.Fatalf("NewGroup: %v", err)
+	}
+	t.Cleanup(func() { _ = g.Close() })
+
+	res, err := g.Read(context.Background(), testEndpoint)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if len(res.Results) != 2 {
+		t.Fatalf("len(Results) = %d, want 2", len(res.Results))
 	}
 	if res.OK() {
-		t.Error("OK() = true, want false (sick member)")
+		t.Errorf("OK() = true, want false (one member failed)")
 	}
-	errs := res.Errors()
-	if len(errs) == 0 {
-		t.Error("Errors() empty, want at least one error for sick member")
+	if len(res.Errors()) != 1 {
+		t.Errorf("len(Errors()) = %d, want 1", len(res.Errors()))
 	}
 }
 
-// TestZoneGroup_ContextCancel context cancellation propagates to all Sends (REQ-ZG-004).
-func TestZoneGroup_ContextCancel(t *testing.T) {
-	g, _ := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft, rcp.ZoneFrontRight))
-	t.Cleanup(func() { _ = g.Close() })
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	defer cancel()
-
-	// Both zones are healthy mocks; timeout is so short the sends may or may not complete.
-	// This test just verifies no panic and no hang.
-	_, err := g.Broadcast(ctx, &rcp.Command{Type: rcp.CmdNoop})
-	_ = err // may be nil or context error
-}
-
-// TestZoneGroup_Zones returns the correct zone list (REQ-ZG-005).
-func TestZoneGroup_Zones(t *testing.T) {
-	want := []rcp.Zone{rcp.ZoneFrontLeft, rcp.ZoneRearRight}
-	g, _ := zonegroup.NewGroup(zones(want...))
-	t.Cleanup(func() { _ = g.Close() })
-
-	got := g.Zones()
-	if len(got) != len(want) {
-		t.Fatalf("Zones() len = %d, want %d", len(got), len(want))
+// TestZoneGroup_ContextCancellation a cancelled context is forwarded to
+// every member Request (REQ-ZG-004).
+func TestZoneGroup_ContextCancellation(t *testing.T) {
+	a := newMember(t, 1, false)
+	b := newMember(t, 2, false)
+	g, err := zonegroup.NewGroup([]*udp.Controller{a, b})
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("Zones()[%d] = %v, want %v", i, got[i], want[i])
+	t.Cleanup(func() { _ = g.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	res, err := g.Read(ctx, testEndpoint)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	for _, mr := range res.Results {
+		if !errors.Is(mr.Err, udp.ErrTimeout) {
+			t.Errorf("member %v err = %v, want ErrTimeout from a cancelled context", mr.Stream, mr.Err)
 		}
 	}
 }
 
-// TestZoneGroup_Len returns correct member count (REQ-ZG-005).
-func TestZoneGroup_Len(t *testing.T) {
-	g, _ := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft, rcp.ZoneFrontRight, rcp.ZoneRearLeft, rcp.ZoneRearRight))
+// TestZoneGroup_StreamIDsAndLen report group membership (REQ-ZG-005).
+func TestZoneGroup_StreamIDsAndLen(t *testing.T) {
+	a := newMember(t, 1, false)
+	b := newMember(t, 2, false)
+	g, err := zonegroup.NewGroup([]*udp.Controller{a, b})
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
 	t.Cleanup(func() { _ = g.Close() })
 
-	if got := g.Len(); got != 4 {
-		t.Errorf("Len() = %d, want 4", got)
+	if g.Len() != 2 {
+		t.Errorf("Len() = %d, want 2", g.Len())
+	}
+	ids := g.StreamIDs()
+	if len(ids) != 2 || ids[0] != a.StreamID() || ids[1] != b.StreamID() {
+		t.Errorf("StreamIDs() = %v, want [%v %v]", ids, a.StreamID(), b.StreamID())
 	}
 }
 
-// TestZoneGroup_NewGroup_Empty rejects empty member list (REQ-ZG-006).
-func TestZoneGroup_NewGroup_Empty(t *testing.T) {
-	_, err := zonegroup.NewGroup(nil)
-	if err == nil {
-		t.Error("expected error for empty group, got nil")
+// TestZoneGroup_NewGroupRejectsInvalid rejects an empty or nil-containing
+// member list (REQ-ZG-006).
+func TestZoneGroup_NewGroupRejectsInvalid(t *testing.T) {
+	if _, err := zonegroup.NewGroup(nil); err == nil {
+		t.Error("NewGroup(nil) = nil error, want error")
+	}
+	if _, err := zonegroup.NewGroup([]*udp.Controller{nil}); err == nil {
+		t.Error("NewGroup([nil]) = nil error, want error")
 	}
 }
 
-// TestZoneGroup_NewGroup_NilMember rejects nil member (REQ-ZG-006).
-func TestZoneGroup_NewGroup_NilMember(t *testing.T) {
-	ctrls := []rcp.Controller{mock.NewController(rcp.ZoneFrontLeft, nil), nil}
-	_, err := zonegroup.NewGroup(ctrls)
-	if err == nil {
-		t.Error("expected error for nil member, got nil")
-	}
-}
-
-// TestZoneGroup_Close_Idempotent safe to call twice (REQ-ZG-007).
+// TestZoneGroup_Close_Idempotent Close closes every member exactly once and
+// is safe to call multiple times; Broadcast after Close returns ErrClosed
+// (REQ-ZG-007).
 func TestZoneGroup_Close_Idempotent(t *testing.T) {
-	g, _ := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft))
+	a := newMember(t, 1, false)
+	g, err := zonegroup.NewGroup([]*udp.Controller{a})
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
+
 	if err := g.Close(); err != nil {
 		t.Errorf("first Close: %v", err)
 	}
 	if err := g.Close(); err != nil {
 		t.Errorf("second Close: %v", err)
 	}
-}
-
-// TestZoneGroup_BroadcastAfterClose returns ErrClosed (REQ-ZG-007).
-func TestZoneGroup_BroadcastAfterClose(t *testing.T) {
-	g, _ := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft))
-	_ = g.Close()
-
-	_, err := g.Broadcast(context.Background(), &rcp.Command{})
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("err = %v, want ErrClosed", err)
+	if _, err := g.Read(context.Background(), testEndpoint); !errors.Is(err, udp.ErrClosed) {
+		t.Errorf("Read after Close err = %v, want ErrClosed", err)
 	}
 }
 
-// TestZoneGroup_Concurrent no race under concurrent broadcasts (REQ-ZG-008).
-func TestZoneGroup_Concurrent(t *testing.T) {
-	g, _ := zonegroup.NewGroup(zones(rcp.ZoneFrontLeft, rcp.ZoneFrontRight, rcp.ZoneRearLeft, rcp.ZoneRearRight))
+// TestZoneGroup_ConcurrentBroadcasts multiple goroutines may call Broadcast
+// simultaneously without a data race (REQ-ZG-008).
+func TestZoneGroup_ConcurrentBroadcasts(t *testing.T) {
+	a := newMember(t, 1, false)
+	b := newMember(t, 2, false)
+	g, err := zonegroup.NewGroup([]*udp.Controller{a, b})
+	if err != nil {
+		t.Fatalf("NewGroup: %v", err)
+	}
 	t.Cleanup(func() { _ = g.Close() })
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	const n = 20
-	done := make(chan struct{}, n)
+	var wg sync.WaitGroup
+	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func() {
-			_, _ = g.Broadcast(ctx, &rcp.Command{Type: rcp.CmdNoop})
-			done <- struct{}{}
+			defer wg.Done()
+			_, _ = g.Read(ctx, testEndpoint)
 		}()
 	}
-	for i := 0; i < n; i++ {
-		<-done
-	}
+	wg.Wait()
 }

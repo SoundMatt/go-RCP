@@ -1,13 +1,30 @@
-// Package zonegroup provides atomic multi-zone command broadcast for automotive
-// zonal architecture. A Group holds a typed set of zone controllers and dispatches
-// a Command to all members concurrently, collecting all responses.
+// Package zonegroup provides atomic multi-target request broadcast for the
+// OPEN Alliance TC18 Remote Control Protocol (RCP), as described by the
+// "OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC". A
+// Group holds a set of *udp.Controller members and dispatches the same
+// request (a single avtp.ByteBusID address, control flags, and body) to
+// every member concurrently, collecting all responses.
 //
-// Broadcast succeeds only if every member returns StatusOK; partial failures are
-// reported per-zone in BroadcastResult so the caller can identify which zones
-// are degraded. The atomic broadcast contract means either all zones receive the
-// command within the same context deadline, or the operation is reported failed.
+// Broadcast succeeds only if every member returns a response without
+// FlagError set and no transport error; partial failures are reported
+// per-member in BroadcastResult so the caller can identify which servers
+// are degraded. The atomic broadcast contract means either every member is
+// reached within the same context deadline, or the operation is reported
+// failed.
 //
-// Composable with prioqueue, ratelimit, authz, and faultinject controllers.
+// This is ROADMAP.md Milestone 55 (v0.68.0)'s ADAPT-flagged rebuild: per
+// Phase 17's disposition table, "atomic multi-target broadcast-and-collect
+// is reusable; re-target it at endpoint groups." A "member" here is a whole
+// *udp.Controller — one destination RC Server, mirroring the retired
+// package's own "one member per zone" shape — and Broadcast addresses one
+// avtp.ByteBusID across every member, in place of the retired rcp.Command's
+// per-member Zone override. Note the specification itself already lets one
+// AVTPDU carry several independently-addressed requests, so this package's
+// role narrows to client-side ergonomics on top of that mechanism, not the
+// only way to reach several endpoints at once.
+//
+// Composable with authz, ratelimit, and proxy wrappers on either a member
+// controller or the Group's own callers.
 package zonegroup
 
 //fusa:req REQ-ZG-001
@@ -25,54 +42,58 @@ import (
 	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/udp"
 )
 
-// ZoneResult holds the outcome of a single-zone Send within a Broadcast.
-type ZoneResult struct {
-	Zone rcp.Zone
-	Resp *rcp.Response
-	Err  error
+// MemberResult holds the outcome of a single-member Request within a
+// Broadcast.
+type MemberResult struct {
+	Stream avtp.StreamID
+	Resp   acf.Message
+	Err    error
 }
 
 // BroadcastResult is the aggregate outcome of a Group.Broadcast call.
 type BroadcastResult struct {
-	Results []ZoneResult
+	Results []MemberResult
 }
 
-// OK returns true if all zones responded with StatusOK and no errors.
+// OK returns true if every member responded without a transport error and
+// without acf.FlagError set.
 func (r BroadcastResult) OK() bool {
-	for _, zr := range r.Results {
-		if zr.Err != nil || zr.Resp == nil || zr.Resp.Status != rcp.StatusOK {
+	for _, mr := range r.Results {
+		if mr.Err != nil || mr.Resp.Control.Has(acf.FlagError) {
 			return false
 		}
 	}
 	return true
 }
 
-// Errors returns per-zone errors for any failed zones.
+// Errors returns per-member errors for any failed members.
 func (r BroadcastResult) Errors() []error {
 	var errs []error
-	for _, zr := range r.Results {
-		if zr.Err != nil {
-			errs = append(errs, zr.Err)
-		} else if zr.Resp != nil && zr.Resp.Status != rcp.StatusOK {
-			errs = append(errs, fmt.Errorf("rcp/zonegroup: zone %s status %v", zr.Zone, zr.Resp.Status))
+	for _, mr := range r.Results {
+		if mr.Err != nil {
+			errs = append(errs, mr.Err)
+		} else if mr.Resp.Control.Has(acf.FlagError) {
+			errs = append(errs, fmt.Errorf("rcp/zonegroup: stream %s: %s", mr.Stream, mr.Resp.Body))
 		}
 	}
 	return errs
 }
 
-// Group holds a fixed set of zone controllers and broadcasts commands to all
-// of them concurrently.
+// Group holds a fixed set of member controllers and broadcasts requests to
+// all of them concurrently.
 type Group struct {
-	members []rcp.Controller
+	members []*udp.Controller
 	closed  atomic.Bool
 }
 
 // NewGroup creates a Group from the supplied controllers. The slice must be
 // non-empty; all members must be non-nil.
-func NewGroup(members []rcp.Controller) (*Group, error) {
+func NewGroup(members []*udp.Controller) (*Group, error) {
 	if len(members) == 0 {
 		return nil, fmt.Errorf("rcp/zonegroup: group must have at least one member")
 	}
@@ -81,50 +102,60 @@ func NewGroup(members []rcp.Controller) (*Group, error) {
 			return nil, fmt.Errorf("rcp/zonegroup: member %d is nil", i)
 		}
 	}
-	cp := make([]rcp.Controller, len(members))
+	cp := make([]*udp.Controller, len(members))
 	copy(cp, members)
 	return &Group{members: cp}, nil
 }
 
-// Broadcast sends cmd to every member concurrently and waits for all responses.
-// The same Command is sent to every zone; cmd.Zone is overridden per member.
-// Returns ErrClosed if the Group has been closed.
-func (g *Group) Broadcast(ctx context.Context, cmd *rcp.Command) (BroadcastResult, error) {
+// Broadcast sends the same request (addr, control, body) to every member
+// concurrently and waits for all responses. Returns udp.ErrClosed if the
+// Group has been closed.
+func (g *Group) Broadcast(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (BroadcastResult, error) {
 	if g.closed.Load() {
-		return BroadcastResult{}, fmt.Errorf("rcp/zonegroup: %w", rcp.ErrClosed)
+		return BroadcastResult{}, fmt.Errorf("rcp/zonegroup: %w", udp.ErrClosed)
 	}
 
-	results := make([]ZoneResult, len(g.members))
+	results := make([]MemberResult, len(g.members))
 	var wg sync.WaitGroup
 	wg.Add(len(g.members))
 
 	for i, m := range g.members {
-		go func() {
+		go func(i int, m *udp.Controller) {
 			defer wg.Done()
-			c := *cmd // copy so Zone override doesn't race
-			c.Zone = m.Zone()
-			resp, err := m.Send(ctx, &c)
-			results[i] = ZoneResult{Zone: m.Zone(), Resp: resp, Err: err}
-		}()
+			resp, err := m.Request(ctx, addr, control, body)
+			results[i] = MemberResult{Stream: m.StreamID(), Resp: resp, Err: err}
+		}(i, m)
 	}
 	wg.Wait()
 	return BroadcastResult{Results: results}, nil
 }
 
-// Zones returns the zone identifiers for all members.
-func (g *Group) Zones() []rcp.Zone {
-	zones := make([]rcp.Zone, len(g.members))
+// Read is Broadcast with acf.FlagRead set and no body.
+func (g *Group) Read(ctx context.Context, addr avtp.ByteBusID) (BroadcastResult, error) {
+	return g.Broadcast(ctx, addr, acf.FlagRead, nil)
+}
+
+// Write is Broadcast with acf.FlagWrite set and the given body.
+func (g *Group) Write(ctx context.Context, addr avtp.ByteBusID, body []byte) (BroadcastResult, error) {
+	return g.Broadcast(ctx, addr, acf.FlagWrite, body)
+}
+
+// StreamIDs returns the avtp.StreamID identity of each member in insertion
+// order.
+func (g *Group) StreamIDs() []avtp.StreamID {
+	ids := make([]avtp.StreamID, len(g.members))
 	for i, m := range g.members {
-		zones[i] = m.Zone()
+		ids[i] = m.StreamID()
 	}
-	return zones
+	return ids
 }
 
 // Len returns the number of members.
 func (g *Group) Len() int { return len(g.members) }
 
-// Close closes all member controllers. Each controller is closed regardless of
-// errors in previous members; all errors are combined. Safe to call multiple times.
+// Close closes all member controllers. Each controller is closed
+// regardless of errors in previous members; all errors are combined. Safe
+// to call multiple times.
 func (g *Group) Close() error {
 	if !g.closed.CompareAndSwap(false, true) {
 		return nil
