@@ -1,8 +1,17 @@
 # go-RCP
 
-A Go library implementing the Remote Control Protocol (RCP) for zonal control in automotive systems.
+A Go implementation of the OPEN Alliance TC18 Remote Control Protocol
+Specification v0.5.1_RC for automotive zonal architecture.
 
-RCP connects a high-performance central computer to distributed Ethernet-based zone controllers, keeping application logic centralised while remote zones provide access to local I/O, sensors, CAN/LIN gateways, and actuators.
+RCP connects a high-performance central computer to distributed RC Servers
+over IEEE 1722 AVTPDU/ACF framing, keeping application logic centralised
+while each server exposes its declared endpoints (GPIO, SPI, I2C, UART,
+ADC, PWM, LIN, CAN, ISELED, MDIO, Wakeup, ...) through a shared
+register-map configuration model. See ROADMAP.md for the full protocol
+replacement program and its milestone-by-milestone history — as of v1.0.0
+this is the version where go-RCP first claims TC18 conformance; there is
+no compatibility shim for the bespoke Zone/Command/Response/Status
+protocol this module implemented before v1.0.0.
 
 [![CI](https://github.com/SoundMatt/go-RCP/actions/workflows/ci.yml/badge.svg)](https://github.com/SoundMatt/go-RCP/actions/workflows/ci.yml)
 [![DCO](https://github.com/SoundMatt/go-RCP/actions/workflows/dco.yml/badge.svg)](https://github.com/SoundMatt/go-RCP/actions/workflows/dco.yml)
@@ -19,14 +28,17 @@ go install github.com/SoundMatt/go-RCP/cmd/go-rcp@latest
 go-rcp version --format json      # tool + spec version (§12.1)
 go-rcp capabilities                # capabilities document (§12.2)
 go-rcp status --format json        # self-assessed health
-go-rcp discover                    # list registered zones
-go-rcp send <zone>                 # send a command; --format json streams an NDJSON sink (§11.2)
-go-rcp monitor                     # stream Status from all zones
+go-rcp discover                    # read the demo RC Server's register map
+go-rcp send <byte_bus_id>          # write a demo payload; --format json streams an NDJSON sink (§11.2)
+go-rcp monitor                     # poll every demo endpoint on an interval
 go-rcp convert --protocol RCP      # RELAY interop driver (§11.2)
 ```
 
-`cmd/rcptool` is an older, non-conformant CLI kept for backward compatibility;
-prefer `go-rcp` for anything spec-related.
+`discover`/`send`/`monitor` run against an in-process demo RC Server built
+into the binary — wire your own `*udp.Controller`/`*udp.Server` pair (or any
+type satisfying `rcp.Controller`) for a real deployment. `cmd/rcptool`, an
+older, non-conformant CLI kept for backward compatibility through v0.71.0,
+was retired at v1.0.0 once the bespoke API it targeted was removed.
 
 ## Packages
 
@@ -36,16 +48,15 @@ details.
 
 | Package | Description |
 |---|---|
-| `.` | Core interfaces: `Controller`, `Registry`, `Command`, `Response`, `Status`, `Zone` |
-| `mock` | In-process mock controller and registry — zero dependencies, default for unit tests |
-| `loan` | `LoaningController` wrapper — zero-copy payload loaning via a `sync.Pool` |
+| `.` | Root types: `Adapt`/`Controller` (the RELAY `relay.Caller` bridge), the RELAY-mandatory error sentinels, and `Loan` (zero-copy payload buffer) |
+| `mock` | In-process test doubles: `Endpoint`/`Client`/`ClientRegistry`/`Fixture` for the TC18 server/endpoint model |
+| `loan` | Zero-copy request-body loaning via a `sync.Pool`, wrapping `*udp.Controller` |
 
-### TC18 protocol replacement program (ROADMAP.md Part II)
+### TC18 protocol implementation (ROADMAP.md Part II)
 
-The packages above implement go-RCP's original bespoke Zone/Command
-protocol. The following implement the OPEN Alliance TC18 Remote Control
-Protocol replacement instead, phase by phase; see ROADMAP.md Part II for the
-full program and each satellite package's disposition.
+go-RCP's core protocol and every satellite package below implement the
+OPEN Alliance TC18 Remote Control Protocol, phase by phase; see ROADMAP.md
+Part II for the full program and each satellite package's disposition.
 
 | Package | Description |
 |---|---|
@@ -62,16 +73,16 @@ full program and each satellite package's disposition.
 
 | Package | Description |
 |---|---|
-| `admin` | HTTP admin interface for runtime registry inspection |
-| `authz` | Command-level access control for the RCP stack |
+| `admin` | HTTP admin interface for runtime server/endpoint inspection |
+| `authz` | Client-side stream/endpoint access-control policy |
 | `certgap` | ASIL-D gap analysis helpers |
-| `config` | YAML/JSON zone registry configuration loading |
-| `deadline` | Liveness monitoring of zone controller Status streams |
+| `config` | YAML/JSON server/stream/register-map configuration loading |
+| `deadline` | Liveness monitoring of endpoint response cadence |
 | `dyndata` | Runtime schema registry and typed payload codec |
-| `e2e` | End-to-end (E2E) protection for command payloads |
+| `e2e` | CRC32 safe-point mechanism and watchdog-driven safe-state entry |
 | `faultinject` | Structured fault injection for validating fault handling |
-| `federation` | Coordination of multiple HPCs, each owning a disjoint zone subset |
-| `firmware` | OTA firmware delivery for zone controllers |
+| `federation` | Coordination of multiple HPCs, each owning a disjoint endpoint subset |
+| `firmware` | OTA firmware delivery riding on top of a raw-byte endpoint or the UDS bridge |
 | `formal` | Lightweight formal-verification helpers |
 | `iso21434` | ISO/SAE 21434 cybersecurity engineering artifacts |
 
@@ -93,35 +104,33 @@ full program and each satellite package's disposition.
 
 | Package | Description |
 |---|---|
-| `mdns` | Zero-configuration zone-controller discovery via mDNS/DNS-SD |
-| `shmem` | Zero-copy intra-host command transport |
-| `tlstransport` | Mutual-TLS TCP transport |
+| `mdns` | Optional rendezvous helper: advertises/discovers a server's `avtp.StreamID` via mDNS/DNS-SD, pointing a caller at candidate UDP addresses for `Discover` |
+| `shmem` | Zero-copy intra-host request/response transport |
 | `tsn` | IEEE 802.1Qbv-aware (time-sensitive networking) UDP transport |
-| `udp` | Pure-Go UDP transport |
-| `wire` | Shared binary frame format used by the UDP and TLS transports |
+| `udp` | Pure-Go AVTPDU/ACF-over-UDP/IP transport (`Controller`, `Server`, `Router`, `Registry`) |
 
 ### Safety, reliability, and observability
 
 | Package | Description |
 |---|---|
 | `observe` | OpenTelemetry tracing + metrics wrapper for a Controller |
-| `powerstate` | Zone controller power state transitions |
-| `prioqueue` | Per-zone priority queue that serialises dispatch |
-| `ratelimit` | Per-zone token-bucket admission control |
-| `record` | Always-on black-box recording of command/response/status traffic |
+| `powerstate` | Wake-handshake retransmission pacing (`wakeup.Endpoint`) |
+| `prioqueue` | Client-side priority queue mirroring `request.Kind`'s server-side ordering |
+| `ratelimit` | Per-endpoint token-bucket admission control |
+| `record` | Always-on black-box recording of request/response traffic |
 | `redundancy` | Hot-standby Controller pair for ASIL-B fault tolerance |
 | `safety` | Latency and timing evidence for ASIL-B compliance |
-| `sim` | Timing-realistic zone controller simulator |
-| `watchdog` | ASIL-B watchdog and heartbeat mechanism |
-| `zonegroup` | Atomic multi-zone command broadcast |
+| `sim` | Timing-realistic endpoint simulator (ADC sample interval, PWM cycle timing) |
+| `watchdog` | ASIL-B watchdog and heartbeat orchestration |
+| `zonegroup` | Atomic multi-endpoint-group request broadcast |
 
 ### Tooling
 
 | Package | Description |
 |---|---|
-| `capi` | C-compatible handle-based API for go-RCP controllers |
-| `codegen` | Generates typed Go controller stubs and go-FuSa requirement scaffolding |
-| `proxy` | Transparent zone proxy for multi-hop zonal topologies |
+| `capi` | C-compatible handle-based API for go-RCP controllers, addressed by `avtp.StreamID`/`avtp.ByteBusID` |
+| `codegen` | Generates `request.Handler` stubs and go-FuSa requirement scaffolding from a server/endpoint manifest |
+| `proxy` | Transparent RC Server proxy for multi-hop topologies |
 
 ## Install
 
@@ -133,49 +142,34 @@ go get github.com/SoundMatt/go-RCP
 
 ```go
 import (
-    rcp "github.com/SoundMatt/go-RCP"
+    "context"
+    "fmt"
+
+    "github.com/SoundMatt/go-RCP/acf"
+    "github.com/SoundMatt/go-RCP/avtp"
     "github.com/SoundMatt/go-RCP/mock"
 )
 
-reg := mock.NewRegistry()
-defer reg.Close()
+// Fixture bundles an in-process server.Server, its Router, and a root
+// Client — see mock/fixture.go. A real deployment dials *udp.Controller
+// against a *udp.Server instead (see udp/doc.go).
+fx, _ := mock.NewFixture(avtp.NewStreamID([6]byte{0x02, 0, 0, 0, 0, 1}, 1), false)
+defer fx.Close()
 
-ctrl, _ := reg.Lookup(rcp.ZoneFrontLeft)
+const gpioAddr avtp.ByteBusID = 1
+_ = fx.Router.Register(gpioAddr, mock.NewEndpoint(gpioAddr, func(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+    return acf.Message{
+        Kind: req.Kind, ByteBusID: req.ByteBusID, TransactionNum: req.TransactionNum,
+        Control: acf.FlagResponse | acf.FlagWrite,
+    }, nil
+}))
 
-cmd := &rcp.Command{
-    ID:       1,
-    Zone:     rcp.ZoneFrontLeft,
-    Type:     rcp.CmdSet,
-    Priority: rcp.PriorityNormal,
-    Payload:  []byte(`{"actuator":"indicator","state":"on"}`),
-}
-
-resp, err := ctrl.Send(context.Background(), cmd)
+resp, err := fx.Root.Write(context.Background(), gpioAddr, []byte(`{"actuator":"indicator","state":"on"}`))
 if err != nil {
-    log.Fatal(err)
+    panic(err)
 }
-fmt.Println(resp.Status) // OK
+fmt.Println(resp.Control.Has(acf.FlagError)) // false
 ```
-
-## Zones
-
-| Constant | Value | Description |
-|---|---|---|
-| `ZoneFrontLeft` | 1 | Front-left zone controller |
-| `ZoneFrontRight` | 2 | Front-right zone controller |
-| `ZoneRearLeft` | 3 | Rear-left zone controller |
-| `ZoneRearRight` | 4 | Rear-right zone controller |
-| `ZoneCentral` | 5 | Central zone controller |
-
-## Command types
-
-| Constant | Value | Description |
-|---|---|---|
-| `CmdNoop` | 0 | No-op / keepalive |
-| `CmdSet` | 1 | Set an output or actuator state |
-| `CmdGet` | 2 | Query current state |
-| `CmdReset` | 3 | Reset zone controller |
-| `CmdWatchdog` | 4 | Watchdog kick |
 
 ## Docker quickstart
 
@@ -183,7 +177,9 @@ fmt.Println(resp.Status) // OK
 docker compose -f docker/docker-compose.yml up --build
 ```
 
-Starts a controller and two zone controller containers communicating over a bridge network.
+Starts one RC Server container (`zone`) and one client container
+(`controller`) writing to it once a second, communicating over a real
+UDP/IP bridge network.
 
 ## Safety
 

@@ -49,7 +49,7 @@ Full descriptions and damage scenarios: `iso21434/tara.go`.
 
 | Threat | Countermeasure | Status |
 |--------|-----------------|--------|
-| T-RCP-001 | `regmap.AccessController` root/grant model + `authz.Policy` (client-side) | **Open** — neither layer binds a StreamID cryptographically to its peer; `tlstransport` (mutual TLS) is deprecated and does not apply to this protocol's addressing model |
+| T-RCP-001 | `regmap.AccessController` root/grant model + `authz.Policy` (client-side) | **Open** — neither layer binds a StreamID cryptographically to its peer; `tlstransport` (this repo's bespoke mutual-TLS-over-TCP option) was retired outright at Milestone 59 and would not have applied regardless, since mutual-TLS-over-TCP does not fit this protocol's stream_id/byte_bus_id addressing model |
 | T-RCP-002 | Bounded claim timeout (`discovery.DefaultConfigurationClaimTimeout`, 30s); `ReadDiscovery` never blocked by claim state | Closed |
 | T-RCP-003 | `e2e.Guard`/`e2e.Verify` CRC32 check, dedicated `ErrCRCMismatch` | **Open** — integrity only, not authenticity; a capable attacker can recompute the same public checksum |
 | T-RCP-004 | `request.Dispatcher.PurgeNonSafety` never touches safety-request Kinds | Closed — damage scenario is bounded to non-safety work by design |

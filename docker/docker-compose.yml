@@ -1,25 +1,18 @@
-# go-RCP quickstart — controller and zone simulators in under two minutes.
+# go-RCP quickstart — a real RC Server and a controller talking real
+# UDP/IP, in under two minutes.
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yml up --build
 #
-# The controller sends periodic CmdSet commands to all zones.
-# The zone container simulates a front-left zone controller.
+# The zone service runs one RC Server with a single demo endpoint. The
+# controller service writes to that endpoint once a second, over the "rcp"
+# bridge network's DNS (RCP_DEMO_ADDR=zone:7657).
 
 networks:
   rcp:
     driver: bridge
 
 services:
-  controller:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      target: controller
-    networks:
-      - rcp
-    restart: unless-stopped
-
   zone:
     build:
       context: ..
@@ -28,5 +21,16 @@ services:
     networks:
       - rcp
     restart: unless-stopped
+
+  controller:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: controller
+    environment:
+      RCP_DEMO_ADDR: "zone:7657"
+    networks:
+      - rcp
+    restart: unless-stopped
     depends_on:
-      - controller
+      - zone

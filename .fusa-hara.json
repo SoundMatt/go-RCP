@@ -2,205 +2,279 @@
   "project": "go-RCP",
   "standard": "ISO 26262",
   "createdAt": "2026-06-13T00:00:00Z",
-  "updatedAt": "2026-06-16T00:00:00Z",
+  "updatedAt": "2026-07-29T00:00:00Z",
   "operationalSituations": [
     {
       "id": "OS-001",
-      "description": "Normal vehicle operation — all zone controllers reachable"
+      "description": "Normal vehicle operation \u2014 all RC Server endpoints reachable"
     },
     {
       "id": "OS-002",
-      "description": "Partial network fault — one or more zone controllers unreachable"
+      "description": "Partial network fault \u2014 one or more RC Server endpoints unreachable"
     },
     {
       "id": "OS-003",
-      "description": "Safety-critical manoeuvre — emergency braking or collision avoidance active"
+      "description": "Safety-critical manoeuvre \u2014 emergency braking or collision avoidance active"
     },
     {
       "id": "OS-004",
-      "description": "HPC software fault — runaway process, crash, or OOM condition"
+      "description": "HPC software fault \u2014 runaway process, crash, or OOM condition"
     },
     {
       "id": "OS-005",
-      "description": "Elevated network latency — congestion, EMI, or hardware degradation"
+      "description": "Elevated network latency \u2014 congestion, EMI, or hardware degradation"
     },
     {
       "id": "OS-006",
-      "description": "Adversarial access — attacker present on the zone Ethernet bus"
+      "description": "Adversarial access \u2014 attacker present on the RCP Ethernet network"
     }
   ],
   "hazards": [
     {
       "id": "H-001",
-      "description": "Loss of command delivery to safety-critical zone (e.g. braking actuator)",
-      "situations": ["OS-001", "OS-002", "OS-003"],
+      "description": "Loss of request delivery to a safety-critical endpoint (e.g. braking actuator)",
+      "situations": [
+        "OS-001",
+        "OS-002",
+        "OS-003"
+      ],
       "risk": {
         "severity": "S3",
         "exposure": "E4",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-001"]
+      "safetyGoals": [
+        "SG-001"
+      ]
     },
     {
       "id": "H-002",
-      "description": "Spurious command sent to wrong zone controller",
-      "situations": ["OS-001"],
+      "description": "Spurious request delivered to the wrong endpoint (wrong avtp.ByteBusID within a stream)",
+      "situations": [
+        "OS-001"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E3",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-002"]
+      "safetyGoals": [
+        "SG-002"
+      ]
     },
     {
       "id": "H-003",
-      "description": "Zone controller watchdog not kicked, leading to unintended reset",
-      "situations": ["OS-001", "OS-003"],
+      "description": "RC Server watchdog liveness kick not delivered, leading to unintended safe-state entry or reset",
+      "situations": [
+        "OS-001",
+        "OS-003"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E3",
         "controllability": "C3",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-003"]
+      "safetyGoals": [
+        "SG-003"
+      ]
     },
     {
       "id": "H-004",
-      "description": "Delayed command delivery — zone responds within protocol timeout but too slowly for real-time control",
-      "situations": ["OS-003", "OS-005"],
+      "description": "Delayed request delivery \u2014 endpoint responds within the protocol timeout but too slowly for real-time control",
+      "situations": [
+        "OS-003",
+        "OS-005"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E3",
         "controllability": "C3",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-004"]
+      "safetyGoals": [
+        "SG-004"
+      ]
     },
     {
       "id": "H-005",
-      "description": "Corrupted command payload — bit error or memory fault causes wrong actuator value to be applied",
-      "situations": ["OS-001", "OS-003"],
+      "description": "Corrupted request/response payload \u2014 bit error or memory fault causes a wrong actuator value to be applied",
+      "situations": [
+        "OS-001",
+        "OS-003"
+      ],
       "risk": {
         "severity": "S3",
         "exposure": "E2",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-005"]
+      "safetyGoals": [
+        "SG-005"
+      ]
     },
     {
       "id": "H-006",
-      "description": "Zone controller impersonation — rogue device masquerades as a legitimate zone and accepts or intercepts commands",
-      "situations": ["OS-001", "OS-006"],
+      "description": "Endpoint impersonation \u2014 a rogue device spoofs a legitimate avtp.StreamID and accepts or intercepts requests",
+      "situations": [
+        "OS-001",
+        "OS-006"
+      ],
       "risk": {
         "severity": "S3",
         "exposure": "E2",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-006"]
+      "safetyGoals": [
+        "SG-006"
+      ]
     },
     {
       "id": "H-007",
-      "description": "HPC crash without graceful shutdown — zone controllers remain active with no watchdog kicks, entering indeterminate state",
-      "situations": ["OS-001", "OS-002", "OS-004"],
+      "description": "HPC crash without graceful shutdown \u2014 RC Server endpoints remain active with no watchdog kicks, entering an indeterminate state",
+      "situations": [
+        "OS-001",
+        "OS-002",
+        "OS-004"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E3",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-007"]
+      "safetyGoals": [
+        "SG-007"
+      ]
     },
     {
       "id": "H-008",
-      "description": "Priority inversion — PriorityCritical command (e.g. emergency brake) blocked behind lower-priority commands under load",
-      "situations": ["OS-001", "OS-003"],
+      "description": "Priority inversion \u2014 a high-priority request (per request.Kind's server-derived ordering, e.g. an emergency-brake write) blocked behind lower-priority requests under load",
+      "situations": [
+        "OS-001",
+        "OS-003"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E3",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-008"]
+      "safetyGoals": [
+        "SG-008"
+      ]
     },
     {
       "id": "H-009",
-      "description": "Command flooding — runaway HPC software loop overwhelms zone controller, causing it to drop safety-critical commands",
-      "situations": ["OS-001", "OS-004"],
+      "description": "Request flooding \u2014 a runaway HPC software loop overwhelms an RC Server endpoint, causing it to drop safety-critical requests",
+      "situations": [
+        "OS-001",
+        "OS-004"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E3",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-009"]
+      "safetyGoals": [
+        "SG-009"
+      ]
     },
     {
       "id": "H-010",
-      "description": "Command replay — attacker retransmits a previously captured valid command in a new vehicle context, causing unintended actuation",
-      "situations": ["OS-001", "OS-006"],
+      "description": "Request replay \u2014 an attacker retransmits a previously captured valid request in a new vehicle context, causing unintended actuation",
+      "situations": [
+        "OS-001",
+        "OS-006"
+      ],
       "risk": {
         "severity": "S2",
         "exposure": "E2",
         "controllability": "C2",
         "asil": "ASIL-B"
       },
-      "safetyGoals": ["SG-010"]
+      "safetyGoals": [
+        "SG-010"
+      ]
     }
   ],
   "safetyGoals": [
     {
       "id": "SG-001",
-      "description": "The RCP library shall detect and report command delivery failures within the timeout period.",
-      "addressedBy": ["v0.11.0 Watchdog & Heartbeat", "v0.12.0 Deadline Monitoring"]
+      "description": "The RCP library shall detect and report request delivery failures within the timeout period.",
+      "addressedBy": [
+        "v0.11.0 Watchdog & Heartbeat",
+        "v0.12.0 Deadline Monitoring"
+      ]
     },
     {
       "id": "SG-002",
-      "description": "The RCP library shall validate that commands are addressed to the correct zone and reject mismatched deliveries.",
-      "addressedBy": ["REQ-CTRL-025 ErrZoneMismatch guard (v0.3.0)"]
+      "description": "The RCP library shall validate that responses are addressed to the requesting endpoint and reject mismatched deliveries.",
+      "addressedBy": [
+        "REQ-CTRL-025 ErrZoneMismatch guard (v0.3.0)"
+      ]
     },
     {
       "id": "SG-003",
-      "description": "The RCP library shall provide a CmdWatchdog command type and ensure it is delivered with at least PriorityHigh.",
-      "addressedBy": ["v0.11.0 Watchdog & Heartbeat"]
+      "description": "The RCP library shall provide a periodic watchdog liveness mechanism (e2e.Supervisor) and ensure a missed kick is detected within the configured watchdog timeout.",
+      "addressedBy": [
+        "v0.11.0 Watchdog & Heartbeat"
+      ]
     },
     {
       "id": "SG-004",
-      "description": "Maximum end-to-end command latency shall be bounded and monitored; a violation shall be reported as a health event.",
-      "addressedBy": ["REQ-SAFETY-001 latency evidence (v0.3.0)", "v0.12.0 Deadline Monitoring"]
+      "description": "Maximum end-to-end request latency shall be bounded and monitored; a violation shall be reported as a health event.",
+      "addressedBy": [
+        "REQ-SAFETY-001 latency evidence (v0.3.0)",
+        "v0.12.0 Deadline Monitoring"
+      ]
     },
     {
       "id": "SG-005",
-      "description": "Command and response payloads shall be integrity-protected using a frame check sequence (CRC); frames failing the check shall be silently discarded.",
-      "addressedBy": ["v0.14.0 E2E Protection"]
+      "description": "Request and response payloads shall be integrity-protected using a CRC32 safe-point mechanism (e2e); frames failing the check shall be rejected.",
+      "addressedBy": [
+        "v0.14.0 E2E Protection"
+      ]
     },
     {
       "id": "SG-006",
-      "description": "Zone controller identity shall be authenticated before commands are accepted; an unauthenticated response shall be rejected.",
-      "addressedBy": ["v0.7.0 TLS Transport", "v0.19.0 Authorization"]
+      "description": "Endpoint identity (avtp.StreamID) shall be authenticated before requests are accepted; an unauthenticated response shall be rejected. (Open per TARA.md T-RCP-001 \u2014 this repository does not implement StreamID authentication; see iso21434/tara.go.)",
+      "addressedBy": [
+        "v0.7.0 TLS Transport",
+        "v0.19.0 Authorization"
+      ]
     },
     {
       "id": "SG-007",
-      "description": "Zone controllers shall detect cessation of watchdog kicks and enter a defined safe state within the configured watchdog timeout.",
-      "addressedBy": ["v0.11.0 Watchdog & Heartbeat"]
+      "description": "RC Servers shall detect cessation of watchdog kicks and enter a defined safe state within the configured watchdog timeout (e2e.Supervisor).",
+      "addressedBy": [
+        "v0.11.0 Watchdog & Heartbeat"
+      ]
     },
     {
       "id": "SG-008",
-      "description": "PriorityCritical commands shall never be delayed by Normal or High priority commands in any queue or admission-control mechanism.",
-      "addressedBy": ["v0.15.0 Priority Queuing"]
+      "description": "A high-priority request (per request.Kind's server-derived ordering) shall never be delayed by a lower-priority request in any queue or admission-control mechanism.",
+      "addressedBy": [
+        "v0.15.0 Priority Queuing"
+      ]
     },
     {
       "id": "SG-009",
-      "description": "The HPC shall enforce per-zone command rate limits; commands exceeding the rate limit shall be rejected with ErrBusy before reaching the zone controller.",
-      "addressedBy": ["v0.16.0 Rate Limiting"]
+      "description": "The HPC shall enforce per-endpoint request rate limits (ratelimit); requests exceeding the rate limit shall be rejected before reaching the RC Server.",
+      "addressedBy": [
+        "v0.16.0 Rate Limiting"
+      ]
     },
     {
       "id": "SG-010",
-      "description": "Commands shall carry monotonically increasing sequence counters; frames whose counter falls outside the anti-replay window shall be rejected.",
-      "addressedBy": ["v0.14.0 E2E Protection"]
+      "description": "Requests shall carry a monotonically increasing sequence per the e2e safe-point mechanism; frames whose sequence falls outside the anti-replay window shall be rejected.",
+      "addressedBy": [
+        "v0.14.0 E2E Protection"
+      ]
     }
   ]
 }

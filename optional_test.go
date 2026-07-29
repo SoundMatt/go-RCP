@@ -14,16 +14,7 @@ import (
 
 	relay "github.com/SoundMatt/RELAY"
 	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
 )
-
-func msgFor(zone rcp.Zone, cmdType string) relay.Message {
-	return relay.Message{
-		Protocol: relay.RCP,
-		ID:       zone.String(),
-		Meta:     map[string]string{"rcp.cmd_type": cmdType},
-	}
-}
 
 func asHealth(t *testing.T, n relay.Caller) relay.HealthProvider {
 	t.Helper()
@@ -55,8 +46,7 @@ func asDrainer(t *testing.T, n relay.Caller) relay.Drainer {
 // ── HealthProvider ──────────────────────────────────────────────────────────
 
 func TestAdapter_ImplementsOptionalInterfaces(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	if _, ok := node.(relay.HealthProvider); !ok {
 		t.Error("adapter does not implement relay.HealthProvider")
@@ -70,8 +60,7 @@ func TestAdapter_ImplementsOptionalInterfaces(t *testing.T) {
 }
 
 func TestAdapter_Health_OKWhenFresh(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	if got := asHealth(t, node).Health().Status; got != relay.HealthOK {
 		t.Errorf("Health().Status = %v, want HealthOK", got)
@@ -79,10 +68,9 @@ func TestAdapter_Health_OKWhenFresh(t *testing.T) {
 }
 
 func TestAdapter_Health_DegradedAfterError(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
-	// Unknown zone ID forces a CommandFromMessage error.
+	// Unparseable ID forces a RequestFromMessage error.
 	_ = node.Send(context.Background(), relay.Message{Protocol: relay.RCP, ID: "nowhere"})
 	if got := asHealth(t, node).Health().Status; got != relay.HealthDegraded {
 		t.Errorf("Health().Status = %v, want HealthDegraded", got)
@@ -90,7 +78,7 @@ func TestAdapter_Health_DegradedAfterError(t *testing.T) {
 }
 
 func TestAdapter_Health_DownAfterClose(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	_ = node.Close()
 	if got := asHealth(t, node).Health().Status; got != relay.HealthDown {
@@ -101,10 +89,9 @@ func TestAdapter_Health_DownAfterClose(t *testing.T) {
 // ── MetricsProvider ─────────────────────────────────────────────────────────
 
 func TestAdapter_Metrics_CountsCall(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
-	if _, err := node.Call(context.Background(), msgFor(rcp.ZoneFrontLeft, "get")); err != nil {
+	if _, err := node.Call(context.Background(), relay.Message{Protocol: relay.RCP, ID: rcp.EndpointIDString(testAddr)}); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	m := asMetrics(t, node).Metrics()
@@ -117,8 +104,7 @@ func TestAdapter_Metrics_CountsCall(t *testing.T) {
 }
 
 func TestAdapter_Metrics_CountsError(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	_ = node.Send(context.Background(), relay.Message{Protocol: relay.RCP, ID: "nowhere"})
 	if m := asMetrics(t, node).Metrics(); m.ErrorCount != 1 {
@@ -129,7 +115,7 @@ func TestAdapter_Metrics_CountsError(t *testing.T) {
 // ── Drainer ─────────────────────────────────────────────────────────────────
 
 func TestAdapter_CloseWithDrain_NoInFlight(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	if err := asDrainer(t, node).CloseWithDrain(context.Background()); err != nil {
 		t.Errorf("CloseWithDrain: %v", err)
@@ -141,7 +127,7 @@ func TestAdapter_CloseWithDrain_NoInFlight(t *testing.T) {
 }
 
 func TestAdapter_CloseWithDrain_RespectsContext(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()

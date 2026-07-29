@@ -78,8 +78,8 @@ jobs:
       - name: Clear fuzz corpus cache
         run: go clean -fuzzcache
 
-      - name: FuzzController_Send
-        run: go test -fuzz=^FuzzController_Send$ -fuzztime=10s ./mock/...
+      - name: FuzzClient_Request
+        run: go test -fuzz=^FuzzClient_Request$ -fuzztime=10s ./mock/...
 
   # ── Lint ─────────────────────────────────────────────────────────────────
   lint:
@@ -160,12 +160,24 @@ jobs:
           PYEOF
 
   # ── RELAY conformance gate (§20 continuous conformance) ───────────────────
-  # Validates the go-rcp CLI's version/capabilities/status documents against the
-  # §12 JSON Schemas embedded in the authoritative `relay` binary (--strict fails
-  # on WARN as well as FAIL), and checks behavioural interchangeability via
-  # `relay interop` — every RCP golden vector must convert EQUIVALENT to the
-  # reference (§20.2). Pin the relay version to the spec version this module
+  # Validates the go-rcp CLI's version/capabilities/status documents against
+  # the generic §12 JSON Schemas (cli-version/cli-capabilities/cli-status)
+  # embedded in the authoritative `relay` binary (--strict fails on WARN as
+  # well as FAIL). Pin the relay version to the spec version this module
   # targets (go.mod RELAY) so spec bumps are an explicit upgrade.
+  #
+  # `relay interop --protocol RCP` is deliberately NOT run here as of
+  # ROADMAP.md Milestone 59 (v1.0.0): its embedded RCP golden vector and the
+  # rcp-command/rcp-status §15.5 canonical-type schemas `relay conform` does
+  # NOT touch are still the retired bespoke Zone/Command/Response/Status
+  # shape (see RELAY spec/vectors/rcp-status.json and
+  # spec/schemas/rcp-{command,status}.json as of RELAY v1.14.0, the latest
+  # tag checked at this milestone) — this module no longer implements or
+  # claims interop with that shape, and updating those upstream is out of
+  # this repo's scope (RELAY is a separate project). Re-enable this step once
+  # a RELAY release publishes a TC18-shaped RCP golden vector; tracked
+  # out-of-repo, not silently dropped (see ROADMAP.md Milestone 59's own
+  # "Done" writeup and Guiding Principle 10).
   relay-conform:
     name: RELAY conform
     runs-on: ubuntu-latest
@@ -180,5 +192,3 @@ jobs:
         run: go build -o /tmp/go-rcp ./cmd/go-rcp
       - name: relay conform --strict
         run: relay conform --strict /tmp/go-rcp
-      - name: relay interop (behavioural equivalence, RCP vectors)
-        run: relay interop --protocol RCP --strict /tmp/go-rcp
