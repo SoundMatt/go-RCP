@@ -42,13 +42,22 @@
 //
 // A Server has exactly three configuration states (see
 // lifecycle.LifecycleState): lifecycle.StateUnconfigured,
-// lifecycle.StateHWLocked, and lifecycle.StateFullyConfigured. It only ever
-// advances forward, one state at a time, and only through a guard that
-// rejects an implausible configuration rather than silently accepting it —
-// see Server.AdvanceToHWLocked and Server.AdvanceToFullyConfigured. Once a
-// register field's lock class closes for the current state, it stays
-// closed for every requester for the rest of that server's lifetime,
-// including the root client (see regmap's register-locking errors).
+// lifecycle.StateHWLocked, and lifecycle.StateFullyConfigured. It advances
+// forward one state at a time, only through a guard that rejects an
+// implausible configuration rather than silently accepting it — see
+// Server.AdvanceToHWLocked and Server.AdvanceToFullyConfigured — and can
+// move backward exactly once, from StateHWLocked to StateUnconfigured, via
+// Server.DemoteToUnconfigured, gated to the root client or whichever stream
+// currently holds the Discovery-stream configuration claim (see
+// ClaimConfiguration). Most register fields lock for the rest of the
+// server's lifetime once their lock class closes for the current state,
+// including for the root client (see regmap's register-locking errors);
+// the one exception is each endpoint's own functional (type-specific)
+// configuration block, which stays writable — via that endpoint's own
+// registered stream(s), or via the root client through EP0 — even once
+// lifecycle.StateFullyConfigured is reached (see WriteFunctional and
+// WriteEP0). There is no reverse transition out of
+// lifecycle.StateFullyConfigured.
 //
 // # Register-map structure
 //
@@ -157,7 +166,15 @@
 // assignments are flagged here as pending confirmation against a public
 // interoperability reference, consistent with this repo's established
 // practice of surfacing spec ambiguity rather than silently guessing (see
-// also the I²C bus-speed-enum note referenced at Milestone 48).
+// also the I²C bus-speed-enum note referenced at Milestone 48). Two pieces
+// of this package's lifecycle behaviour have since been checked directly
+// against the RC Server lifecycle chapter and now match it: the
+// StateHWLocked→StateUnconfigured reverse transition (DemoteToUnconfigured)
+// exists because the specification says it does, not as a guess; and
+// per-endpoint functional configuration staying writable in
+// StateFullyConfigured (WriteFunctional, WriteEP0) reflects the
+// specification's own statement that only server-wide/HW-pin configuration
+// locks permanently at that state, not the per-endpoint functional blocks.
 package server
 
 //fusa:req REQ-RCS-001
@@ -191,3 +208,4 @@ package server
 //fusa:req REQ-RCS-029
 //fusa:req REQ-RCS-030
 //fusa:req REQ-RCS-020
+//fusa:req REQ-RCS-031

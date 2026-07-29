@@ -1,9 +1,12 @@
 package lifecycle
 
 // LifecycleState is one of the RC Server's three configuration states. A
-// server only ever advances forward, one state at a time, and only when the
-// guard condition for that transition passes — see
-// server.Server.AdvanceToHWLocked and server.Server.AdvanceToFullyConfigured.
+// server advances forward one state at a time, only when the guard
+// condition for that transition passes — see server.Server.AdvanceToHWLocked
+// and server.Server.AdvanceToFullyConfigured — and can additionally move
+// backward exactly once, from StateHWLocked to StateUnconfigured, via
+// server.Server.DemoteToUnconfigured. There is no path back to
+// StateUnconfigured or StateHWLocked once StateFullyConfigured is reached.
 type LifecycleState uint8
 
 const (
@@ -16,14 +19,21 @@ const (
 	// passed its plausibility check and been locked. Endpoint declarations
 	// and the pin-mapping table are now frozen; each endpoint's functional
 	// (type-specific) configuration block, and the request-stream/queue
-	// configuration tables, are still writable.
+	// configuration tables, are still writable. The root client, or
+	// whichever stream currently holds the still-open discovery-stream
+	// configuration claim, may demote the server back to
+	// StateUnconfigured from here — see server.Server.DemoteToUnconfigured.
 	StateHWLocked
 
 	// StateFullyConfigured is reached once every declared endpoint has a
 	// plausible functional configuration block and the queue configuration
-	// itself passes its own plausibility check. Every register field is
-	// permanently locked from this point on, for every requester —
-	// including the root client.
+	// itself passes its own plausibility check. The general/HW-pin block and
+	// the request-stream/queue configuration tables are permanently locked
+	// from this point on, for every requester, including the root client —
+	// there is no path back to an earlier state. Each endpoint's functional
+	// configuration block remains writable, via that endpoint's own
+	// registered stream(s) or via the root client through EP0 — see
+	// server.Server.WriteFunctional and server.Server.WriteEP0.
 	StateFullyConfigured
 )
 
