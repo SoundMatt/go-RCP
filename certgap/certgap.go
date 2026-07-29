@@ -6,6 +6,8 @@
 //fusa:req REQ-CERT-006
 //fusa:req REQ-CERT-007
 //fusa:req REQ-CERT-008
+//fusa:req REQ-CERT-009
+//fusa:req REQ-CERT-010
 
 // Package certgap provides ASIL-D gap analysis helpers for go-RCP.
 //
@@ -19,6 +21,24 @@
 //  2. Mark each requirement as Met or Unmet.
 //  3. Call Analyze to obtain a GapReport.
 //  4. The GapReport lists unmet requirements and the current compliance ratio.
+//
+// # Milestone 58 (v0.71.0): content regenerated against the current
+// requirement set
+//
+// Through Milestone 57 (v0.70.0) this package was pure engine — Registry/
+// Requirement/Analyze above, plus the generic StandardASILDGaps baseline,
+// exercised only by ad hoc test-fixture data, never a populated production
+// gap report. reqset.go adds this package's first real content:
+// BuildRequirementFamilies (one Requirement per REQ-* family Milestones
+// 44-57 produced) and BuildRegistry (that set plus StandardASILDGaps
+// combined into the Registry Analyze actually reports against). This
+// package intentionally does not attempt a requirement-by-requirement gap
+// report the way an individual REQ-NNN-level view would: `gofusa trace`
+// already is that tool of record, reading the same //fusa:req/:test tags
+// directly rather than a second, hand-maintained copy of them. What this
+// package adds beyond `gofusa trace` is the ASIL-D uplift framing
+// StandardASILDGaps provides, which is specific to this package, not
+// something `gofusa trace` computes.
 package certgap
 
 import "fmt"

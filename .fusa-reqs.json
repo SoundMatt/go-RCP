@@ -1961,6 +1961,60 @@
       "package": "formal"
     },
     {
+      "id": "REQ-FORM-009",
+      "text": "LifecycleTrace produces exactly len(actions)+1 states and a plausible action sequence satisfies LifecycleInvariants (rank never decreases, eventually reaches FullyConfigured).",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-010",
+      "text": "An out-of-order lifecycle transition attempt never advances LifecycleRank, satisfying the rank-never-decreases invariant while never satisfying the eventually-fully-configured invariant.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-011",
+      "text": "LifecycleRank orders Unconfigured, HWLocked, and FullyConfigured strictly increasing.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-012",
+      "text": "A full StandBy/Normal/Sleep/Normal wake cycle paced by powerstate.Driver satisfies PowerInvariants: PowerUnpowered is never observed, the wake-handshake retransmission queue eventually drains, and a Sleep-to-Normal wake eventually determines a cold/hot-start kind.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-013",
+      "text": "After a full wake cycle, the endpoint's final observed power state is Normal and the Driver's final pending retransmission count is zero.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-014",
+      "text": "PowerTrace produces exactly len(actions)+1 states.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-015",
+      "text": "An Observe-then-silence-past-timeout-then-Observe sequence satisfies TimeoutInvariants: the verdict clears after activity, trips once the configured timeout elapses, and clears again by the trace's end.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-016",
+      "text": "A sequence-monotonicity violation followed by Reset satisfies MonotonicityInvariants: the verdict trips on the violation, stays tripped (sticky) through subsequent arrivals, and clears after Reset.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
+      "id": "REQ-FORM-017",
+      "text": "A stream Supervisor has never observed at all is judged in-safe-state from its very first snapshot, with no implicit grace period.",
+      "asil": "B",
+      "package": "formal"
+    },
+    {
       "id": "REQ-I214-001",
       "text": "ComputeRisk returns the correct risk value as the product of impact and attack feasibility ratings.",
       "asil": "B",
@@ -2009,6 +2063,30 @@
       "package": "iso21434"
     },
     {
+      "id": "REQ-I214-009",
+      "text": "GoalRegistry.All returns every registered goal regardless of Satisfied state.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-010",
+      "text": "BuildTARA's every ThreatScenario carries a unique ID, a non-empty DamageScenario, and a valid Impact/Feasibility rating.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-011",
+      "text": "BuildTARA identifies at least one High-or-Critical risk threat in the TC18 attack surface.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
+      "id": "REQ-I214-012",
+      "text": "BuildGoalRegistry maps a CybersecurityGoal to every threat BuildTARA defines, and reports at least one genuinely unsatisfied goal.",
+      "asil": "B",
+      "package": "iso21434"
+    },
+    {
       "id": "REQ-CERT-001",
       "text": "Registry.Add registers a requirement so that All returns it.",
       "asil": "B",
@@ -2053,6 +2131,18 @@
     {
       "id": "REQ-CERT-008",
       "text": "StandardASILDGaps returns exactly 8 predefined ASIL-D gap requirements.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-009",
+      "text": "BuildRequirementFamilies returns unique, ASIL-B-targeted, Met Requirements, one per REQ-* family Milestones 44-57 produced.",
+      "asil": "B",
+      "package": "certgap"
+    },
+    {
+      "id": "REQ-CERT-010",
+      "text": "BuildRegistry's Analyze(ASILB) reports zero gaps and full compliance, while Analyze(ASILD) reports exactly StandardASILDGaps' items as the gap.",
       "asil": "B",
       "package": "certgap"
     },
