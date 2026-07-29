@@ -97,7 +97,7 @@ jobs:
 
   # ── go-FuSa safety checks (RELAY §20 continuous-conformance lifecycle) ─────
   gofusa:
-    name: go-FuSa safety check (v0.30.0)
+    name: go-FuSa safety check (v0.47.1)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -105,7 +105,7 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install go-FuSa
-        run: go install github.com/SoundMatt/go-FuSa/cmd/gofusa@v0.30.0
+        run: go install github.com/SoundMatt/go-FuSa/cmd/gofusa@v0.47.1
       - name: gofusa check (0 errors required)
         run: gofusa check ./...
       - name: gofusa vuln (dependency vulnerability scan, §20.1.2)
@@ -172,12 +172,23 @@ jobs:
   # NOT touch are still the retired bespoke Zone/Command/Response/Status
   # shape (see RELAY spec/vectors/rcp-status.json and
   # spec/schemas/rcp-{command,status}.json as of RELAY v1.14.0, the latest
-  # tag checked at this milestone) — this module no longer implements or
-  # claims interop with that shape, and updating those upstream is out of
-  # this repo's scope (RELAY is a separate project). Re-enable this step once
-  # a RELAY release publishes a TC18-shaped RCP golden vector; tracked
-  # out-of-repo, not silently dropped (see ROADMAP.md Milestone 59's own
-  # "Done" writeup and Guiding Principle 10).
+  # correctly-tagged release checked at this milestone) — this module no
+  # longer implements or claims interop with that shape, and updating those
+  # upstream is out of this repo's scope (RELAY is a separate project).
+  #
+  # RELAY's own v2.0.0 tag message claims a TC18-shaped rcp-message.json
+  # schema/vector replacement that would resolve this, but the v2.0.0 tag
+  # object itself does not point at the commit that actually adds those
+  # files (confirmed against RELAY's git history — the tag resolves to an
+  # unrelated CI-pin commit) — see SoundMatt/RELAY#72, filed upstream to
+  # track that tagging bug separately. Bumping this repo's RELAY pin to
+  # v2.0.0 today would NOT fix the gap this comment describes. Re-enable
+  # this step once a *correctly tagged* RELAY release actually carries the
+  # TC18-shaped RCP golden vector; tracked out-of-repo (SoundMatt/RELAY#72),
+  # not silently dropped (see ROADMAP.md Milestone 59's own "Done" writeup
+  # and Guiding Principle 10). The warning step below keeps this gap visible
+  # in every CI run's annotations rather than leaving it discoverable only
+  # by reading this comment.
   relay-conform:
     name: RELAY conform
     runs-on: ubuntu-latest
@@ -192,3 +203,11 @@ jobs:
         run: go build -o /tmp/go-rcp ./cmd/go-rcp
       - name: relay conform --strict
         run: relay conform --strict /tmp/go-rcp
+      - name: "Loud reminder: RCP interop conformance is not exercised in CI"
+        if: always()
+        run: |
+          echo "::warning::relay interop --protocol RCP is NOT run in this workflow. \
+          RELAY's only tagged RCP interop vectors still use the retired Zone/Command/Response/Status shape; \
+          the v2.0.0 tag that claims to fix this does not actually point at the commit containing the fix \
+          (see SoundMatt/RELAY#72). This is a real, tracked coverage gap, not a passing check — \
+          see this file's relay-conform job comment for detail."
