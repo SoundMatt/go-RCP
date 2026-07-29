@@ -42,7 +42,7 @@ was retired at v1.0.0 once the bespoke API it targeted was removed.
 
 ## Packages
 
-The repo ships ~53 packages beyond the root module. The table below groups
+The repo ships 59 packages beyond the root module. The table below groups
 them by concern; see each package's doc comment (`go doc ./<pkg>`) for
 details.
 
@@ -61,13 +61,24 @@ Part II for the full program and each satellite package's disposition.
 | Package | Description |
 |---|---|
 | `avtp` | IEEE 1722 AVTPDU/ACF wire format for TC18 RCP (Milestone 44, v0.57.0) — untimed/timestamped AVTPDU headers, the short/long RCP message encodings, and stream_id/byte_bus_id/transaction_num addressing |
-| `server` | RC Server configuration lifecycle, register map, and Discovery for TC18 RCP (Milestones 45/46, v0.58.0/v0.59.0) — the 3-state lifecycle and its transition guards, the generic/functional per-endpoint register split, EP0 and the root-client/restricted-stream access model, the HW pin-mapping table, request-stream/response-queue configuration, the grant-independent register-0 discovery read, the timeout-releasable configuration-claim, and client-side conformant-server recognition/topology persistence |
+| `acf` | The RCP-over-ACF message layer for TC18 RCP (Milestone 44, v0.57.0) — the ACF_ABB/ACF_GBB request-descriptor header, control flags, short/long message encoding, and the combined Frame that carries one such message |
+| `server` | RC Server configuration lifecycle, register map, and Discovery for TC18 RCP (Milestones 45/46, v0.58.0/v0.59.0) — the Server type that composes `lifecycle`/`regmap`/`discovery` (below) into one mutex-guarded, lifecycle-gated, access-controlled read/write surface: EP0 and the root-client/restricted-stream access model, the transition guards between lifecycle states, and client-side conformant-server recognition/topology persistence |
+| `lifecycle` | The RC Server's 3-state configuration lifecycle (unconfigured/HW-locked/fully-configured) for TC18 RCP — split out of `server` per RELAY spec v1.14 §13.7.2's cross-language module-name registry |
+| `regmap` | The RC Server register-map model for TC18 RCP — the general server block, the generic/functional per-endpoint split, the HW pin-mapping table, and the request-stream/response-queue configuration tables — split out of `server` per RELAY spec v1.14 §13.7.2 |
+| `discovery` | RC Server discovery for TC18 RCP (Milestone 46, v0.59.0) — a register-0 read answerable in any lifecycle state regardless of access-control grants, plus the timeout-releasable Discovery-stream configuration claim — split out of `server` per RELAY spec v1.14 §13.7.2 |
+| `request` | The conditional-request taxonomy (compound/compound-wait/triggered/chained/timed), the sequencer primitive, cancellation requests, and the request-lifecycle state machine (queued/started/executing/finalized) for TC18 RCP, including the fixed cross-type execution-priority ordering `Dispatcher.Pump` applies |
+| `fragment` | Multi-AVTPDU segmentation and reassembly for TC18 RCP (Milestone 52, v0.65.0) |
 | `gpio` | GPIO endpoint type for TC18 RCP (Milestone 47, v0.60.0) — up to 32 pins, the eight write-semantics (replace/OR/AND/AND-NOT/XOR/saturating add/saturating subtract/reconfigure), and per-pin change-trigger signals |
 | `spi` | SPI endpoint type for TC18 RCP (Milestone 47, v0.60.0) — controller-only, up to six sub-opcode-selected chip-select channels, raw full-duplex transfer payloads, per-channel clock/mode/timing configuration, and transfer-complete/chip-select-edge triggers |
 | `i2c` | I2C endpoint type for TC18 RCP (Milestone 48, v0.61.0) — controller-only, single-bus raw transfer payloads including the address byte(s) themselves, configurable bus speed and inter-transaction trailing time, and transaction-complete triggers |
 | `uart` | UART endpoint type for TC18 RCP (Milestone 48, v0.61.0) — independent TX/RX request handling sharing one functional config, FIFO-drain-or-timeout read completion with fragmented delivery of partial data, and TX-complete/RX-data-available triggers |
 | `adc` | ADC endpoint type for TC18 RCP (Milestone 48, v0.61.0) — single-channel up to 16-bit resolution, the three-layer sample/average/combine model, and the two continuous-sampling mechanisms (triggered off another endpoint, or self-triggered off its own measurement-done event) |
 | `pwm` | PWM endpoint type for TC18 RCP (Milestone 48, v0.61.0) — output and input roles sharing a symmetric period/active-duration waveform shape, with input response-only and failing explicitly on signal loss |
+| `lin` | LIN commander endpoint type for TC18 RCP (Milestone 51, v0.64.0) |
+| `can` | CAN controller endpoint type for TC18 RCP (Milestone 51, v0.64.0) — Classical CAN, CAN FD, and CAN XL frame formats |
+| `iseled` | ISELED endpoint type for TC18 RCP (Milestone 51, v0.64.0) |
+| `mdio` | MDIO endpoint type for TC18 RCP (Milestone 51, v0.64.0) |
+| `wakeup` | Wakeup control endpoint type for TC18 RCP (Milestone 51, v0.64.0) — the power-management endpoint that drives the server's StandBy/Sleep transitions |
 
 ### RCP control-plane concerns (spec §13.7.2)
 
