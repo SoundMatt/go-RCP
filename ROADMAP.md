@@ -592,8 +592,8 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **Satellite Migration** | v0.67.0 | Transport & discovery migration | wire retired (no successor), udp rebuilt on avtp/acf, tsn/shmem/loan adapted; mdns's role narrowed to an optional rendezvous helper; tlstransport deprecated ✅ |
 | **Satellite Migration** | v0.68.0 | Control-plane & topology adaptation | authz, ratelimit, redundancy, federation, zonegroup, proxy, admin, config, dyndata all re-keyed off avtp.StreamID/avtp.ByteBusID and re-pointed at *udp.Controller/udp.Router ✅ |
 | **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge all re-pointed at *udp.Controller/udp.Router; canbr/linbr narrow around the native can/lin endpoints, linbr absorbing PID/checksum/schedule-table logic client-side ✅ |
-| **Satellite Migration** | v0.70.0 | Tooling & test-double rebuild | mock, sim, capi, codegen, record, observe, faultinject, firmware |
-| **Satellite Migration** | v0.71.0 | Certification refresh | formal, iso21434, certgap, safety re-scoped to the new state machines and attack surface |
+| **Satellite Migration** | v0.70.0 | Tooling & test-double rebuild | mock, sim, capi, codegen, record, observe, faultinject, firmware ✅ |
+| **Satellite Migration** | v0.71.0 | Certification refresh | formal, iso21434, certgap, safety re-scoped to the new state machines and attack surface ✅ |
 | **Cutover** | v1.0.0 | TC18 conformance + RELAY re-certification | Legacy Zone/Command API removed; RELAY `Adapt`/golden-vectors/CLI re-satisfied against the new model |
 
 ---
@@ -1680,13 +1680,88 @@ binaries — every one of them needed no changes at all, since they all
 target the frozen legacy `Controller`/`Registry` surface, left byte-for-byte
 unchanged by this milestone (see above).
 
-### 58. Certification & Formal-Methods Refresh (v0.71.0)
+### 58. Certification & Formal-Methods Refresh (v0.71.0) ✅
 
 - Rebuild `formal`'s TLA+ specifications from scratch against the new
   lifecycle/power/safe-state machines; adapt `iso21434`, `certgap`,
   `safety`
 - Deliberately last among the satellite migrations: certification
   artifacts describe behaviour that needs to already exist and be stable
+
+**Done (v0.71.0):** the one REPLACE-flagged package and three ADAPT-flagged
+packages this milestone names are rebuilt per the disposition table's own
+reasoning for each:
+
+- **`formal` REPLACE, methodology carried over, proofs rebuilt from
+  scratch**: through Milestone 57 this package was pure engine (`State`/
+  `Predicate`/`Always`/`Eventually`/`Until`/`Invariant`/`Checker`),
+  exercised only by a trivial integer-counter trace — the retired Milestone
+  41 TLA+ proofs of the old zone-health/client-push-watchdog/anti-replay-
+  window machines were never even reproduced as Go-native content here, and
+  no `tla/` directory or `FORMAL_VERIFICATION.md` existed on disk. Three new
+  files each wire the existing primitives to one of this program's actual
+  state machines by driving the *real production types* through a
+  code-defined action sequence: `lifecycle.go` (`server.Server`'s
+  Unconfigured→HWLocked→FullyConfigured axis), `power.go` (`wakeup.Endpoint`'s
+  Normal/StandBy/Sleep model plus `powerstate.Driver`'s retransmission
+  pacing), and `safestate.go` (`e2e.Supervisor`'s inter-arrival-timeout and
+  sequence-monotonicity watchdog). This is deliberately *not* a
+  reintroduction of an external TLA+/TLC toolchain — see `formal/formal.go`'s
+  own "A note on this package's proof method" for the documented scope
+  difference (targeted, code-driven traces, not exhaustive state-space model
+  checking) — and a new `FORMAL_VERIFICATION.md` was added at the repo root
+  as the Milestone 41-equivalent evidence writeup, resolving the ambiguity
+  the original roadmap text left open rather than silently skipping it.
+- **`iso21434` ADAPTed: the TARA risk-scoring engine is unchanged; `tara.go`
+  adds this package's first-ever populated content** — `BuildTARA` (six
+  `ThreatScenario`s scoped to `avtp.StreamID`/`avtp.ByteBusID` addressing
+  and the `regmap.AccessController` claim model, the `discovery` package's
+  configuration-claim window, and the `e2e` package's CRC32 safe-point/
+  safe-state watchdog) and `BuildGoalRegistry` (a `CybersecurityGoal` per
+  threat, three of six honestly marked unsatisfied — StreamID spoofing and
+  CRC32 forgery need authentication capability this repository does not
+  implement, and opt-in sequence-monotonicity checking is not this
+  package's default). A new `GoalRegistry.All` method (mirroring
+  `certgap.Registry.All`) supports verifying full goal coverage. `TARA.md`
+  published alongside, summarizing the table for readers who don't want to
+  read Go source.
+- **`certgap` ADAPTed: the Registry/Requirement/Analyze engine is
+  unchanged; `reqset.go` adds this package's first-ever populated
+  content** — `BuildRequirementFamilies` rolls up every REQ-* family
+  Milestones 44-57 produced (avtp/acf, server+lifecycle+regmap+discovery,
+  request, e2e, wakeup, powerstate, redundancy, fragment, the ten
+  hardware-facing endpoint types, the eight protocol bridges, udp,
+  tlstransport, authz, ratelimit, admin, federation, zonegroup, dyndata,
+  prioqueue, shmem, and the tooling packages) into one `Requirement` per
+  family, all Met at the project's ASIL-B target — deliberately excluding
+  the retired REQ-ZONE/REQ-CMD/REQ-PRI-era families, which describe an API
+  surface Milestone 59's cutover removes. `BuildRegistry` combines that set
+  with the unchanged `StandardASILDGaps` baseline, so `Analyze(ASILB)`
+  reports full compliance while `Analyze(ASILD)` still reports exactly the
+  same eight generic uplift items as before — this milestone regenerates
+  the requirement set, not the ASIL-D gap baseline itself.
+- **`safety` ADAPTed: the measurement methodology and GSN evidence shape
+  are unchanged; the measured path is rebuilt** — `command_latency_test.go`
+  no longer drives `mock.Controller`/`rcp.Controller.Send`; it now drives a
+  real loopback `udp.Server`/`udp.Router` pair (one `request.Dispatcher`
+  per registered endpoint, via a small `dispatchHandler` adapter) through
+  `udp.Controller.Write`, over five concurrent streams mirroring the
+  retired five-zone workload. `COMMAND_LATENCY.md` was regenerated against
+  this path (Max Send latency observed well under the 5000 µs watchdog
+  half-period budget across repeated runs) and its Assumptions/Residual-risk
+  sections updated to describe a real UDP/IP loopback socket rather than an
+  in-process mock. This is also the point where `safety` stops being one of
+  the five call sites keeping `mock`'s frozen legacy `Controller`/`Registry`
+  surface alive (Milestone 57's own accounting) — a side effect of
+  re-pointing, not a goal this milestone set out to pursue.
+
+15 `//fusa:req`/`//fusa:test`-tagged requirements are added fresh
+(`REQ-FORM-009`..`017`, `REQ-I214-009`..`012`, `REQ-CERT-009`..`010`) for
+the new content in each of the three ADAPT/REPLACE packages that gained
+one; `REQ-SAFETY-001` is unchanged; `.fusa-reqs.json` gained matching
+entries for all 15. 664 total requirements, 100% traced and tested per
+`gofusa check`/`gofusa trace`. No other package in this repo imports
+`formal`, `iso21434`, or `certgap` outside their own test files.
 
 ---
 ### Phase 18 — Cutover

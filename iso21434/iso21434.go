@@ -6,6 +6,10 @@
 //fusa:req REQ-I214-006
 //fusa:req REQ-I214-007
 //fusa:req REQ-I214-008
+//fusa:req REQ-I214-009
+//fusa:req REQ-I214-010
+//fusa:req REQ-I214-011
+//fusa:req REQ-I214-012
 
 // Package iso21434 provides cybersecurity engineering artifacts for go-RCP
 // aligned with ISO/SAE 21434 (Road Vehicle Cybersecurity Engineering).
@@ -20,6 +24,17 @@
 //   - Risk value computation using impact and attack feasibility matrices
 //
 // Risk = Impact × Attack-Feasibility (both rated 1–4 per ISO 21434 Annex E).
+//
+// # Milestone 58 (v0.71.0): TC18 TARA content
+//
+// Through Milestone 57 (v0.70.0) this package was pure engine — the
+// structures and ComputeRisk above, exercised only by ad hoc test-fixture
+// data, never a populated production TARA. tara.go adds this package's
+// first real content: BuildTARA, a Threat Analysis and Risk Assessment
+// scoped to the TC18 attack surface this program actually implements, and
+// BuildGoalRegistry, the CybersecurityGoal mapping (including honestly
+// unsatisfied ones) against it. See tara.go's own doc comment for the
+// attack-surface scope and spec-fidelity notes.
 package iso21434
 
 import (
@@ -146,6 +161,16 @@ func NewGoalRegistry() *GoalRegistry {
 // Add registers a goal.
 func (r *GoalRegistry) Add(g CybersecurityGoal) {
 	r.goals[g.ID] = g
+}
+
+// All returns a snapshot of every registered goal, satisfied or not —
+// certgap.Registry.All's counterpart for this package's own registry type.
+func (r *GoalRegistry) All() []CybersecurityGoal {
+	out := make([]CybersecurityGoal, 0, len(r.goals))
+	for _, g := range r.goals {
+		out = append(out, g)
+	}
+	return out
 }
 
 // Unsatisfied returns all goals that are not yet satisfied.
