@@ -121,6 +121,36 @@ func (s *Server) AdvanceToFullyConfigured() error {
 	return nil
 }
 
+// DemoteToUnconfigured runs the HWLocked→Unconfigured reverse-transition
+// guard: the current state must be lifecycle.StateHWLocked, and requester
+// must be either the root client or the stream currently holding the active
+// Discovery-stream configuration claim (see ClaimConfiguration) — the same
+// discovery-stream-or-root-client pairing that already governs functional
+// configuration while HWLocked. On success the pin-mapping table and every
+// declared endpoint's GenericEndpointBlock become writable again, exactly as
+// they were in StateUnconfigured; declared endpoints, their pin assignments,
+// and their functional blocks are left as-is rather than cleared, so a
+// caller demoting the server to correct or extend the HW configuration does
+// not lose unrelated state it never intended to touch. On failure the state
+// is unchanged. There is no reverse transition out of
+// lifecycle.StateFullyConfigured — see lifecycle.LifecycleState's doc
+// comment.
+func (s *Server) DemoteToUnconfigured(requester avtp.StreamID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state != lifecycle.StateHWLocked {
+		return lifecycle.ErrLifecycleOutOfOrder
+	}
+	if !s.access.IsRoot(requester) {
+		now := s.now()
+		if !s.claim.Active(now) || s.claim.Stream != requester {
+			return lifecycle.ErrDemotionNotAuthorized
+		}
+	}
+	s.state = lifecycle.StateUnconfigured
+	return nil
+}
+
 // AddEndpoint declares a new endpoint at addr with the given type. It is a
 // root-client-only, pre-HW-lock-only operation: declaring the server's
 // endpoint topology is itself part of the hardware configuration the
@@ -195,16 +225,17 @@ func (s *Server) SetQueueConfig(requester avtp.StreamID, cfg regmap.QueueConfig)
 
 // WriteFunctional writes an endpoint's functional (type-specific)
 // configuration block. It requires requester to have access to addr (root,
-// or an explicit grant — see regmap.AccessController) and is rejected once
-// lifecycle.StateFullyConfigured is reached, regardless of requester.
+// or an explicit grant — see regmap.AccessController). Unlike the
+// server-wide/HW-pin configuration surfaces (SetPinAssignment,
+// SetStreamLimits, SetQueueConfig), functional configuration stays
+// writable, via addr's own registered stream(s) or via the root client,
+// even once lifecycle.StateFullyConfigured is reached — see
+// lifecycle.StateFullyConfigured's doc comment.
 func (s *Server) WriteFunctional(requester avtp.StreamID, addr avtp.ByteBusID, data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.access.CanAccess(requester, addr) {
 		return regmap.ErrAccessDenied
-	}
-	if s.state == lifecycle.StateFullyConfigured {
-		return regmap.ErrRegisterLocked
 	}
 	ep, ok := s.rmap.Endpoint(addr)
 	if !ok {
@@ -246,10 +277,14 @@ func (s *Server) ReadEP0(requester avtp.StreamID) ([]byte, error) {
 // WriteEP0 replaces the whole register map from data, for requester. It is
 // root-client-only. The incoming map is checked field-by-field against the
 // current lock state before anything is applied: the general block may
-// never change (regmap.ErrGeneralBlockReadOnly), the pin-mapping table may
-// not change once it is no longer lifecycle.StateUnconfigured
-// (regmap.ErrRegisterLocked), and no part of the map may change at all once
-// lifecycle.StateFullyConfigured is reached (regmap.ErrRegisterLocked). The
+// never change (regmap.ErrGeneralBlockReadOnly); the pin-mapping table and
+// each endpoint's GenericEndpointBlock may not change once it is no longer
+// lifecycle.StateUnconfigured (regmap.ErrRegisterLocked); and, once
+// lifecycle.StateFullyConfigured is reached, the request-stream and
+// response/acknowledge-queue configuration tables become locked too
+// (regmap.ErrRegisterLocked) — but each endpoint's own functional
+// (type-specific) configuration block remains writable via the root client
+// through EP0 even in StateFullyConfigured, matching WriteFunctional. The
 // write is all-or-nothing: on any rejection, the server's map is left
 // exactly as it was.
 func (s *Server) WriteEP0(requester avtp.StreamID, data []byte) error {
@@ -267,14 +302,19 @@ func (s *Server) WriteEP0(requester avtp.StreamID, data []byte) error {
 		return regmap.ErrGeneralBlockReadOnly
 	}
 
-	if s.state == lifecycle.StateFullyConfigured {
-		return regmap.ErrRegisterLocked
-	}
 	if s.state != lifecycle.StateUnconfigured {
 		if !incoming.PinMap.Equal(&s.rmap.PinMap) {
 			return regmap.ErrRegisterLocked
 		}
 		if !regmap.SameEndpointGenerics(incoming, s.rmap) {
+			return regmap.ErrRegisterLocked
+		}
+	}
+	if s.state == lifecycle.StateFullyConfigured {
+		if incoming.Streams != s.rmap.Streams {
+			return regmap.ErrRegisterLocked
+		}
+		if incoming.Queues != s.rmap.Queues {
 			return regmap.ErrRegisterLocked
 		}
 	}

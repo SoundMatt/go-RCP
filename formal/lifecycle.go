@@ -7,13 +7,14 @@ import (
 	"github.com/SoundMatt/go-RCP/server"
 )
 
-// LifecycleRank orders lifecycle.LifecycleState values for the
-// monotonic-advance invariant LifecycleInvariants checks: a plausible
-// trace's rank must never decrease from one state to the next, since
-// server.Server only ever advances forward one step at a time (see
-// lifecycle.LifecycleState's own doc comment) and every rejected
-// transition attempt leaves the prior state unchanged rather than moving
-// it backward.
+// LifecycleRank orders lifecycle.LifecycleState values for the two
+// transition-shape invariants LifecycleInvariants checks: server.Server
+// advances forward one rank at a time, may fall back exactly one rank from
+// StateHWLocked to StateUnconfigured via server.Server.DemoteToUnconfigured,
+// and — once rank reaches lifecycle.StateFullyConfigured — never leaves it
+// again (see lifecycle.LifecycleState's own doc comment). Every rejected
+// transition or demotion attempt leaves the prior state unchanged rather
+// than moving it at all.
 func LifecycleRank(s lifecycle.LifecycleState) int {
 	switch s {
 	case lifecycle.StateUnconfigured:
@@ -65,20 +66,40 @@ func LifecycleTrace(srv *server.Server, actions []LifecycleAction) []State {
 }
 
 // LifecycleInvariants returns the temporal properties this package verifies
-// against any LifecycleTrace: the observed rank never decreases (REQ-RCS's
-// "states only ever advance one step at a time" rule, checked here at the
-// trace level rather than trusted from server.Server's own unit tests
-// alone), and a trace built from a fully plausible action sequence
-// eventually reaches lifecycle.StateFullyConfigured.
+// against any LifecycleTrace: every step's rank change has a legal shape
+// (checked here at the trace level rather than trusted from server.Server's
+// own unit tests alone), rank never regresses once it has reached
+// lifecycle.StateFullyConfigured, and a trace built from a fully plausible
+// action sequence eventually reaches lifecycle.StateFullyConfigured.
 func LifecycleInvariants() []Invariant {
+	unconfiguredRank := LifecycleRank(lifecycle.StateUnconfigured)
+	hwLockedRank := LifecycleRank(lifecycle.StateHWLocked)
+	fullyConfiguredRank := LifecycleRank(lifecycle.StateFullyConfigured)
 	return []Invariant{
 		{
-			Name: "lifecycle rank never decreases",
+			// A step either holds rank steady (an attempted transition or
+			// demotion was rejected), advances it by exactly one (a
+			// successful AdvanceToHWLocked/AdvanceToFullyConfigured), or
+			// falls back by exactly one from StateHWLocked to
+			// StateUnconfigured (the one legal reverse transition,
+			// server.Server.DemoteToUnconfigured). Any other change —
+			// skipping a rank forward, falling back from
+			// StateFullyConfigured, or falling back more than one rank —
+			// is illegal and fails this invariant.
+			Name: "lifecycle rank only ever changes by a legal transition",
 			Check: func(trace []State) bool {
 				prev := -1
-				for _, s := range trace {
+				for i, s := range trace {
 					rank, _ := s["lifecycle_rank"].(int) //nolint:errcheck
-					if rank < prev {
+					if i == 0 {
+						prev = rank
+						continue
+					}
+					switch {
+					case rank == prev: // rejected attempt: no change
+					case rank == prev+1: // legal forward advance
+					case prev == hwLockedRank && rank == unconfiguredRank: // legal demotion
+					default:
 						return false
 					}
 					prev = rank
@@ -87,10 +108,26 @@ func LifecycleInvariants() []Invariant {
 			},
 		},
 		{
+			Name: "lifecycle never regresses once fully-configured",
+			Check: func(trace []State) bool {
+				sawFullyConfigured := false
+				for _, s := range trace {
+					rank, _ := s["lifecycle_rank"].(int) //nolint:errcheck
+					if sawFullyConfigured && rank != fullyConfiguredRank {
+						return false
+					}
+					if rank == fullyConfiguredRank {
+						sawFullyConfigured = true
+					}
+				}
+				return true
+			},
+		},
+		{
 			Name: "lifecycle eventually reaches fully-configured",
 			Check: Eventually(func(s State) bool {
 				rank, _ := s["lifecycle_rank"].(int) //nolint:errcheck
-				return rank == LifecycleRank(lifecycle.StateFullyConfigured)
+				return rank == fullyConfiguredRank
 			}),
 		},
 	}
@@ -113,6 +150,39 @@ func NewValidLifecycleTrace(root avtp.StreamID, addr avtp.ByteBusID) (*server.Se
 		func(s *server.Server) error {
 			return s.SetPinAssignment(root, regmap.PinAssignment{Pin: 10, Endpoint: addr, SignalIndex: 0})
 		},
+		func(s *server.Server) error { return s.AdvanceToHWLocked() },
+		func(s *server.Server) error { return s.WriteFunctional(root, addr, []byte{0x01}) },
+		func(s *server.Server) error {
+			return s.SetQueueConfig(root, regmap.QueueConfig{FlushThreshold: 4})
+		},
+		func(s *server.Server) error { return s.AdvanceToFullyConfigured() },
+	}
+	return srv, actions, nil
+}
+
+// NewDemotionThenReconfigureLifecycleTrace returns a fresh *server.Server
+// (root claimed) and an action sequence that reaches StateHWLocked, demotes
+// back to StateUnconfigured via server.Server.DemoteToUnconfigured, then
+// re-advances through StateHWLocked to StateFullyConfigured — exercising the
+// one legal reverse transition LifecycleInvariants' "legal transition
+// shape" property permits, followed by a normal forward re-run. The
+// endpoint declaration and pin assignment from before the demotion are
+// still in place afterward (DemoteToUnconfigured reopens them for writing;
+// it does not clear them — see DemoteToUnconfigured's doc comment), so the
+// re-advance only needs to repeat AdvanceToHWLocked itself, not
+// AddEndpoint/SetPinAssignment.
+func NewDemotionThenReconfigureLifecycleTrace(root avtp.StreamID, addr avtp.ByteBusID) (*server.Server, []LifecycleAction, error) {
+	srv := server.NewServer()
+	if err := srv.ClaimRoot(root); err != nil {
+		return nil, nil, err
+	}
+	actions := []LifecycleAction{
+		func(s *server.Server) error { return s.AddEndpoint(root, addr, regmap.EndpointTypeGPIO) },
+		func(s *server.Server) error {
+			return s.SetPinAssignment(root, regmap.PinAssignment{Pin: 10, Endpoint: addr, SignalIndex: 0})
+		},
+		func(s *server.Server) error { return s.AdvanceToHWLocked() },
+		func(s *server.Server) error { return s.DemoteToUnconfigured(root) },
 		func(s *server.Server) error { return s.AdvanceToHWLocked() },
 		func(s *server.Server) error { return s.WriteFunctional(root, addr, []byte{0x01}) },
 		func(s *server.Server) error {

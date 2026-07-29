@@ -13,4 +13,10 @@ var (
 	// configured state while at least one declared endpoint still has an
 	// empty functional (type-specific) configuration block.
 	ErrFunctionalBlockIncomplete = errors.New("rcp/lifecycle: endpoint has no functional configuration set")
+
+	// ErrDemotionNotAuthorized is returned when a stream that is neither the
+	// root client nor the current Discovery-stream configuration claimant
+	// asks to demote the server from StateHWLocked back to
+	// StateUnconfigured. See server.Server.DemoteToUnconfigured.
+	ErrDemotionNotAuthorized = errors.New("rcp/lifecycle: demotion requires the root client or the active discovery-stream claimant")
 )
