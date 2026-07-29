@@ -9,17 +9,25 @@
 // implemented rcp.LoaningController — both root-module contracts Phase 17's
 // disposition table explicitly leaves alone ("Root-module files ... are
 // not in this table ... Their replacement is Phases 13-16 (the types
-// themselves) plus Phase 18"). Since udp.Controller does not (and, until
-// Phase 18 defines a TC18-shaped equivalent of rcp.Controller, cannot
-// meaningfully) implement that old interface, this rebuild wraps
-// *udp.Controller concretely instead of an interface, and exposes
-// RequestLoaned/Loan in place of the old SendLoaned/Loan pair. The pooled
-// buffer type itself is unchanged: this package still hands out and
-// recycles *rcp.Loan values (root package's own already-generic Payload +
-// release-func struct — see rcp.NewLoan's doc comment, "intended for use by
-// LoaningController implementations in external packages"), the same "only
-// the pooled type changes" continuity the disposition table calls for,
-// just no longer wrapped by the retired Command/Response-shaped interface.
+// themselves) plus Phase 18"). At the time of this rebuild udp.Controller
+// did not (and, until Phase 18 defined a TC18-shaped equivalent of
+// rcp.Controller, could not meaningfully) implement that old interface, so
+// this rebuild wraps *udp.Controller concretely instead of an interface,
+// and exposes RequestLoaned/Loan in place of the old SendLoaned/Loan pair.
+// The pooled buffer type itself is unchanged: this package still hands out
+// and recycles *rcp.Loan values (root package's own already-generic
+// Payload + release-func struct — see rcp.NewLoan's doc comment, "intended
+// for use by loaning-pool implementations in external packages"), the same
+// "only the pooled type changes" continuity the disposition table calls
+// for, just no longer wrapped by the retired Command/Response-shaped
+// interface.
+//
+// Phase 18's cutover (Milestone 59, v1.0.0) has since defined that
+// TC18-shaped rcp.Controller — StreamID/Request/Close, the same shape
+// *udp.Controller and mock.Client already presented — and this package's
+// own Controller happens to satisfy it too (see the compile-time assertion
+// below), a side effect of already matching *udp.Controller's shape rather
+// than a change made for this milestone.
 package loan
 
 //fusa:req REQ-LOAN-001
@@ -56,6 +64,10 @@ type Controller struct {
 	mu     sync.Mutex
 	loaned map[*byte]*[]byte
 }
+
+// Controller satisfies rcp.Controller (see this file's own package doc
+// comment).
+var _ rcp.Controller = (*Controller)(nil)
 
 // New wraps inner as a loaning Controller.
 func New(inner *udp.Controller) *Controller {

@@ -33,26 +33,36 @@ func ndjson(t *testing.T, msgs ...relay.Message) string {
 	return b.String()
 }
 
-// TestConvert_GoldenVector pins convert's output to the RELAY golden vector
-// spec/vectors/rcp-status.json: the Status value must produce the exact
-// relay.Message the cross-language interop oracle expects.
-func TestConvert_GoldenVector(t *testing.T) {
-	const input = `{"zone":1,"seq":3,"healthy":true,"payload":"AQ=="}`
-	const want = `{"protocol":5,"version":{"major":0,"minor":0,"patch":0},"id":"FrontLeft","payload":"AQ==","timestamp":"0001-01-01T00:00:00Z","seq":3,"meta":{"rcp.healthy":"true"}}`
+func newTestFixture(t *testing.T) *mock.Client {
+	t.Helper()
+	fx, ctrl := newDemoFixture()
+	t.Cleanup(func() { _ = fx.Close() })
+	return ctrl
+}
+
+// TestConvert_RoundTrip pins convert's output to rcp.ResponseToMessage's
+// own conversion for a representative addressed response.
+func TestConvert_RoundTrip(t *testing.T) {
+	const input = `{"byte_bus_id":1,"body":"AQ==","error":false}`
 
 	var out, errBuf bytes.Buffer
 	code := cmdConvert([]string{"--protocol", "RCP", "--format", "json"}, strings.NewReader(input), &out, &errBuf)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, errBuf.String())
 	}
-	got := strings.TrimSpace(out.String())
-	if got != want {
-		t.Errorf("convert output mismatch:\n got: %s\nwant: %s", got, want)
+	var doc map[string]any
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	// And it must be valid JSON parseable back into a generic object.
-	var obj map[string]any
-	if err := json.Unmarshal([]byte(got), &obj); err != nil {
-		t.Errorf("output is not valid JSON: %v", err)
+	if doc["id"] != rcp.EndpointIDString(1) {
+		t.Errorf("id = %v, want %q", doc["id"], rcp.EndpointIDString(1))
+	}
+	if doc["payload"] != "AQ==" {
+		t.Errorf("payload = %v, want AQ==", doc["payload"])
+	}
+	meta, _ := doc["meta"].(map[string]any)
+	if meta["rcp.error"] != "false" {
+		t.Errorf("meta[rcp.error] = %v, want false", meta["rcp.error"])
 	}
 }
 
@@ -61,11 +71,11 @@ func TestConvert_InvalidInput(t *testing.T) {
 		name  string
 		input string
 	}{
-		{"missing required field", `{"zone":1,"seq":3}`},
-		{"zone out of range", `{"zone":9,"seq":3,"healthy":true}`},
-		{"unknown field", `{"zone":1,"seq":3,"healthy":true,"x":1}`},
+		{"missing required field", `{"body":"AQ=="}`},
+		{"byte_bus_id out of range", `{"byte_bus_id":999,"error":false}`},
+		{"unknown field", `{"byte_bus_id":1,"error":false,"x":1}`},
 		{"malformed json", `not json`},
-		{"bad base64 payload", `{"zone":1,"seq":3,"healthy":true,"payload":"!!!!"}`},
+		{"bad base64 body", `{"byte_bus_id":1,"body":"!!!!","error":false}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,7 +104,7 @@ func TestConvert_InvalidArgs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var out, errBuf bytes.Buffer
-			code := cmdConvert(tc.args, strings.NewReader(`{"zone":1,"seq":3,"healthy":true}`), &out, &errBuf)
+			code := cmdConvert(tc.args, strings.NewReader(`{"byte_bus_id":1,"error":false}`), &out, &errBuf)
 			if code != 2 {
 				t.Errorf("exit code = %d, want 2 (stderr: %s)", code, errBuf.String())
 			}
@@ -102,11 +112,10 @@ func TestConvert_InvalidArgs(t *testing.T) {
 	}
 }
 
-// TestConvert_EmptyPayload confirms a Status without payload converts cleanly
-// (the relay.Message marshals payload as null and omits the zero seq).
-func TestConvert_EmptyPayload(t *testing.T) {
+// TestConvert_EmptyBody confirms a response without a body converts cleanly.
+func TestConvert_EmptyBody(t *testing.T) {
 	var out, errBuf bytes.Buffer
-	code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"zone":5,"seq":0,"healthy":false}`), &out, &errBuf)
+	code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"byte_bus_id":5,"error":true}`), &out, &errBuf)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, errBuf.String())
 	}
@@ -114,11 +123,11 @@ func TestConvert_EmptyPayload(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &obj); err != nil {
 		t.Fatalf("output not valid JSON: %v", err)
 	}
-	if obj["id"] != "Central" {
-		t.Errorf("id = %v, want Central", obj["id"])
+	if obj["id"] != rcp.EndpointIDString(5) {
+		t.Errorf("id = %v, want %q", obj["id"], rcp.EndpointIDString(5))
 	}
-	if meta, _ := obj["meta"].(map[string]any); meta["rcp.healthy"] != "false" {
-		t.Errorf("meta[rcp.healthy] = %v, want false", meta["rcp.healthy"])
+	if meta, _ := obj["meta"].(map[string]any); meta["rcp.error"] != "true" {
+		t.Errorf("meta[rcp.error] = %v, want true", meta["rcp.error"])
 	}
 }
 
@@ -232,65 +241,63 @@ func TestCmdStatus_Text(t *testing.T) {
 // ── RCP commands ──────────────────────────────────────────────────────────────
 
 func TestCmdDiscover(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
-	var w bytes.Buffer
-	cmdDiscover(reg, &w)
-	// mock.NewRegistry pre-populates all five standard zones.
-	if n := strings.Count(w.String(), "zone "); n != 5 {
-		t.Errorf("discover printed %d zone lines, want 5:\n%s", n, w.String())
+	ctrl := newTestFixture(t)
+	var w, errw bytes.Buffer
+	if code := cmdDiscover(ctrl, &w, &errw); code != 0 {
+		t.Fatalf("cmdDiscover exit = %d, want 0 (stderr: %s)", code, errw.String())
+	}
+	if !strings.Contains(w.String(), "register map:") {
+		t.Errorf("discover output = %q, want it to mention the register map", w.String())
 	}
 }
 
 func TestCmdSend_Success(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
+	ctrl := newTestFixture(t)
 	var w, errw bytes.Buffer
-	if code := cmdSend(reg, "FrontLeft", &w, &errw); code != 0 {
+	if code := cmdSend(ctrl, "1", &w, &errw); code != 0 {
 		t.Fatalf("cmdSend exit = %d, want 0 (stderr: %s)", code, errw.String())
 	}
 	var doc map[string]any
 	if err := json.Unmarshal(w.Bytes(), &doc); err != nil {
 		t.Fatalf("send output not valid JSON: %v", err)
 	}
-	if doc["zone"] != "FrontLeft" {
-		t.Errorf("zone = %v, want FrontLeft", doc["zone"])
+	byteBusID, ok := doc["byte_bus_id"].(float64)
+	if !ok || int(byteBusID) != 1 {
+		t.Errorf("byte_bus_id = %v, want 1", doc["byte_bus_id"])
 	}
-	if doc["status"] != "OK" {
-		t.Errorf("status = %v, want OK", doc["status"])
+	if doc["error"] != false {
+		t.Errorf("error = %v, want false", doc["error"])
 	}
 }
 
-func TestCmdSend_UnknownZone(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
+func TestCmdSend_UnparseableAddr(t *testing.T) {
+	ctrl := newTestFixture(t)
 	var w, errw bytes.Buffer
-	if code := cmdSend(reg, "nowhere", &w, &errw); code != 1 {
-		t.Errorf("cmdSend(unknown) exit = %d, want 1", code)
+	if code := cmdSend(ctrl, "nowhere", &w, &errw); code != 1 {
+		t.Errorf("cmdSend(unparseable) exit = %d, want 1", code)
 	}
-	if !strings.Contains(errw.String(), "unknown zone") {
-		t.Errorf("stderr = %q, want it to mention unknown zone", errw.String())
+	if !strings.Contains(errw.String(), "unknown byte_bus_id") {
+		t.Errorf("stderr = %q, want it to mention unknown byte_bus_id", errw.String())
 	}
 }
 
 func TestCmdMonitor_ReturnsOnContextCancel(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctrl := newTestFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
 	defer cancel()
 
 	done := make(chan struct{})
 	var w bytes.Buffer
 	go func() {
-		cmdMonitor(ctx, reg, &w)
+		cmdMonitor(ctx, ctrl, &w)
 		close(done)
 	}()
 	select {
 	case <-done:
-		if !strings.Contains(w.String(), "monitoring all zones") {
+		if !strings.Contains(w.String(), "monitoring demo endpoints") {
 			t.Errorf("monitor output = %q, want monitoring header", w.String())
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(3 * time.Second):
 		t.Fatal("cmdMonitor did not return after context cancellation")
 	}
 }
@@ -298,14 +305,13 @@ func TestCmdMonitor_ReturnsOnContextCancel(t *testing.T) {
 // ── §11.2 streaming send sink (crossbar spoke) ────────────────────────────────
 
 func TestSendStream_PublishesMessages(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
+	ctrl := newTestFixture(t)
 	in := ndjson(t,
-		relay.Message{Protocol: relay.RCP, ID: "FrontLeft", Meta: map[string]string{"rcp.cmd_type": "get"}},
-		relay.Message{Protocol: relay.RCP, ID: "Central", Meta: map[string]string{"rcp.cmd_type": "set"}},
+		relay.Message{Protocol: relay.RCP, ID: "1", Meta: map[string]string{"rcp.op": "read"}},
+		relay.Message{Protocol: relay.RCP, ID: "2", Meta: map[string]string{"rcp.op": "write"}},
 	)
 	var w, errw bytes.Buffer
-	if code := cmdSendStream(reg, strings.NewReader(in), &w, &errw); code != 0 {
+	if code := cmdSendStream(ctrl, strings.NewReader(in), &w, &errw); code != 0 {
 		t.Fatalf("exit = %d, want 0 (stderr: %s)", code, errw.String())
 	}
 	if !strings.Contains(w.String(), "published 2") {
@@ -317,30 +323,28 @@ func TestSendStream_PublishesMessages(t *testing.T) {
 }
 
 func TestSendStream_SkipsBadAndUndeliverableLines(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
-	// malformed JSON, an unknown zone, a blank line, then one good message.
+	ctrl := newTestFixture(t)
+	// malformed JSON, an unparseable ID, a blank line, then one good message.
 	in := "not json\n" +
-		`{"protocol":5,"id":"Nowhere"}` + "\n" +
+		`{"protocol":5,"id":"nowhere"}` + "\n" +
 		"\n" +
-		ndjson(t, relay.Message{Protocol: relay.RCP, ID: "RearLeft", Meta: map[string]string{"rcp.cmd_type": "get"}})
+		ndjson(t, relay.Message{Protocol: relay.RCP, ID: "3", Meta: map[string]string{"rcp.op": "read"}})
 	var w, errw bytes.Buffer
-	if code := cmdSendStream(reg, strings.NewReader(in), &w, &errw); code != 0 {
+	if code := cmdSendStream(ctrl, strings.NewReader(in), &w, &errw); code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
 	if !strings.Contains(w.String(), "published 1") {
 		t.Errorf("stdout = %q, want 1 published", w.String())
 	}
-	if !strings.Contains(errw.String(), "malformed") || !strings.Contains(errw.String(), "Nowhere") {
-		t.Errorf("stderr = %q, want malformed + unknown-zone warnings", errw.String())
+	if !strings.Contains(errw.String(), "malformed") || !strings.Contains(errw.String(), "nowhere") {
+		t.Errorf("stderr = %q, want malformed + unparseable-id warnings", errw.String())
 	}
 }
 
 func TestSendStream_EmptyInput(t *testing.T) {
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
+	ctrl := newTestFixture(t)
 	var w, errw bytes.Buffer
-	if code := cmdSendStream(reg, strings.NewReader(""), &w, &errw); code != 0 {
+	if code := cmdSendStream(ctrl, strings.NewReader(""), &w, &errw); code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
 	if !strings.Contains(w.String(), "published 0") {
@@ -352,13 +356,12 @@ func TestSendStream_EmptyInput(t *testing.T) {
 // relay.Message that the send sink can re-publish.
 func TestConvertSendRoundTrip(t *testing.T) {
 	var conv bytes.Buffer
-	if code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"zone":1,"seq":3,"healthy":true}`), &conv, &bytes.Buffer{}); code != 0 {
+	if code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"byte_bus_id":1,"error":false}`), &conv, &bytes.Buffer{}); code != 0 {
 		t.Fatalf("convert exit = %d", code)
 	}
-	reg := mock.NewRegistry()
-	defer reg.Close() //nolint:errcheck
+	ctrl := newTestFixture(t)
 	var w, errw bytes.Buffer
-	if code := cmdSendStream(reg, bytes.NewReader(conv.Bytes()), &w, &errw); code != 0 {
+	if code := cmdSendStream(ctrl, bytes.NewReader(conv.Bytes()), &w, &errw); code != 0 {
 		t.Fatalf("send sink exit = %d (stderr: %s)", code, errw.String())
 	}
 	if !strings.Contains(w.String(), "published 1") {

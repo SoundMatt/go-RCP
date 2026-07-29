@@ -1,4 +1,4 @@
-// go-rcp is the CLI for go-RCP zone controllers.
+// go-rcp is the CLI for go-RCP RC Servers.
 //
 // Mandatory RELAY commands (spec §11.1):
 //
@@ -6,19 +6,24 @@
 //	go-rcp capabilities                   — capabilities document (JSON)
 //	go-rcp status [--format text|json]    — self-assessed health
 //
-// Additional RCP commands:
+// Additional RCP commands, run against an in-process demo RC Server (a
+// mock.Fixture with a handful of endpoints registered — this binary dials
+// no real network transport on its own; wire your own *udp.Controller/
+// *udp.Server pair for that):
 //
-//	go-rcp discover                       — list all registered zones
-//	go-rcp send <zone>                    — send CmdSet to a zone
+//	go-rcp discover                       — read the demo server's EP0 register map
+//	go-rcp send <byte_bus_id>              — write a demo payload to an endpoint
 //	go-rcp send --format json             — streaming relay.Message NDJSON sink (crossbar spoke, §11.2)
-//	go-rcp monitor                        — stream status from all zones
+//	go-rcp monitor                        — poll every demo endpoint on an interval
 //
 // RELAY interop driver (spec §11.2):
 //
 //	go-rcp convert --protocol RCP [--format json]
-//	    — read an rcp.Status as JSON on stdin, run it through Status.ToMessage()
-//	      (the §15.7.5 canonical conversion), and write the relay.Message as JSON
-//	      on stdout. Exit 0 converted, 1 invalid input, 2 invalid args.
+//	    — read one addressed endpoint response as JSON on stdin, run it
+//	      through rcp.ResponseToMessage (the §15.7.5-analogue conversion
+//	      this package uses at runtime on the Call direction), and write the
+//	      resulting relay.Message as JSON on stdout. Exit 0 converted, 1
+//	      invalid input, 2 invalid args.
 package main
 
 //fusa:req REQ-CLI-001
@@ -44,7 +49,10 @@ import (
 
 	relay "github.com/SoundMatt/RELAY"
 	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
 const (
@@ -52,6 +60,17 @@ const (
 	protocol    = "RCP"
 	protocolInt = 5
 )
+
+// demoStream/demoAddrs seed the in-process demo RC Server discover/send/
+// monitor address a Fixture with no real network transport — a caller
+// wanting a live server dials *udp.NewServer/*udp.NewController directly
+// (see udp/doc.go); this binary's job is only to demonstrate Adapt/the
+// RELAY commands against something that exists without one.
+var demoAddrs = []avtp.ByteBusID{1, 2, 3, 4, 5}
+
+func demoStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x67, 0x6f, 0x2d, 0x72, 0x63}, 1) // "go-rc" in the low 5 MAC bytes
+}
 
 // toolVersion is the value reported by `version --format json` and
 // `capabilities` (spec §12.1/§12.2). It is a var, not a const, so release
@@ -79,29 +98,29 @@ func main() {
 	case "status":
 		cmdStatus(flagFormat(os.Args[2:]), os.Stdout)
 	case "discover":
-		reg := mock.NewRegistry()
-		defer reg.Close() //nolint:errcheck
-		cmdDiscover(reg, os.Stdout)
+		fx, ctrl := newDemoFixture()
+		defer func() { _ = fx.Close() }()
+		os.Exit(cmdDiscover(ctrl, os.Stdout, os.Stderr))
 	case "send":
 		args := os.Args[2:]
-		reg := mock.NewRegistry()
-		defer reg.Close() //nolint:errcheck
+		fx, ctrl := newDemoFixture()
+		defer func() { _ = fx.Close() }()
 		// `send --format json` is the streaming NDJSON sink / crossbar spoke
-		// (§11.2); `send <zone>` is the ad-hoc single-command form.
+		// (§11.2); `send <byte_bus_id>` is the ad-hoc single-request form.
 		if flagFormat(args) == "json" {
-			os.Exit(cmdSendStream(reg, os.Stdin, os.Stdout, os.Stderr))
+			os.Exit(cmdSendStream(ctrl, os.Stdin, os.Stdout, os.Stderr))
 		}
 		if len(args) < 1 {
-			fmt.Fprintln(os.Stderr, "usage: go-rcp send <zone> | send --format json")
+			fmt.Fprintln(os.Stderr, "usage: go-rcp send <byte_bus_id> | send --format json")
 			os.Exit(2)
 		}
-		os.Exit(cmdSend(reg, args[0], os.Stdout, os.Stderr))
+		os.Exit(cmdSend(ctrl, args[0], os.Stdout, os.Stderr))
 	case "monitor":
-		reg := mock.NewRegistry()
-		defer reg.Close() //nolint:errcheck
+		fx, ctrl := newDemoFixture()
+		defer func() { _ = fx.Close() }()
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
-		cmdMonitor(ctx, reg, os.Stdout)
+		cmdMonitor(ctx, ctrl, os.Stdout)
 	case "convert":
 		os.Exit(cmdConvert(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	default:
@@ -111,7 +130,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go-rcp <version|capabilities|status|discover|send <zone>|monitor|convert>")
+	fmt.Fprintln(os.Stderr, "usage: go-rcp <version|capabilities|status|discover|send <byte_bus_id>|monitor|convert>")
 }
 
 // flagFormat returns "text" or "json" from --format flag, defaulting to "text".
@@ -122,6 +141,35 @@ func flagFormat(args []string) string {
 		}
 	}
 	return "text"
+}
+
+// newDemoFixture builds the in-process demo RC Server discover/send/monitor
+// address: an unconfigured mock.Fixture (see mock/fixture.go) with a
+// mock.Endpoint registered at each of demoAddrs, each answering with a
+// fixed acknowledgement payload. The caller must Close the returned
+// *mock.Fixture.
+func newDemoFixture() (*mock.Fixture, *mock.Client) {
+	fx, err := mock.NewFixture(demoStream(), false)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "go-rcp: demo fixture: %v\n", err)
+		os.Exit(1)
+	}
+	for _, addr := range demoAddrs {
+		ep := mock.NewEndpoint(addr, func(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+			return acf.Message{
+				Kind:           req.Kind,
+				ByteBusID:      req.ByteBusID,
+				TransactionNum: req.TransactionNum,
+				Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+				Body:           []byte(fmt.Sprintf(`{"ack":true,"byte_bus_id":%d}`, addr)),
+			}, nil
+		})
+		if err := fx.Router.Register(addr, ep); err != nil {
+			fmt.Fprintf(os.Stderr, "go-rcp: demo fixture: register %d: %v\n", addr, err)
+			os.Exit(1)
+		}
+	}
+	return fx, fx.Root
 }
 
 // ── RELAY mandatory commands (spec §11.1) ─────────────────────────────────────
@@ -178,10 +226,10 @@ func cmdCapabilities(w io.Writer) {
 		Version:            toolVersion,
 		SpecVersion:        rcp.SpecVersion,
 		Commands:           []string{"version", "capabilities", "status", "discover", "send", "monitor", "convert"},
-		Transports:         []string{"virtual", "grpc", "rest", "tcp", "uds"},
+		Transports:         []string{"virtual", "udp", "tsn", "shmem", "grpc", "rest"},
 		Features:           []string{"loaning"},
-		Interfaces:         []string{"Controller", "Registry"},
-		OptionalInterfaces: []string{"LoaningController", "HealthProvider", "MetricsProvider", "Drainer"},
+		Interfaces:         []string{"Controller"},
+		OptionalInterfaces: []string{"HealthProvider", "MetricsProvider", "Drainer"},
 		Adapt:              true,
 	}
 	enc := json.NewEncoder(w)
@@ -223,57 +271,58 @@ func cmdStatus(format string, w io.Writer) {
 
 // ── RCP commands ──────────────────────────────────────────────────────────────
 
-func cmdDiscover(reg *mock.Registry, w io.Writer) {
-	for _, ctrl := range reg.Controllers() {
-		_, _ = fmt.Fprintf(w, "zone %-12s  controller=%T\n", ctrl.Zone(), ctrl)
-	}
-}
-
-// cmdSend sends a CmdGet to zoneName and prints the response as JSON. It returns
-// the process exit code: 0 on success, 1 on an unknown zone or send failure.
-func cmdSend(reg *mock.Registry, zoneName string, w, errw io.Writer) int {
-	zone, err := rcp.ZoneFromString(zoneName)
+// cmdDiscover reads the demo server's EP0 register map and prints its raw
+// byte length. It returns the process exit code: 0 on success, 1 on error.
+func cmdDiscover(ctrl *mock.Client, w, errw io.Writer) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	raw, err := ctrl.Discover(ctx)
 	if err != nil {
-		_, _ = fmt.Fprintf(errw, "unknown zone %q: %v\n", zoneName, err)
+		_, _ = fmt.Fprintf(errw, "discover: %v\n", err)
 		return 1
 	}
-	ctrl, err := reg.Lookup(zone)
+	_, _ = fmt.Fprintf(w, "register map: %d byte(s)\n", len(raw))
+	if rm, err := regmap.DecodeRegisterMap(raw); err == nil {
+		_, _ = fmt.Fprintf(w, "declared endpoints: %v\n", rm.Addresses())
+	}
+	return 0
+}
+
+// cmdSend writes a demo payload to addrStr (a decimal avtp.ByteBusID) and
+// prints the response as JSON. It returns the process exit code: 0 on
+// success, 1 on an unparseable address or request failure.
+func cmdSend(ctrl *mock.Client, addrStr string, w, errw io.Writer) int {
+	addr, err := rcp.ParseEndpointID(addrStr)
 	if err != nil {
-		_, _ = fmt.Fprintf(errw, "zone %q not found: %v\n", zoneName, err)
+		_, _ = fmt.Fprintf(errw, "unknown byte_bus_id %q: %v\n", addrStr, err)
 		return 1
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	resp, err := ctrl.Send(ctx, &rcp.Command{
-		ID:       1,
-		Zone:     zone,
-		Type:     rcp.CmdGet,
-		Priority: rcp.PriorityNormal,
-	})
+	resp, err := ctrl.Write(ctx, addr, []byte(`{"cmd":"get"}`))
 	if err != nil {
 		_, _ = fmt.Fprintf(errw, "send: %v\n", err)
 		return 1
 	}
 	b, _ := json.MarshalIndent(map[string]any{
-		"command_id": resp.CommandID,
-		"zone":       resp.Zone.String(),
-		"status":     resp.Status.String(),
-		"payload":    string(resp.Payload),
+		"byte_bus_id": addr,
+		"error":       resp.Control.Has(acf.FlagError),
+		"payload":     string(resp.Body),
 	}, "", "  ")
 	_, _ = fmt.Fprintln(w, string(b))
 	return 0
 }
 
 // cmdSendStream is the streaming JSON sink (RELAY §11.2 / crossbar spoke). It
-// reads relay.Message values as NDJSON on stdin (one per line) and publishes
-// each — via FromMessage → Command → the matching zone controller — until EOF.
-// It is the egress dual of a subscribe NDJSON source. Malformed or
-// undeliverable lines are reported to errw and skipped so a single bad message
-// does not tear down the crossbar route; only a stdin read error is fatal.
+// reads relay.Message values as NDJSON on stdin (one per line) and dispatches
+// each — via rcp.RequestFromMessage → Controller.Request — until EOF.
+// Malformed or undeliverable lines are reported to errw and skipped so a
+// single bad message does not tear down the crossbar route; only a stdin
+// read error is fatal.
 //
 // Exit codes: 0 clean EOF, 1 stdin read error.
-func cmdSendStream(reg *mock.Registry, stdin io.Reader, w, errw io.Writer) int {
+func cmdSendStream(ctrl *mock.Client, stdin io.Reader, w, errw io.Writer) int {
 	sc := bufio.NewScanner(stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024) // tolerate large messages
 	sent := 0
@@ -287,21 +336,16 @@ func cmdSendStream(reg *mock.Registry, stdin io.Reader, w, errw io.Writer) int {
 			_, _ = fmt.Fprintf(errw, "send: skipping malformed message: %v\n", err)
 			continue
 		}
-		cmd, err := rcp.CommandFromMessage(msg)
+		addr, control, body, err := rcp.RequestFromMessage(msg)
 		if err != nil {
 			_, _ = fmt.Fprintf(errw, "send: skipping message %q: %v\n", msg.ID, err)
 			continue
 		}
-		ctrl, err := reg.Lookup(cmd.Zone)
-		if err != nil {
-			_, _ = fmt.Fprintf(errw, "send: zone %s: %v\n", cmd.Zone, err)
-			continue
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_, err = ctrl.Send(ctx, cmd)
+		_, err = ctrl.Request(ctx, addr, control, body)
 		cancel()
 		if err != nil {
-			_, _ = fmt.Fprintf(errw, "send: zone %s: %v\n", cmd.Zone, err)
+			_, _ = fmt.Fprintf(errw, "send: byte_bus_id %d: %v\n", addr, err)
 			continue
 		}
 		sent++
@@ -314,39 +358,32 @@ func cmdSendStream(reg *mock.Registry, stdin io.Reader, w, errw io.Writer) int {
 	return 0
 }
 
-func cmdMonitor(ctx context.Context, reg *mock.Registry, w io.Writer) {
-	for _, ctrl := range reg.Controllers() {
-		mc, ok := ctrl.(*mock.Controller)
-		if !ok {
-			continue
-		}
-		ch, err := mc.Subscribe(ctx)
-		if err != nil {
-			_, _ = fmt.Fprintf(w, "subscribe zone %s: %v\n", mc.Zone(), err)
-			continue
-		}
-		go func(z rcp.Zone, ch <-chan *rcp.Status) {
-			for s := range ch {
-				_, _ = fmt.Fprintf(w, "[%s] seq=%d healthy=%v payload=%s\n", z, s.Seq, s.Healthy, string(s.Payload))
-			}
-		}(mc.Zone(), ch)
-
-		go func(mc *mock.Controller) {
-			t := time.NewTicker(time.Second)
-			defer t.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-t.C:
-					mc.Publish([]byte(`{"heartbeat":true}`))
+// cmdMonitor polls every demo endpoint on a fixed interval and prints each
+// response — the TC18-model replacement for the retired push-based
+// Subscribe monitor: the protocol has no server-initiated broadcast (see
+// rcpAdapter.Subscribe's own doc comment in adapt.go), so a caller wanting
+// a live view reads on a schedule instead.
+func cmdMonitor(ctx context.Context, ctrl *mock.Client, w io.Writer) {
+	_, _ = fmt.Fprintln(w, "monitoring demo endpoints — press Ctrl+C to stop")
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			for _, addr := range demoAddrs {
+				reqCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+				resp, err := ctrl.Read(reqCtx, addr)
+				cancel()
+				if err != nil {
+					_, _ = fmt.Fprintf(w, "[%d] read error: %v\n", addr, err)
+					continue
 				}
+				_, _ = fmt.Fprintf(w, "[%d] error=%v payload=%s\n", addr, resp.Control.Has(acf.FlagError), string(resp.Body))
 			}
-		}(mc)
+		}
 	}
-
-	_, _ = fmt.Fprintln(w, "monitoring all zones — press Ctrl+C to stop")
-	<-ctx.Done()
 }
 
 // ── RELAY interop driver (spec §11.2) ─────────────────────────────────────────
@@ -356,10 +393,10 @@ func cmdMonitor(ctx context.Context, reg *mock.Registry, w io.Writer) {
 var errInvalidInput = errors.New("ErrInvalidInput")
 
 // cmdConvert implements `convert --protocol RCP [--format json]` (spec §11.2).
-// It reads one rcp.Status as JSON on stdin, converts it via Status.ToMessage()
-// — the same code path used at runtime on the Subscribe direction (§15.7.5) —
-// and writes the resulting relay.Message as JSON on stdout. The timestamp is
-// zeroed so interop comparisons are deterministic.
+// It reads one addressed endpoint response as JSON on stdin, converts it via
+// rcp.ResponseToMessage — the same code path this binary's Call direction
+// uses at runtime (§15.7.5) — and writes the resulting relay.Message as JSON
+// on stdout. The timestamp is zeroed so interop comparisons are deterministic.
 //
 // Exit codes: 0 converted, 1 invalid input, 2 invalid args.
 func cmdConvert(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -384,7 +421,7 @@ func cmdConvert(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, errInvalidInput.Error())
 		return 1
 	}
-	out, err := convertRCPStatus(raw)
+	out, err := convertResponse(raw)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err.Error()) // sentinel name (§5)
 		return 1
@@ -393,37 +430,33 @@ func cmdConvert(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// convertRCPStatus validates raw against the rcp.Status canonical schema
-// (spec/schemas/rcp-status.json) and returns Status.ToMessage() as JSON with a
-// zeroed timestamp. It returns errInvalidInput for any input the validator
-// rejects. Pointer fields distinguish "absent" from a zero value so the schema's
-// required set (zone, seq, healthy) is enforced.
-func convertRCPStatus(raw []byte) ([]byte, error) {
+// convertResponse decodes raw as {"byte_bus_id": int, "body": base64,
+// "error": bool} and returns rcp.ResponseToMessage's JSON with a zeroed
+// timestamp. It returns errInvalidInput for any input the validator
+// rejects. A pointer byte_bus_id field distinguishes "absent" from 0.
+func convertResponse(raw []byte) ([]byte, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields() // schema additionalProperties: false
+	dec.DisallowUnknownFields()
 	var in struct {
-		Zone    *int    `json:"zone"`
-		Seq     *uint32 `json:"seq"`
-		Healthy *bool   `json:"healthy"`
-		Payload []byte  `json:"payload"` // base64-decoded by encoding/json
+		ByteBusID *int   `json:"byte_bus_id"`
+		Body      []byte `json:"body"` // base64-decoded by encoding/json
+		Error     bool   `json:"error"`
 	}
 	if err := dec.Decode(&in); err != nil {
 		return nil, errInvalidInput
 	}
-	if in.Zone == nil || in.Seq == nil || in.Healthy == nil {
-		return nil, errInvalidInput
-	}
-	if *in.Zone < int(rcp.ZoneUnknown) || *in.Zone > int(rcp.ZoneCentral) {
+	if in.ByteBusID == nil || *in.ByteBusID < 0 || *in.ByteBusID > 255 {
 		return nil, errInvalidInput
 	}
 
-	s := &rcp.Status{
-		Zone:    rcp.Zone(*in.Zone),
-		Seq:     *in.Seq,
-		Healthy: *in.Healthy,
-		Payload: in.Payload,
+	control := acf.FlagResponse
+	if in.Error {
+		control |= acf.FlagError
 	}
-	msg := s.ToMessage()
+	msg := rcp.ResponseToMessage(avtp.ByteBusID(*in.ByteBusID), acf.Message{
+		Control: control,
+		Body:    in.Body,
+	})
 	msg.Timestamp = time.Time{} // deterministic interop output
 	return json.Marshal(msg)
 }

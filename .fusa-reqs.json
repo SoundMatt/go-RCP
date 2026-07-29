@@ -1,673 +1,89 @@
 {
   "requirements": [
     {
-      "id": "REQ-ZONE-001",
-      "title": "Zone.String returns unique human-readable name",
-      "text": "Zone.String() shall return a unique, non-empty, human-readable string for each defined Zone constant. Two distinct Zone constants shall never return the same string.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-002",
-      "title": "ZoneUnknown has value 0",
-      "text": "ZoneUnknown shall have the numeric value 0, making it the zero value of the Zone type and a safe default for uninitialized variables.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-003",
-      "title": "ZoneFrontLeft has value 1",
-      "text": "ZoneFrontLeft shall have the numeric value 1.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-004",
-      "title": "ZoneFrontRight has value 2",
-      "text": "ZoneFrontRight shall have the numeric value 2.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-005",
-      "title": "ZoneRearLeft has value 3",
-      "text": "ZoneRearLeft shall have the numeric value 3.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-006",
-      "title": "ZoneRearRight has value 4",
-      "text": "ZoneRearRight shall have the numeric value 4.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-007",
-      "title": "ZoneCentral has value 5",
-      "text": "ZoneCentral shall have the numeric value 5.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-ZONE-008",
-      "title": "All named Zone constants are distinct",
-      "text": "ZoneFrontLeft, ZoneFrontRight, ZoneRearLeft, ZoneRearRight, and ZoneCentral shall each have a different numeric value from every other named zone constant. Duplicate zone values would cause silent misrouting of commands.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-PRI-001",
-      "title": "PriorityNormal has value 0",
-      "text": "PriorityNormal shall have the numeric value 0, making it the zero value of Priority and the safe default for Command fields left unset.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-PRI-002",
-      "title": "PriorityHigh is greater than PriorityNormal",
-      "text": "The numeric value of PriorityHigh shall be strictly greater than PriorityNormal, enabling implementations to order commands by comparing Priority values directly.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-PRI-003",
-      "title": "PriorityCritical is greater than PriorityHigh",
-      "text": "The numeric value of PriorityCritical shall be strictly greater than PriorityHigh, ensuring safety-critical commands (e.g. CmdWatchdog) can be unconditionally pre-empted above normal and high priority traffic.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CMD-001",
-      "title": "CmdNoop has value 0",
-      "text": "CmdNoop shall have the numeric value 0, making it the zero value of CommandType. An uninitialized Command.Type shall be interpreted as a safe no-op.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CMD-002",
-      "title": "CmdSet has value 1",
-      "text": "CmdSet shall have the numeric value 1.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CMD-003",
-      "title": "CmdGet has value 2",
-      "text": "CmdGet shall have the numeric value 2.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CMD-004",
-      "title": "CmdReset has value 3",
-      "text": "CmdReset shall have the numeric value 3.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CMD-005",
-      "title": "CmdWatchdog has value 4",
-      "text": "CmdWatchdog shall have the numeric value 4. The watchdog kick command shall be a stable, named constant so integrators can schedule it reliably.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CMD-006",
-      "title": "All CommandType constants are distinct",
-      "text": "CmdNoop, CmdSet, CmdGet, CmdReset, and CmdWatchdog shall each have a different numeric value. Duplicate command type values would cause a zone controller to misinterpret a command's intent.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-STATUS-001",
-      "title": "ResponseStatus.String returns unique human-readable name",
-      "text": "ResponseStatus.String() shall return a unique, non-empty, human-readable string for each defined ResponseStatus constant.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-STATUS-002",
-      "title": "StatusOK has value 0",
-      "text": "StatusOK shall have the numeric value 0, making it the zero value of ResponseStatus. An uninitialized Response.Status shall be interpreted as success.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-STATUS-003",
-      "title": "StatusError has value 1",
-      "text": "StatusError shall have the numeric value 1.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-STATUS-004",
-      "title": "StatusTimeout has value 2",
-      "text": "StatusTimeout shall have the numeric value 2.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-STATUS-005",
-      "title": "StatusBusy has value 3",
-      "text": "StatusBusy shall have the numeric value 3.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-STATUS-006",
-      "title": "All ResponseStatus constants are distinct",
-      "text": "StatusOK, StatusError, StatusTimeout, StatusBusy, and StatusUnknown shall each have a different numeric value. Duplicate values would cause a caller to misinterpret a command outcome.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
       "id": "REQ-ERR-001",
       "title": "ErrClosed is non-nil",
-      "text": "The sentinel error ErrClosed shall be non-nil so that callers can distinguish it from a nil error return.",
+      "text": "ErrClosed shall be a non-nil error value (RELAY spec \u00a75.1 mandatory sentinel).",
       "standard": "iso26262",
       "level": "ASIL-A",
       "asil": "ASIL-A"
     },
     {
       "id": "REQ-ERR-002",
-      "title": "ErrNotFound is non-nil",
-      "text": "The sentinel error ErrNotFound shall be non-nil.",
+      "title": "ErrNotConnected is non-nil",
+      "text": "ErrNotConnected shall be a non-nil error value (RELAY spec \u00a75.1 mandatory sentinel).",
       "standard": "iso26262",
       "level": "ASIL-A",
       "asil": "ASIL-A"
     },
     {
       "id": "REQ-ERR-003",
-      "title": "ErrAlreadyExists is non-nil",
-      "text": "The sentinel error ErrAlreadyExists shall be non-nil.",
+      "title": "ErrTimeout is non-nil",
+      "text": "ErrTimeout shall be a non-nil error value (RELAY spec \u00a75.1 mandatory sentinel).",
       "standard": "iso26262",
       "level": "ASIL-A",
       "asil": "ASIL-A"
     },
     {
       "id": "REQ-ERR-004",
-      "title": "ErrTimeout is non-nil",
-      "text": "The sentinel error ErrTimeout shall be non-nil.",
+      "title": "ErrPayloadTooLarge is non-nil",
+      "text": "ErrPayloadTooLarge shall be a non-nil error value (RELAY spec \u00a75.1 mandatory sentinel).",
       "standard": "iso26262",
       "level": "ASIL-A",
       "asil": "ASIL-A"
     },
     {
       "id": "REQ-ERR-005",
-      "title": "ErrBusy is non-nil",
-      "text": "The sentinel error ErrBusy shall be non-nil.",
+      "title": "ErrNotFound is non-nil",
+      "text": "ErrNotFound shall be a non-nil error value, returned by ParseEndpointID/RequestFromMessage when a relay.Message.ID does not resolve to a valid avtp.ByteBusID (RELAY spec \u00a75.4-style protocol-specific sentinel).",
       "standard": "iso26262",
       "level": "ASIL-A",
       "asil": "ASIL-A"
     },
     {
       "id": "REQ-ERR-006",
-      "title": "All sentinel errors are mutually distinct",
-      "text": "ErrClosed, ErrNotFound, ErrAlreadyExists, ErrTimeout, and ErrBusy shall all be distinct error values such that errors.Is(errA, errB) returns false for any two different sentinels. Duplicate sentinels would prevent callers from distinguishing error causes.",
+      "title": "Mandatory sentinels are mutually distinct",
+      "text": "The four mandatory RELAY sentinels (ErrClosed, ErrNotConnected, ErrTimeout, ErrPayloadTooLarge) shall be pairwise distinct: errors.Is shall not match one against another.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ERR-007",
-      "title": "ErrClosed detectable through wrapping chain",
-      "text": "Any error returned by a closed Controller or Registry shall satisfy errors.Is(err, rcp.ErrClosed). Callers must be able to detect closed-entity conditions without parsing error strings.",
+      "title": "ErrClosed wraps relay.ErrClosed",
+      "text": "ErrClosed shall wrap relay.ErrClosed such that errors.Is(rcp.ErrClosed, relay.ErrClosed) returns true.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ERR-008",
-      "title": "ErrNotFound detectable through wrapping chain",
-      "text": "Any error returned for a missing zone lookup shall satisfy errors.Is(err, rcp.ErrNotFound).",
+      "title": "ErrNotConnected wraps relay.ErrNotConnected",
+      "text": "ErrNotConnected shall wrap relay.ErrNotConnected such that errors.Is(rcp.ErrNotConnected, relay.ErrNotConnected) returns true.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ERR-009",
-      "title": "ErrAlreadyExists detectable through wrapping chain",
-      "text": "Any error returned for a duplicate zone registration shall satisfy errors.Is(err, rcp.ErrAlreadyExists).",
+      "title": "ErrTimeout wraps relay.ErrTimeout",
+      "text": "ErrTimeout shall wrap relay.ErrTimeout such that errors.Is(rcp.ErrTimeout, relay.ErrTimeout) returns true.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-ERR-010",
-      "title": "ErrTimeout detectable through wrapping chain",
-      "text": "Any error returned due to a context deadline or cancellation shall satisfy errors.Is(err, rcp.ErrTimeout). This allows integrators to distinguish a transport timeout from a logic error.",
+      "title": "ErrPayloadTooLarge wraps relay.ErrPayloadTooLarge",
+      "text": "ErrPayloadTooLarge shall wrap relay.ErrPayloadTooLarge such that errors.Is(rcp.ErrPayloadTooLarge, relay.ErrPayloadTooLarge) returns true.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CMDSTRUCT-001",
-      "title": "Zero-value Command is a safe no-op",
-      "text": "A zero-value Command (var cmd rcp.Command) shall have Zone=ZoneUnknown, Type=CmdNoop, and Priority=PriorityNormal. No field of a zero-value Command shall require explicit initialisation to avoid undefined behaviour.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CMDSTRUCT-002",
-      "title": "Command.Payload may be nil",
-      "text": "Command.Payload shall be an optional field; a nil Payload shall be accepted by any Controller.Send implementation without error or panic.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-RESP-001",
-      "title": "Response.CommandID echoes the originating Command.ID",
-      "text": "Controller.Send shall return a Response whose CommandID field equals the ID field of the submitted Command. This allows the caller to correlate responses to commands in a pipelined command stream.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-RESP-002",
-      "title": "Response.Zone identifies the zone that processed the command",
-      "text": "Controller.Send shall return a Response whose Zone field equals the Zone of the Controller that processed the command. A mismatch would indicate a misrouted command (safety goal SG-002).",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-RESP-003",
-      "title": "Zero-value Response has StatusOK",
-      "text": "A zero-value Response (var r rcp.Response) shall have Status=StatusOK (value 0). An uninitialised Response shall not indicate a spurious error.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-STAT-001",
-      "title": "Status.Zone identifies the publishing controller",
-      "text": "Every Status published by a Controller shall carry a Zone field equal to the Controller's declared zone. A missing or wrong Zone would prevent the subscriber from identifying the source of the update.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-STAT-002",
-      "title": "Status.Seq is monotonically increasing",
-      "text": "Each successive Status published by a given Controller instance shall have a Seq value strictly greater than the previous one. A subscriber can detect dropped or reordered updates by tracking Seq.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-STAT-003",
-      "title": "Status.Healthy is true while the controller is open",
-      "text": "A Status published by a Controller that has not yet been closed shall carry Healthy=true.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-STAT-004",
-      "title": "Status.Payload carries the bytes passed to Publish",
-      "text": "Status.Payload in every delivered Status update shall be byte-for-byte identical to the payload argument supplied to the Publish call that produced it.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-STAT-005",
-      "title": "Status.Payload may be nil",
-      "text": "Publish shall accept a nil payload without error or panic. The resulting Status.Payload shall be nil.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CTRL-001",
-      "title": "Controller Send returns StatusOK with no handler",
-      "text": "When no Handler is configured, Controller.Send shall return a non-nil Response with Status=StatusOK.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-002",
-      "title": "Controller Send dispatches to the configured handler",
-      "text": "When a Handler is configured, Controller.Send shall invoke the handler exactly once per Send call and return the handler's Response verbatim.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-003",
-      "title": "Controller Send rejected after Close",
-      "text": "Controller.Send called after Controller.Close shall return a non-nil error wrapping ErrClosed. No response shall be returned.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-004",
-      "title": "Controller Send respects a cancelled context",
-      "text": "If the context passed to Controller.Send is already cancelled at call time, Send shall return a non-nil error wrapping ErrTimeout without invoking the handler.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-005",
-      "title": "Controller Close is idempotent",
-      "text": "Controller.Close shall be safe to call multiple times. Every call after the first shall return nil without side effects.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CTRL-006",
-      "title": "Published Status is delivered to all active subscribers",
-      "text": "A Status produced by Publish shall be received by every channel returned by an active Subscribe call on the same controller.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-007",
-      "title": "Subscribe channels are closed when the controller closes",
-      "text": "When Controller.Close is called, all channels previously returned by Subscribe shall be closed. A subscriber ranging over a closed channel shall not block indefinitely.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-008",
-      "title": "Subscribe rejected after Close",
-      "text": "Controller.Subscribe called after Controller.Close shall return a non-nil error wrapping ErrClosed. No channel shall be returned.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CTRL-009",
-      "title": "Controller.Zone returns the declared zone",
-      "text": "Controller.Zone shall return the Zone value provided at construction time for the lifetime of the controller.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-CTRL-010",
-      "title": "Subscribe Seq values are strictly increasing",
-      "text": "Successive Status updates received on a Subscribe channel shall carry strictly increasing Seq values, enabling subscribers to detect gaps in the update stream.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-011",
-      "title": "Subscribe channel is closed when its context is cancelled",
-      "text": "When the context passed to Subscribe is cancelled, the channel returned by that Subscribe call shall be closed. Other subscriber channels on the same controller shall be unaffected.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-012",
-      "title": "Multiple concurrent subscribers each receive published Status",
-      "text": "When multiple Subscribe calls are active on the same controller, each returned channel shall independently receive every Status published via Publish.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-013",
-      "title": "CmdNoop is accepted without error",
-      "text": "Controller.Send with Command.Type=CmdNoop shall return StatusOK and shall not return an error. The zero-value command type must always be safe to send.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-014",
-      "title": "CmdWatchdog is accepted without error",
-      "text": "Controller.Send with Command.Type=CmdWatchdog shall return StatusOK and shall not return an error (safety goal SG-003: the watchdog kick command must be deliverable).",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-015",
-      "title": "CmdReset is accepted without error",
-      "text": "Controller.Send with Command.Type=CmdReset shall return StatusOK and shall not return an error.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-016",
-      "title": "Handler Response is returned verbatim",
-      "text": "When a Handler is configured, the Response pointer returned by the handler shall be returned directly by Controller.Send without modification. The caller receives exactly what the handler produced.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-017",
-      "title": "Publish on a closed controller does not panic",
-      "text": "Calling Publish on a controller after Controller.Close shall not panic. The call shall be a silent no-op; any pre-existing subscriber channels are already closed.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-018",
-      "title": "Concurrent Send calls are data-race free",
-      "text": "Multiple concurrent calls to Controller.Send on the same controller shall be free of data races as detected by the Go race detector.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-019",
-      "title": "Concurrent Publish and Subscribe are data-race free",
-      "text": "Concurrent calls to Publish and Subscribe on the same controller shall be free of data races as detected by the Go race detector.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-020",
-      "title": "Subscribe channel carries the correct Zone",
-      "text": "Every Status received on a Subscribe channel shall carry a Zone field equal to the subscribing Controller's Zone (safety goal SG-002: zone identity must be preserved in all messages).",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-021",
-      "title": "Subscribe channel carries correct Payload",
-      "text": "Status.Payload on each received update shall be byte-for-byte identical to the payload argument of the Publish call that produced it.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-022",
-      "title": "Subscribe channel carries Healthy=true for open controller",
-      "text": "Status.Healthy shall be true on every update published while the controller is open.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-023",
-      "title": "Cancelled context does not invoke handler",
-      "text": "If the context passed to Send is already cancelled, the Handler shall not be invoked. A timed-out command must not silently trigger an actuator action.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-024",
-      "title": "Send with nil Payload does not panic",
-      "text": "Controller.Send with Command.Payload=nil shall not panic. A nil payload is a valid command with no additional data.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-REG-001",
-      "title": "NewRegistry pre-populates all five standard zones",
-      "text": "A Registry returned by NewRegistry shall contain controllers for ZoneFrontLeft, ZoneFrontRight, ZoneRearLeft, ZoneRearRight, and ZoneCentral, all immediately accessible via Lookup.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-002",
-      "title": "Duplicate zone registration returns ErrAlreadyExists",
-      "text": "Registry.Register for a zone that already has a registered controller shall return a non-nil error wrapping ErrAlreadyExists. The existing controller shall remain registered and unaffected.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-003",
-      "title": "Deregister removes the zone and closes its controller",
-      "text": "Registry.Deregister shall remove the controller for the given zone from the registry and call Close on it. After deregistration, Lookup for the same zone shall return ErrNotFound.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-004",
-      "title": "Lookup returns ErrNotFound for an absent zone",
-      "text": "Registry.Lookup for a zone with no registered controller shall return a non-nil error wrapping ErrNotFound.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-005",
-      "title": "Registry Close is idempotent",
-      "text": "Registry.Close shall be safe to call multiple times. Every call after the first shall return nil without side effects.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-REG-006",
-      "title": "Controllers returns all currently registered controllers",
-      "text": "Registry.Controllers shall return exactly the set of controllers that are currently registered, with no duplicates and no omissions.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-REG-007",
-      "title": "Register rejected after Registry Close",
-      "text": "Registry.Register called after Registry.Close shall return a non-nil error wrapping ErrClosed.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
-    },
-    {
-      "id": "REQ-REG-008",
-      "title": "Deregister returns ErrNotFound for a zone that was never registered",
-      "text": "Registry.Deregister for a zone that has no registered controller shall return a non-nil error wrapping ErrNotFound, without modifying any other registered zone.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-009",
-      "title": "Registered controller is immediately retrievable via Lookup",
-      "text": "After a successful Registry.Register call, Registry.Lookup for the same zone shall return the registered controller without error.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-010",
-      "title": "Registry Close calls Close on all registered controllers",
-      "text": "Registry.Close shall call Close on every controller currently registered in the registry before returning. Controllers must not be left open after the registry is closed.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-011",
-      "title": "Lookup on a closed Registry returns an error",
-      "text": "Registry.Lookup called after Registry.Close shall return a non-nil error. The caller must not receive a controller from a closed registry.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-012",
-      "title": "Deregister for an already-deregistered zone returns ErrNotFound",
-      "text": "A second call to Registry.Deregister for a zone that was already deregistered shall return a non-nil error wrapping ErrNotFound.",
-      "standard": "iso26262",
-      "level": "ASIL-A",
-      "asil": "ASIL-A"
     },
     {
       "id": "REQ-ERR-011",
-      "title": "ErrZoneMismatch is a distinct non-nil sentinel error",
-      "text": "ErrZoneMismatch shall be a non-nil sentinel error that is distinct from all other sentinel errors (ErrClosed, ErrNotFound, ErrAlreadyExists, ErrTimeout, ErrBusy) so that callers can detect zone-misrouting without parsing error strings.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-025",
-      "title": "Controller.Send rejects commands whose zone does not match the controller zone",
-      "text": "Controller.Send shall return a non-nil error wrapping ErrZoneMismatch when cmd.Zone does not equal the zone declared by the controller. A misrouted command must never be silently processed (safety goal SG-002).",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-026",
-      "title": "Controller.Send copies Command.Payload before passing to the handler",
-      "text": "Controller.Send shall copy Command.Payload into a new slice before invoking the handler. Subsequent modification of the original slice by the caller shall not affect the payload seen by the handler or any stored reference.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CTRL-027",
-      "title": "Controller.Publish copies the payload before embedding in Status",
-      "text": "Controller.Publish shall copy the payload argument into a new slice before embedding it in the Status value delivered to subscribers. Subsequent modification of the original slice by the caller shall not affect the payload seen by any subscriber.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REG-013",
-      "title": "Registry.Lookup returns ErrClosed when called on a closed registry",
-      "text": "Registry.Lookup called after Registry.Close shall return a non-nil error wrapping ErrClosed, not ErrNotFound. A caller polling on ErrNotFound must not loop indefinitely after the registry is closed.",
+      "title": "ErrNotFound wraps ErrNotConnected",
+      "text": "ErrNotFound shall wrap ErrNotConnected (and therefore, transitively, relay.ErrNotConnected) such that errors.Is(rcp.ErrNotFound, rcp.ErrNotConnected) and errors.Is(rcp.ErrNotFound, relay.ErrNotConnected) both return true.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -676,86 +92,6 @@
       "id": "REQ-SAFETY-001",
       "title": "Command latency bounded under GC pressure",
       "text": "The go-RCP mock controller shall deliver commands via Send with a maximum observed latency less than half the watchdog period (5 ms at 100 Hz) when measured under sustained 64 MiB/s GC allocation pressure. Evidence shall be recorded in safety/COMMAND_LATENCY.md.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-001",
-      "title": "TLS Controller Send/Response round-trip succeeds over mTLS",
-      "text": "A Controller connected to a ZoneServer with mutual TLS shall successfully Send a Command and receive the corresponding Response with StatusOK.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-002",
-      "title": "TLS channel enforces mutual TLS authentication",
-      "text": "Connections from clients that do not present a certificate signed by the server's trusted CA shall be rejected during the TLS handshake.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-003",
-      "title": "TLS server-side command handler is invoked for each Command",
-      "text": "When a ZoneServer handler is installed via SetHandler, it shall be called for every Command received and its returned Response shall be sent to the client.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-004",
-      "title": "TLS command payload survives the stream framing round-trip",
-      "text": "Payload bytes in a Command shall be identical to the bytes received in the corresponding Response payload echo, byte-for-byte, after passing through TLS framing.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-005",
-      "title": "TLS Controller.Send returns ErrZoneMismatch for wrong zone",
-      "text": "Controller.Send shall return ErrZoneMismatch when cmd.Zone does not equal the Controller's zone, consistent with REQ-CTRL-025.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-006",
-      "title": "TLS Controller.Send returns ErrTimeout on cancelled context",
-      "text": "Controller.Send shall return ErrTimeout when the provided context is cancelled before the send completes.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-007",
-      "title": "TLS Controller.Send returns ErrClosed after Close",
-      "text": "Controller.Send shall return ErrClosed when called after Controller.Close has been called.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-008",
-      "title": "TLS Subscribe receives Status published by ZoneServer",
-      "text": "A Controller that has called Subscribe shall receive Status frames on the returned channel when ZoneServer.Publish is called.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-009",
-      "title": "TLS Subscribe channel closes on context cancellation",
-      "text": "The Status channel returned by Subscribe shall be closed when the subscriber's context is cancelled.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-TLS-010",
-      "title": "TLS minimum protocol version is TLS 1.3",
-      "text": "Both ZoneServer and Controller shall negotiate TLS 1.3 or higher. Connections attempting to negotiate TLS 1.2 or lower shall be rejected.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2147,86 +1483,6 @@
       "package": "certgap"
     },
     {
-      "id": "REQ-ERR-012",
-      "title": "ErrNotConnected is a non-nil mandatory RELAY sentinel",
-      "text": "ErrNotConnected shall be a non-nil error such that errors.Is(ErrNotConnected, relay.ErrNotConnected) returns true. It is returned before a connection is established or after a transport drop.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-013",
-      "title": "ErrPayloadTooLarge is a non-nil mandatory RELAY sentinel",
-      "text": "ErrPayloadTooLarge shall be a non-nil error such that errors.Is(ErrPayloadTooLarge, relay.ErrPayloadTooLarge) returns true. It is returned when a payload exceeds the protocol maximum.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-014",
-      "title": "ErrClosed wraps relay.ErrClosed via errors.Is chain",
-      "text": "errors.Is(rcp.ErrClosed, relay.ErrClosed) shall return true so callers can use RELAY-level sentinel detection.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-015",
-      "title": "ErrNotConnected wraps relay.ErrNotConnected via errors.Is chain",
-      "text": "errors.Is(rcp.ErrNotConnected, relay.ErrNotConnected) shall return true so callers can use RELAY-level sentinel detection.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-016",
-      "title": "ErrTimeout wraps relay.ErrTimeout via errors.Is chain",
-      "text": "errors.Is(rcp.ErrTimeout, relay.ErrTimeout) shall return true so callers can use RELAY-level sentinel detection.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-017",
-      "title": "ErrPayloadTooLarge wraps relay.ErrPayloadTooLarge via errors.Is chain",
-      "text": "errors.Is(rcp.ErrPayloadTooLarge, relay.ErrPayloadTooLarge) shall return true so callers can use RELAY-level sentinel detection.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-018",
-      "title": "ErrNotFound wraps ErrNotConnected via errors.Is chain",
-      "text": "errors.Is(rcp.ErrNotFound, rcp.ErrNotConnected) shall return true per RELAY spec \u00a75.4.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-019",
-      "title": "ErrAlreadyExists is standalone (not a relay sentinel)",
-      "text": "ErrAlreadyExists shall be a standalone sentinel that does not wrap any relay sentinel, per RELAY spec \u00a75.4. errors.Is(rcp.ErrAlreadyExists, rcp.ErrClosed) and errors.Is(rcp.ErrAlreadyExists, relay.ErrClosed) shall both return false; a uniqueness violation is not a relay sentinel condition.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-020",
-      "title": "ErrBusy wraps ErrTimeout via errors.Is chain",
-      "text": "errors.Is(rcp.ErrBusy, rcp.ErrTimeout) shall return true per RELAY spec \u00a75.4.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-ERR-021",
-      "title": "ErrZoneMismatch wraps ErrNotConnected via errors.Is chain",
-      "text": "errors.Is(rcp.ErrZoneMismatch, rcp.ErrNotConnected) shall return true per RELAY spec \u00a75.4.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
       "id": "REQ-SPEC-001",
       "title": "SpecVersion exports the RELAY specification version",
       "text": "The package-level constant SpecVersion shall equal relay.SpecVersion, declaring the RELAY spec version this package implements per spec \u00a717.12.",
@@ -2236,80 +1492,64 @@
     },
     {
       "id": "REQ-MSG-001",
-      "title": "ZoneFromString parses zone name to Zone constant",
-      "text": "ZoneFromString shall return the Zone constant matching the input string produced by Zone.String(), enabling round-trip zone identity.",
+      "title": "EndpointIDString/ParseEndpointID round trip",
+      "text": "ParseEndpointID(EndpointIDString(addr)) shall return addr unchanged for every valid avtp.ByteBusID value (0-255).",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-002",
-      "title": "ZoneFromString returns ErrNotFound for unknown zone string",
-      "text": "ZoneFromString shall return (ZoneUnknown, ErrNotFound) when the input does not match any known zone name.",
+      "title": "ParseEndpointID rejects invalid input",
+      "text": "ParseEndpointID shall return ErrNotFound for a string that does not parse as a decimal integer in [0, 255].",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-003",
-      "title": "Status.ToMessage sets Protocol to relay.RCP",
-      "text": "Status.ToMessage() shall return a relay.Message with Protocol = relay.RCP per RELAY spec \u00a715.7.5.",
+      "title": "ResponseToMessage sets Protocol to relay.RCP",
+      "text": "ResponseToMessage shall set the returned relay.Message's Protocol field to relay.RCP.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-004",
-      "title": "Status.ToMessage maps Zone.String() to ID field",
-      "text": "Status.ToMessage() shall set relay.Message.ID to the string returned by Status.Zone.String().",
+      "title": "ResponseToMessage maps addr to ID via EndpointIDString",
+      "text": "ResponseToMessage shall set the returned relay.Message's ID field to EndpointIDString(addr).",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-005",
-      "title": "Status.ToMessage preserves Payload and Seq",
-      "text": "Status.ToMessage() shall copy Status.Payload to relay.Message.Payload and Status.Seq (as uint64) to relay.Message.Seq.",
+      "title": "ResponseToMessage preserves the response Body as Payload",
+      "text": "ResponseToMessage shall set the returned relay.Message's Payload field to the input acf.Message's Body, unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-006",
-      "title": "Status.ToMessage sets rcp.healthy meta field",
-      "text": "Status.ToMessage() shall set Meta[\"rcp.healthy\"] to \"true\" or \"false\" reflecting Status.Healthy.",
+      "title": "ResponseToMessage sets rcp.error meta field",
+      "text": "ResponseToMessage shall set the returned relay.Message's Meta[\"rcp.error\"] field to the string form of the input acf.Message's Control.Has(acf.FlagError) bit.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-007",
-      "title": "CommandFromMessage parses zone from relay.Message.ID",
-      "text": "CommandFromMessage shall use ZoneFromString(m.ID) to set Command.Zone and return ErrNotFound for unrecognised zone strings.",
+      "title": "RequestFromMessage parses the endpoint address from relay.Message.ID",
+      "text": "RequestFromMessage shall derive the returned avtp.ByteBusID from m.ID via ParseEndpointID, returning its error unchanged on failure.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-MSG-008",
-      "title": "CommandFromMessage parses rcp.priority from Meta",
-      "text": "CommandFromMessage shall map Meta[\"rcp.priority\"] to the corresponding Priority constant (normal/high/critical).",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-MSG-009",
-      "title": "CommandFromMessage parses rcp.cmd_type from Meta",
-      "text": "CommandFromMessage shall map Meta[\"rcp.cmd_type\"] to the corresponding CommandType constant (noop/set/get/reset/watchdog/sleep/wake).",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-MSG-010",
-      "title": "ResponseToMessage maps Response fields to relay.Message",
-      "text": "ResponseToMessage shall set Protocol=relay.RCP, ID=Response.Zone.String(), Payload=Response.Payload, and Meta[\"rcp.status\"] to the ResponseStatus decimal string.",
+      "title": "RequestFromMessage derives control flags from rcp.op / payload presence",
+      "text": "RequestFromMessage shall set acf.FlagRead or acf.FlagWrite from the \"rcp.op\" Meta key (\"read\"/\"write\"); when absent or unrecognised it shall default to acf.FlagWrite when m.Payload is non-empty, else acf.FlagRead.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
@@ -2317,7 +1557,7 @@
     {
       "id": "REQ-ADAPT-001",
       "title": "Adapt wraps Controller as relay.Caller without blocking",
-      "text": "Adapt(c Controller) relay.Caller shall return immediately, wrapping c in an adapter satisfying relay.Caller. It shall not establish a connection or block.",
+      "text": "Adapt(c Controller) relay.Caller shall return immediately, wrapping c in an adapter satisfying relay.Caller. It shall not establish a connection or block. Controller is the narrow StreamID/Request/Close interface *udp.Controller and *mock.Client both satisfy.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
@@ -2332,24 +1572,24 @@
     },
     {
       "id": "REQ-ADAPT-003",
-      "title": "adapter.Send converts relay.Message to Command and dispatches",
-      "text": "adapter.Send shall call CommandFromMessage to convert the relay.Message to a *Command, dispatch it via Controller.Send, and discard the Response.",
+      "title": "adapter.Send converts relay.Message to a request and dispatches it",
+      "text": "Send shall convert msg via RequestFromMessage and dispatch it through Controller.Request, discarding the response.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-ADAPT-004",
-      "title": "adapter.Call returns relay.Message from Response",
-      "text": "adapter.Call shall call CommandFromMessage, dispatch via Controller.Send, and convert the *Response to relay.Message via ResponseToMessage.",
+      "title": "adapter.Call returns relay.Message from the endpoint response",
+      "text": "Call shall convert req via RequestFromMessage, dispatch it through Controller.Request, and return ResponseToMessage(addr, resp) on success.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-ADAPT-005",
-      "title": "adapter.Subscribe starts goroutine converting Status to relay.Message",
-      "text": "adapter.Subscribe shall call Controller.Subscribe(context.Background()), start a goroutine that converts each *Status to relay.Message via ToMessage(), and return the relay.Message channel.",
+      "title": "adapter.Subscribe returns a lifecycle-compliant channel",
+      "text": "Subscribe shall return a channel obeying RELAY \u00a76 (independent per call, closed on adapter Close, ErrClosed once already closed); it shall never itself deliver a message, since TC18 has no server-initiated broadcast.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
@@ -2357,23 +1597,23 @@
     {
       "id": "REQ-ADAPT-006",
       "title": "adapter.Subscribe applies SubscriberConfig channel depth",
-      "text": "The channel buffered by adapter.Subscribe shall have depth equal to SubscriberConfig.ChanDepth(64).",
+      "text": "Subscribe shall size its returned channel's buffer per relay.ApplySubscriberOpts' resolved ChanDepth.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-ADAPT-007",
-      "title": "adapter.Subscribe applies BackPressurePolicy",
-      "text": "The goroutine in adapter.Subscribe shall apply the BackPressurePolicy from SubscriberConfig: DropNewest drops arriving messages when full; DropOldest drains one then enqueues; Block waits.",
+      "title": "adapter.Subscribe supports multiple independent subscriptions",
+      "text": "Subscribe shall be safe to call multiple times, each call returning an independent channel; closing the adapter shall close every one.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
     },
     {
       "id": "REQ-ADAPT-008",
-      "title": "adapter.Close delegates to Controller.Close",
-      "text": "adapter.Close() shall call and return the result of Controller.Close().",
+      "title": "adapter.Close closes every Subscribe channel and the Controller",
+      "text": "Close shall close every channel returned by a prior Subscribe call and then close the underlying Controller.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
@@ -2460,8 +1700,8 @@
     },
     {
       "id": "REQ-CONF-001",
-      "title": "Status.ToMessage matches RELAY golden vector",
-      "text": "Status.ToMessage() shall produce a relay.Message matching the published RELAY golden vector spec/vectors/rcp-status.json: protocol=RCP, id=\"FrontLeft\", seq=3, meta[rcp.healthy]=\"true\", payload base64 \"AQ==\", zero Version.",
+      "title": "ResponseToMessage conforms to the generic relay.Message envelope",
+      "text": "ResponseToMessage's output shall set Protocol, ID, Payload, and a non-zero Timestamp per the RELAY spec \u00a74.2/\u00a715.7.5 generic envelope contract.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
@@ -2484,8 +1724,8 @@
     },
     {
       "id": "REQ-CLI-004",
-      "title": "go-rcp convert drives Status.ToMessage for RELAY interop",
-      "text": "The go-rcp binary convert command with --protocol RCP shall read an rcp.Status as JSON on stdin (schema rcp-status.json), run it through Status.ToMessage() (the same \u00a715.7.5 conversion used at runtime), and write the resulting relay.Message as JSON on stdout with a zeroed timestamp (RELAY spec \u00a711.2). It shall exit 0 on success, exit 1 writing a \u00a75 sentinel error name to stderr when the input fails validation, and exit 2 on invalid arguments.",
+      "title": "go-rcp convert drives ResponseToMessage for RELAY interop",
+      "text": "go-rcp convert --protocol RCP shall decode one {byte_bus_id, body, error} JSON envelope from stdin and write ResponseToMessage's JSON output to stdout, per RELAY spec \u00a711.2.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

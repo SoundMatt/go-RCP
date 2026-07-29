@@ -594,7 +594,7 @@ implementation of the OPEN Alliance TC18 Remote Control Protocol, so that
 | **Satellite Migration** | v0.69.0 | Protocol bridge adaptation | canbr, linbr, ddsbr, mqttbr, someip, udsbr, doipbr, grpcbridge, restbridge all re-pointed at *udp.Controller/udp.Router; canbr/linbr narrow around the native can/lin endpoints, linbr absorbing PID/checksum/schedule-table logic client-side ✅ |
 | **Satellite Migration** | v0.70.0 | Tooling & test-double rebuild | mock, sim, capi, codegen, record, observe, faultinject, firmware ✅ |
 | **Satellite Migration** | v0.71.0 | Certification refresh | formal, iso21434, certgap, safety re-scoped to the new state machines and attack surface ✅ |
-| **Cutover** | v1.0.0 | TC18 conformance + RELAY re-certification | Legacy Zone/Command API removed; RELAY `Adapt`/golden-vectors/CLI re-satisfied against the new model |
+| **Cutover** | v1.0.0 | TC18 conformance + RELAY re-certification | Legacy Zone/Command API removed; RELAY `Adapt`/golden-vectors/CLI re-satisfied against the new model ✅ |
 
 ---
 
@@ -1767,7 +1767,7 @@ entries for all 15. 664 total requirements, 100% traced and tested per
 ### Phase 18 — Cutover
 ---
 
-### 59. TC18 Conformance Cutover & RELAY Re-Certification (v1.0.0)
+### 59. TC18 Conformance Cutover & RELAY Re-Certification (v1.0.0) ✅
 
 - Remove the legacy `Zone`/`Command`/`Response`/`Status`/`Controller`/
   `Registry` API surface once every satellite package that depended on it
@@ -1790,3 +1790,135 @@ entries for all 15. 664 total requirements, 100% traced and tested per
 - This is the version where go-RCP first claims OPEN Alliance TC18 Remote
   Control Protocol Specification v0.5.1_RC conformance; tag as `v1.0.0` to
   signal the breaking change through semver rather than softening it
+
+**Done (v1.0.0):** the root module's legacy API surface is removed and every
+call site this milestone named — plus two this milestone's own text didn't
+name but the removal made unavoidable — is rebuilt against the TC18
+Endpoint/register-map model:
+
+- **`rcp.go` cut down to what actually survives the removal**: `Zone`,
+  `Priority`, `CommandType`, `ResponseStatus`, `Command`, `Response`,
+  `Status`, `Controller`, `LoaningController`, `Registry`, and
+  `ZoneFromString` are deleted outright. `SpecVersion`, the mandatory RELAY
+  §5.1 sentinels (`ErrClosed`/`ErrNotConnected`/`ErrTimeout`/
+  `ErrPayloadTooLarge`), and `Loan`/`NewLoan`/`Loan.Return` survive
+  unchanged — `Loan` was never part of the roadmap's own removal list, and
+  `loan.Controller` (Milestone 54) still recycles it. `ErrNotFound` survives
+  too, repurposed from "zone not in registry" to "message ID does not parse
+  as a valid `avtp.ByteBusID`" — the closest analogous condition in the new
+  addressing model; `ErrAlreadyExists`/`ErrBusy`/`ErrZoneMismatch` retire
+  outright, since nothing in the rebuilt code needs them.
+- **`adapt.go` rebuilt around a new, narrow `Controller` interface**
+  (`StreamID`/`Request`/`Close`) matching `*udp.Controller`'s and
+  `*mock.Client`'s own shape exactly — the same "narrow local interface"
+  pattern `capi.Controller` and `observe`'s Controller-equivalent interface
+  already established at Milestone 57, reused here at the root module for
+  the first time. `Send`/`Call` route through `RequestFromMessage`/
+  `ResponseToMessage` (new: `EndpointIDString`/`ParseEndpointID` render an
+  `avtp.ByteBusID` as a relay.Message.ID; the "rcp.op" Meta key selects
+  read/write, defaulting from payload presence). `Subscribe` is rebuilt to
+  return a channel that fully obeys RELAY §6 (independent per call, closed
+  on adapter `Close`, `ErrClosed` once already closed) but never itself
+  delivers a message — TC18 has no server-initiated broadcast counterpart
+  to the retired protocol's periodic `Status` push, the same conclusion
+  Milestone 56's bridge packages and Milestone 57's `capi`/`observe` already
+  reached for their own Subscribe-shaped surfaces. `optional.go`
+  (Health/Metrics/Drainer) needed no functional change at all — its counters
+  and drain logic were already protocol-agnostic.
+- **`mock.go`'s frozen `Controller`/`Registry`/`Handler` deleted**; the
+  package doc comment moves to a new `mock/doc.go`. `mock_test.go` and
+  `mock_bench_test.go` (100% legacy-surface content) are deleted outright;
+  `mock/endpoint_test.go`, `client_test.go` (including `FuzzClient_Request`),
+  `client_registry_test.go`, and `fixture_test.go` already covered the new
+  surface from Milestone 57 and needed no changes. A fresh
+  `mock_bench_test.go` adds `BenchmarkClient_Request_RoundTrip`/`_Concurrent`,
+  `BenchmarkEndpoint_HandleRequest`, and `BenchmarkClientRegistry_Lookup` in
+  place of the retired Controller/Registry benchmarks.
+- **`cmd/go-rcp`'s six subcommands rebuilt**: `discover`/`send`/`monitor`
+  now run against an in-process demo `mock.Fixture` (a handful of
+  `mock.Endpoint`s at fixed `byte_bus_id`s) rather than `mock.NewRegistry`'s
+  five fixed zones — `monitor` polls on an interval instead of subscribing,
+  since there is nothing to subscribe to (see `Subscribe`'s own doc comment
+  above); `convert` now decodes a `{byte_bus_id, body, error}` envelope and
+  drives `ResponseToMessage`, in place of the retired `Status`-shaped input.
+  `version`/`capabilities`/`status` are structurally unchanged and still
+  pass `relay conform --strict` (verified locally and in CI).
+- **`cmd/rcptool` retired outright**, per the disposition table's own call
+  ("once the API it targets no longer exists, retire it rather than port
+  it") — not migrated.
+- **Two call sites the roadmap's own Milestone 59 text didn't name, but the
+  removal made unavoidable, are also rebuilt in this same change** (per the
+  task's own "check whether anything else currently depends on the old API"
+  instruction):
+  - **`tlstransport` retired outright**, not migrated. Milestone 54
+    (v0.67.0) deliberately kept it depending on the full legacy `Zone`/
+    `Command`/`Response`/`Status`/`Controller`/`Registry` surface via a
+    frozen `legacyframe.go`, explicitly marked "never migrated ... under
+    this name." That surface no longer exists after this milestone, and
+    `tlstransport` was already self-described as a deprecated, non-spec,
+    nobody-else-imports-it option — the same retirement logic the
+    disposition table applies to `cmd/rcptool` applies here: once the API a
+    deprecated package exists only to serve is gone, retire it rather than
+    preserve the legacy type surface solely to keep it compiling. `TARA.md`/
+    `iso21434/tara.go`'s T-RCP-001 entry (which referenced `tlstransport` as
+    a non-applicable mitigation) is reworded accordingly; the underlying
+    gap (StreamID spoofing is unmitigated) is unchanged.
+  - **`examples/quickstart/{zone,controller}`** (Phase 17's disposition
+    table listed these as "ADAPT ... low urgency," not scoped to this
+    milestone by name, but they import `mock.Controller`/`rcp.Zone`
+    directly and would not build otherwise). Rebuilt as a real two-process
+    UDP/IP demo (`udp.Server`/`udp.Router` in `zone`, `udp.Controller` in
+    `controller`) rather than two independent in-process mocks — a
+    strictly more useful demo than the one it replaces, and
+    `docker/docker-compose.yml` updated to match (`RCP_DEMO_ADDR=zone:7657`
+    over the compose bridge network's DNS; `zone` now listens on
+    `0.0.0.0`, not `127.0.0.1`, so it's reachable from the `controller`
+    container).
+- **A disclosed, deliberately unclosed gap**: RELAY's own published
+  `rcp-status`/`rcp-command` §15.5 canonical-type schemas
+  (`spec/schemas/rcp-{status,command}.json`) and RCP interop golden vector
+  (`spec/vectors/rcp-status.json`) still describe the retired bespoke
+  Zone/Command/Response/Status protocol as of RELAY v1.14.0 (the latest tag
+  checked at this milestone) — go-RCP no longer implements or claims interop
+  with that shape. Per this repo's own Guiding Principle 10 ("spec ambiguity
+  is surfaced, not silently resolved"), this is not glossed over:
+  `conformance_test.go`'s golden-vector test is rebuilt to validate the new
+  `ResponseToMessage`'s conformance to RELAY's *generic* `relay.Message`
+  envelope contract instead of pinning to the stale RCP-specific vector, and
+  CI's `relay-conform` job drops the `relay interop --protocol RCP` step
+  with an explanatory comment rather than either leaving a step that would
+  now fail for reasons unrelated to this repo's own correctness, or quietly
+  keeping an `rcp.Status`-shaped compatibility path alive just to satisfy
+  it (which the roadmap's own "no compatibility shim" framing forecloses).
+  Updating the RELAY spec module's RCP schemas/vectors for TC18 is a
+  RELAY-side change, out of this repo's scope.
+- **`.fusa-reqs.json` regenerated for the new requirement set**: the
+  REQ-ZONE(8)/REQ-PRI(3)/REQ-CMD(6)/REQ-CMDSTRUCT(2)/REQ-RESP(3)/
+  REQ-STATUS(6)/REQ-STAT(5)/REQ-CTRL(27)/REQ-REG(13)/REQ-TLS(10) families —
+  95 requirements in total, describing exactly the removed API surface plus
+  the retired `tlstransport` — are deleted. `REQ-ERR-*` is renumbered 001-011
+  (the four mandatory sentinels plus `ErrNotFound`, replacing the old
+  001-021 range built around the retired protocol-specific sentinels), and
+  `REQ-MSG-*` is renumbered 001-008 (dropping the retired `ZoneFromString`/
+  `rcp.priority`/`rcp.cmd_type` items, adding `EndpointIDString`/
+  `ParseEndpointID` coverage) — both in place under their original prefixes,
+  the same convention Milestones 57/58 used for their own rewritten
+  families. `REQ-ADAPT-*` is rewritten in place (same 8 IDs) to describe the
+  new `Controller` shape and the no-broadcast `Subscribe`. `certgap/reqset.go`
+  drops its `REQ-TLS` family-rollup line to match. 569 total requirements
+  (down from 664), 100% traced and tested per `gofusa check`/`gofusa trace`.
+- **`.fusa-hara.json`/`HARA.md` regenerated for the new hazard/safety-goal
+  set** (v3.0): the same 6 operational situations, 10 hazards, and 10
+  safety goals are retargeted at TC18 terminology (endpoint/`avtp.StreamID`
+  in place of zone/zone controller; a "high-priority request" per
+  `request.Kind`'s server-side ordering in place of `PriorityCritical`; the
+  `e2e.Supervisor` watchdog in place of `CmdWatchdog`; `ratelimit`'s
+  rejection in place of `ErrBusy`) — the underlying S/E/C risk scoring and
+  ASIL-B classification are unchanged, since the protocol replacement does
+  not change what could go wrong at the vehicle level, only how this
+  repository mitigates it. SG-006 (endpoint identity authentication) is
+  still explicitly **Open**, matching TARA.md's T-RCP-001.
+
+No other package in this repo imported `mock.Controller`/`mock.Registry`,
+`rcp.Controller`/`rcp.Registry`/`rcp.Zone`/`rcp.Command`/`rcp.Response`/
+`rcp.Status`, or `tlstransport` outside the call sites named above.

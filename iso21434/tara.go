@@ -108,7 +108,7 @@ func BuildGoalRegistry() *GoalRegistry {
 	r.Add(CybersecurityGoal{
 		ID:        "CG-RCP-001",
 		ThreatID:  "T-RCP-001",
-		Claim:     "Server-side access control (regmap.AccessController's root-client/grant model, fronted by udp.EP0Handler) and a client-side complementary policy layer (authz.Policy) gate every configuration and functional-endpoint request by StreamID — but neither layer authenticates that a given AVTPDU's carried StreamID genuinely originates from the peer that opened it; this is unmitigated at the transport layer this milestone builds (tlstransport is explicitly deprecated and does not apply — link-layer authentication is a MACsec/802.1AE concern this repository does not implement).",
+		Claim:     "Server-side access control (regmap.AccessController's root-client/grant model, fronted by udp.EP0Handler) and a client-side complementary policy layer (authz.Policy) gate every configuration and functional-endpoint request by StreamID — but neither layer authenticates that a given AVTPDU's carried StreamID genuinely originates from the peer that opened it; this is unmitigated at the transport layer this milestone builds (tlstransport, this repo's bespoke mutual-TLS-over-TCP option, was retired outright at ROADMAP.md Milestone 59 alongside the Zone/Command API it depended on and would not have mitigated this threat regardless, since mutual-TLS-over-TCP does not fit the stream_id/byte_bus_id addressing model at all — link-layer authentication is a MACsec/802.1AE concern this repository does not implement).",
 		Satisfied: false,
 	})
 	r.Add(CybersecurityGoal{

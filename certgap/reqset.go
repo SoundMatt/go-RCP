@@ -100,7 +100,6 @@ func BuildRequirementFamilies() []FamilyRequirement {
 
 		// Transport, access control, and admission control.
 		fam("REQ-UDP", "REQFAM-UDP", "AVTPDU/ACF-over-UDP/IP transport (udp)", CategorySoftware),
-		fam("REQ-TLS", "REQFAM-TLS", "Legacy mutual-TLS transport, deprecated (tlstransport)", CategorySoftware),
 		fam("REQ-AZ", "REQFAM-AZ", "Client-side stream/endpoint access-control policy (authz)", CategorySoftware),
 		fam("REQ-RL", "REQFAM-RL", "Per-endpoint token-bucket admission control (ratelimit)", CategorySoftware),
 		fam("REQ-ADM", "REQFAM-ADM", "Administrative HTTP interface (admin)", CategorySoftware),

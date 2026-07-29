@@ -2,101 +2,102 @@ package mock_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/regmap"
 )
 
-var payloadSizes = []struct {
-	name string
-	size int
-}{
-	{"1B", 1},
-	{"64B", 64},
-	{"1KB", 1024},
-	{"16KB", 16 * 1024},
-	{"64KB", 64 * 1024},
-}
+// BenchmarkClient_Request_RoundTrip measures the in-process Client -> Router
+// -> Endpoint -> Client round trip this package's Fixture wires up, the
+// TC18-model replacement for the retired BenchmarkSend_RoundTrip.
+func BenchmarkClient_Request_RoundTrip(b *testing.B) {
+	fx, err := mock.NewFixture(testStream(), false)
+	if err != nil {
+		b.Fatalf("NewFixture: %v", err)
+	}
+	defer func() { _ = fx.Close() }()
+	if err := fx.Server.AddEndpoint(fx.Root.StreamID(), 1, regmap.EndpointTypeGPIO); err != nil {
+		b.Fatalf("AddEndpoint: %v", err)
+	}
+	if err := fx.Router.Register(1, mock.NewEndpoint(1, nil)); err != nil {
+		b.Fatalf("Register: %v", err)
+	}
 
-// BenchmarkSend_RoundTrip measures the full command→response round-trip
-// through the mock controller for payloads from 1 B to 64 KiB.
-func BenchmarkSend_RoundTrip(b *testing.B) {
-	for _, ps := range payloadSizes {
-		b.Run(ps.name, func(b *testing.B) {
-			ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-			defer ctrl.Close()
-			payload := make([]byte, ps.size)
-			b.SetBytes(int64(ps.size))
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := range b.N {
-				cmd := &rcp.Command{
-					ID:      uint32(i),
-					Zone:    rcp.ZoneFrontLeft,
-					Type:    rcp.CmdSet,
-					Payload: payload,
-				}
-				_, _ = ctrl.Send(context.Background(), cmd)
-			}
-		})
+	ctx := context.Background()
+	body := []byte("hello")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := fx.Root.Write(ctx, 1, body); err != nil {
+			b.Fatalf("Write: %v", err)
+		}
 	}
 }
 
-// BenchmarkSend_Concurrent measures Send throughput under full parallelism.
-func BenchmarkSend_Concurrent(b *testing.B) {
-	ctrl := mock.NewController(rcp.ZoneCentral, nil)
-	defer ctrl.Close()
-	b.ReportAllocs()
+// BenchmarkClient_Request_Concurrent is BenchmarkClient_Request_RoundTrip
+// under b.RunParallel, the replacement for the retired
+// BenchmarkSend_Concurrent.
+func BenchmarkClient_Request_Concurrent(b *testing.B) {
+	fx, err := mock.NewFixture(testStream(), false)
+	if err != nil {
+		b.Fatalf("NewFixture: %v", err)
+	}
+	defer func() { _ = fx.Close() }()
+	if err := fx.Server.AddEndpoint(fx.Root.StreamID(), 1, regmap.EndpointTypeGPIO); err != nil {
+		b.Fatalf("AddEndpoint: %v", err)
+	}
+	if err := fx.Router.Register(1, mock.NewEndpoint(1, nil)); err != nil {
+		b.Fatalf("Register: %v", err)
+	}
+
+	ctx := context.Background()
+	body := []byte("hello")
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
-		cmd := &rcp.Command{Zone: rcp.ZoneCentral, Type: rcp.CmdGet}
 		for pb.Next() {
-			_, _ = ctrl.Send(context.Background(), cmd)
+			if _, err := fx.Root.Write(ctx, 1, body); err != nil {
+				b.Fatalf("Write: %v", err)
+			}
 		}
 	})
 }
 
-// BenchmarkPublish_FanOut measures Publish→Subscribe delivery to N concurrent subscribers.
-func BenchmarkPublish_FanOut(b *testing.B) {
-	for _, n := range []int{1, 2, 4, 8, 16} {
-		b.Run(fmt.Sprintf("%dsubs", n), func(b *testing.B) {
-			ctrl := mock.NewController(rcp.ZoneCentral, nil)
-			defer ctrl.Close()
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+// BenchmarkEndpoint_HandleRequest measures a bare Endpoint.HandleRequest
+// call with no Router/Client in the path, isolating dispatch overhead from
+// this package's own in-process "wire."
+func BenchmarkEndpoint_HandleRequest(b *testing.B) {
+	ep := mock.NewEndpoint(1, nil)
+	stream := testStream()
+	req := acf.Message{ByteBusID: 1, Control: acf.FlagWrite, Body: []byte("hello")}
 
-			channels := make([]<-chan *rcp.Status, n)
-			for i := range channels {
-				ch, _ := ctrl.Subscribe(ctx)
-				channels[i] = ch
-			}
-
-			payload := []byte(`{"v":1}`)
-			b.SetBytes(int64(len(payload) * n))
-			b.ReportAllocs()
-			b.ResetTimer()
-
-			for range b.N {
-				ctrl.Publish(payload)
-				for _, ch := range channels {
-					<-ch
-				}
-			}
-		})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := ep.HandleRequest(stream, req); err != nil {
+			b.Fatalf("HandleRequest: %v", err)
+		}
 	}
 }
 
-// BenchmarkRegistry_Lookup measures concurrent hot-path registry lookups.
-func BenchmarkRegistry_Lookup(b *testing.B) {
-	reg := mock.NewRegistry()
-	defer reg.Close()
-	b.ReportAllocs()
+// BenchmarkClientRegistry_Lookup is the ClientRegistry replacement for the
+// retired BenchmarkRegistry_Lookup.
+func BenchmarkClientRegistry_Lookup(b *testing.B) {
+	fx, err := mock.NewFixture(testStream(), false)
+	if err != nil {
+		b.Fatalf("NewFixture: %v", err)
+	}
+	defer func() { _ = fx.Close() }()
+
+	reg := mock.NewClientRegistry()
+	defer func() { _ = reg.Close() }()
+	if err := reg.Register("root", fx.Root); err != nil {
+		b.Fatalf("Register: %v", err)
+	}
+
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, _ = reg.Lookup(rcp.ZoneFrontLeft)
+	for i := 0; i < b.N; i++ {
+		if _, err := reg.Lookup("root"); err != nil {
+			b.Fatalf("Lookup: %v", err)
 		}
-	})
+	}
 }

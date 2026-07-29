@@ -8,30 +8,29 @@ package rcp_test
 //fusa:test REQ-ADAPT-006
 //fusa:test REQ-ADAPT-007
 //fusa:test REQ-ADAPT-008
+//fusa:test REQ-MSG-001
+//fusa:test REQ-MSG-002
 //fusa:test REQ-MSG-003
 //fusa:test REQ-MSG-004
 //fusa:test REQ-MSG-005
 //fusa:test REQ-MSG-006
 //fusa:test REQ-MSG-007
 //fusa:test REQ-MSG-008
-//fusa:test REQ-MSG-009
-//fusa:test REQ-MSG-010
 
 import (
 	"context"
 	"testing"
-	"time"
 
 	relay "github.com/SoundMatt/RELAY"
 	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 )
 
 // ── Adapt ─────────────────────────────────────────────────────────────────────
 
 func TestAdapt_ReturnsCaller(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	caller := rcp.Adapt(ctrl)
 	if caller == nil {
 		t.Error("Adapt() returned nil")
@@ -41,47 +40,44 @@ func TestAdapt_ReturnsCaller(t *testing.T) {
 }
 
 func TestAdapter_Protocol(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	if got := rcp.Adapt(ctrl).Protocol(); got != relay.RCP {
 		t.Errorf("Protocol() = %v, want relay.RCP", got)
 	}
 }
 
-func TestAdapter_Send_DispatchesCommand(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+func TestAdapter_Send_DispatchesRequest(t *testing.T) {
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	err := node.Send(context.Background(), relay.Message{
 		Protocol: relay.RCP,
-		ID:       "front-left",
-		Meta:     map[string]string{"rcp.cmd_type": "get"},
+		ID:       rcp.EndpointIDString(testAddr),
+		Meta:     map[string]string{"rcp.op": "write"},
+		Payload:  []byte("hello"),
 	})
 	if err != nil {
 		t.Errorf("Send() error: %v", err)
 	}
 }
 
-func TestAdapter_Send_UnknownZone_ReturnsError(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+func TestAdapter_Send_UnparseableID_ReturnsError(t *testing.T) {
+	_, ctrl := newTestController(t, nil)
 	err := rcp.Adapt(ctrl).Send(context.Background(), relay.Message{
 		Protocol: relay.RCP,
 		ID:       "nowhere",
 	})
 	if err == nil {
-		t.Error("Send(unknown zone) did not return error")
+		t.Error("Send(unparseable ID) did not return error")
 	}
 }
 
 func TestAdapter_Call_ReturnsRelayMessage(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
-	defer ctrl.Close() //nolint:errcheck
+	_, ctrl := newTestController(t, nil)
 	caller := rcp.Adapt(ctrl)
 	resp, err := caller.Call(context.Background(), relay.Message{
 		Protocol: relay.RCP,
-		ID:       "front-left",
-		Meta:     map[string]string{"rcp.cmd_type": "get"},
+		ID:       rcp.EndpointIDString(testAddr),
+		Meta:     map[string]string{"rcp.op": "read"},
 	})
 	if err != nil {
 		t.Fatalf("Call() error: %v", err)
@@ -89,166 +85,178 @@ func TestAdapter_Call_ReturnsRelayMessage(t *testing.T) {
 	if resp.Protocol != relay.RCP {
 		t.Errorf("resp.Protocol = %v, want relay.RCP", resp.Protocol)
 	}
+	if string(resp.Payload) != "ack" {
+		t.Errorf("resp.Payload = %q, want %q", resp.Payload, "ack")
+	}
 }
 
-func TestAdapter_Subscribe_ReceivesMessages(t *testing.T) {
-	mc := mock.NewController(rcp.ZoneCentral, nil)
-	defer mc.Close() //nolint:errcheck
-	node := rcp.Adapt(mc)
-	ch, err := node.Subscribe(relay.WithChannelDepth(8))
+// TestAdapter_Subscribe_LifecycleCompliant verifies Subscribe returns
+// independent channels that are closed on adapter Close, per RELAY §6 — see
+// rcpAdapter.Subscribe's own doc comment in adapt.go for why nothing is
+// ever delivered on either channel.
+func TestAdapter_Subscribe_LifecycleCompliant(t *testing.T) {
+	_, ctrl := newTestController(t, nil)
+	node := rcp.Adapt(ctrl)
+
+	ch1, err := node.Subscribe(relay.WithChannelDepth(8))
 	if err != nil {
 		t.Fatalf("Subscribe() error: %v", err)
 	}
-	mc.Publish([]byte("ping"))
+	ch2, err := node.Subscribe()
+	if err != nil {
+		t.Fatalf("Subscribe() error: %v", err)
+	}
+
 	select {
-	case msg, ok := <-ch:
-		if !ok {
-			t.Fatal("channel closed unexpectedly")
-		}
-		if msg.Protocol != relay.RCP {
-			t.Errorf("msg.Protocol = %v, want relay.RCP", msg.Protocol)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for message")
+	case _, ok := <-ch1:
+		t.Fatalf("ch1 ready before adapter.Close() (ok=%v); TC18 Subscribe should never deliver or close early", ok)
+	default:
+	}
+
+	if err := node.Close(); err != nil {
+		t.Fatalf("Close() error: %v", err)
+	}
+	if _, ok := <-ch1; ok {
+		t.Error("ch1 not closed after adapter.Close()")
+	}
+	if _, ok := <-ch2; ok {
+		t.Error("ch2 not closed after adapter.Close()")
+	}
+}
+
+func TestAdapter_Subscribe_AfterClose_ReturnsErrClosed(t *testing.T) {
+	_, ctrl := newTestController(t, nil)
+	node := rcp.Adapt(ctrl)
+	if err := node.Close(); err != nil {
+		t.Fatalf("Close() error: %v", err)
+	}
+	if _, err := node.Subscribe(); err == nil {
+		t.Error("Subscribe() after Close() did not return an error")
 	}
 }
 
 func TestAdapter_Close_DelegatesToController(t *testing.T) {
-	ctrl := mock.NewController(rcp.ZoneFrontLeft, nil)
+	_, ctrl := newTestController(t, nil)
 	node := rcp.Adapt(ctrl)
 	if err := node.Close(); err != nil {
 		t.Errorf("Close() error: %v", err)
 	}
 }
 
-// ── Status.ToMessage ──────────────────────────────────────────────────────────
-
-func TestStatus_ToMessage_Protocol(t *testing.T) {
-	s := &rcp.Status{Zone: rcp.ZoneFrontLeft, Seq: 3, Healthy: true, Payload: []byte("data")}
-	msg := s.ToMessage()
-	if msg.Protocol != relay.RCP {
-		t.Errorf("ToMessage().Protocol = %v, want relay.RCP", msg.Protocol)
-	}
-}
-
-func TestStatus_ToMessage_ID(t *testing.T) {
-	s := &rcp.Status{Zone: rcp.ZoneRearRight}
-	msg := s.ToMessage()
-	if msg.ID != rcp.ZoneRearRight.String() {
-		t.Errorf("ToMessage().ID = %q, want %q", msg.ID, rcp.ZoneRearRight.String())
-	}
-}
-
-func TestStatus_ToMessage_Payload(t *testing.T) {
-	payload := []byte("health-check")
-	s := &rcp.Status{Zone: rcp.ZoneCentral, Seq: 7, Payload: payload}
-	msg := s.ToMessage()
-	if string(msg.Payload) != string(payload) {
-		t.Errorf("ToMessage().Payload = %q, want %q", msg.Payload, payload)
-	}
-	if msg.Seq != 7 {
-		t.Errorf("ToMessage().Seq = %d, want 7", msg.Seq)
-	}
-}
-
-func TestStatus_ToMessage_HealthyMeta(t *testing.T) {
-	for _, healthy := range []bool{true, false} {
-		s := &rcp.Status{Zone: rcp.ZoneFrontLeft, Healthy: healthy}
-		msg := s.ToMessage()
-		want := "false"
-		if healthy {
-			want = "true"
-		}
-		if got := msg.Meta["rcp.healthy"]; got != want {
-			t.Errorf("Meta[rcp.healthy] = %q, want %q", got, want)
-		}
-	}
-}
-
-// ── CommandFromMessage ────────────────────────────────────────────────────────
-
-func TestCommandFromMessage_Zone(t *testing.T) {
-	msg := relay.Message{Protocol: relay.RCP, ID: "front-right"}
-	cmd, err := rcp.CommandFromMessage(msg)
-	if err != nil {
-		t.Fatalf("CommandFromMessage() error: %v", err)
-	}
-	if cmd.Zone != rcp.ZoneFrontRight {
-		t.Errorf("cmd.Zone = %v, want ZoneFrontRight", cmd.Zone)
-	}
-}
-
-func TestCommandFromMessage_Priority(t *testing.T) {
-	cases := []struct {
-		meta string
-		want rcp.Priority
-	}{
-		{"normal", rcp.PriorityNormal},
-		{"high", rcp.PriorityHigh},
-		{"critical", rcp.PriorityCritical},
-	}
-	for _, tc := range cases {
-		msg := relay.Message{
-			Protocol: relay.RCP,
-			ID:       "central",
-			Meta:     map[string]string{"rcp.priority": tc.meta},
-		}
-		cmd, err := rcp.CommandFromMessage(msg)
-		if err != nil {
-			t.Fatalf("CommandFromMessage() error: %v", err)
-		}
-		if cmd.Priority != tc.want {
-			t.Errorf("priority %q: cmd.Priority = %v, want %v", tc.meta, cmd.Priority, tc.want)
-		}
-	}
-}
-
-func TestCommandFromMessage_CmdType(t *testing.T) {
-	cases := []struct {
-		meta string
-		want rcp.CommandType
-	}{
-		{"noop", rcp.CmdNoop},
-		{"set", rcp.CmdSet},
-		{"get", rcp.CmdGet},
-		{"reset", rcp.CmdReset},
-		{"watchdog", rcp.CmdWatchdog},
-		{"sleep", rcp.CmdSleep},
-		{"wake", rcp.CmdWake},
-	}
-	for _, tc := range cases {
-		msg := relay.Message{
-			Protocol: relay.RCP,
-			ID:       "central",
-			Meta:     map[string]string{"rcp.cmd_type": tc.meta},
-		}
-		cmd, err := rcp.CommandFromMessage(msg)
-		if err != nil {
-			t.Fatalf("CommandFromMessage() error: %v", err)
-		}
-		if cmd.Type != tc.want {
-			t.Errorf("cmd_type %q: cmd.Type = %v, want %v", tc.meta, cmd.Type, tc.want)
-		}
-	}
-}
-
 // ── ResponseToMessage ─────────────────────────────────────────────────────────
 
-func TestResponseToMessage(t *testing.T) {
-	resp := &rcp.Response{
-		CommandID: 42,
-		Zone:      rcp.ZoneRearLeft,
-		Status:    rcp.StatusOK,
-		Payload:   []byte("ok"),
-	}
-	msg := rcp.ResponseToMessage(resp)
+func TestResponseToMessage_Protocol(t *testing.T) {
+	msg := rcp.ResponseToMessage(testAddr, acf.Message{Control: acf.FlagResponse, Body: []byte("data")})
 	if msg.Protocol != relay.RCP {
 		t.Errorf("msg.Protocol = %v, want relay.RCP", msg.Protocol)
 	}
-	if msg.ID != rcp.ZoneRearLeft.String() {
-		t.Errorf("msg.ID = %q, want %q", msg.ID, rcp.ZoneRearLeft.String())
+}
+
+func TestResponseToMessage_ID(t *testing.T) {
+	msg := rcp.ResponseToMessage(7, acf.Message{})
+	if msg.ID != rcp.EndpointIDString(7) {
+		t.Errorf("msg.ID = %q, want %q", msg.ID, rcp.EndpointIDString(7))
 	}
-	if msg.Meta["rcp.status"] != "0" {
-		t.Errorf("msg.Meta[rcp.status] = %q, want \"0\"", msg.Meta["rcp.status"])
+}
+
+func TestResponseToMessage_Payload(t *testing.T) {
+	msg := rcp.ResponseToMessage(testAddr, acf.Message{Body: []byte("health-check")})
+	if string(msg.Payload) != "health-check" {
+		t.Errorf("msg.Payload = %q, want %q", msg.Payload, "health-check")
+	}
+}
+
+func TestResponseToMessage_ErrorMeta(t *testing.T) {
+	for _, isErr := range []bool{true, false} {
+		control := acf.FlagResponse
+		if isErr {
+			control |= acf.FlagError
+		}
+		msg := rcp.ResponseToMessage(testAddr, acf.Message{Control: control})
+		want := "false"
+		if isErr {
+			want = "true"
+		}
+		if got := msg.Meta["rcp.error"]; got != want {
+			t.Errorf("isErr=%v: Meta[rcp.error] = %q, want %q", isErr, got, want)
+		}
+	}
+}
+
+// ── RequestFromMessage ────────────────────────────────────────────────────────
+
+func TestRequestFromMessage_Addr(t *testing.T) {
+	msg := relay.Message{Protocol: relay.RCP, ID: "3"}
+	addr, _, _, err := rcp.RequestFromMessage(msg)
+	if err != nil {
+		t.Fatalf("RequestFromMessage() error: %v", err)
+	}
+	if addr != 3 {
+		t.Errorf("addr = %d, want 3", addr)
+	}
+}
+
+func TestRequestFromMessage_UnparseableID(t *testing.T) {
+	_, _, _, err := rcp.RequestFromMessage(relay.Message{Protocol: relay.RCP, ID: "not-a-number"})
+	if err == nil {
+		t.Fatal("RequestFromMessage(unparseable ID) did not return error")
+	}
+}
+
+func TestRequestFromMessage_ControlFlags(t *testing.T) {
+	cases := []struct {
+		name    string
+		meta    map[string]string
+		payload []byte
+		want    acf.ControlFlags
+	}{
+		{"explicit read", map[string]string{"rcp.op": "read"}, nil, acf.FlagRead},
+		{"explicit write", map[string]string{"rcp.op": "write"}, nil, acf.FlagWrite},
+		{"default with payload", nil, []byte("x"), acf.FlagWrite},
+		{"default without payload", nil, nil, acf.FlagRead},
+	}
+	for _, tc := range cases {
+		msg := relay.Message{Protocol: relay.RCP, ID: "1", Meta: tc.meta, Payload: tc.payload}
+		_, control, _, err := rcp.RequestFromMessage(msg)
+		if err != nil {
+			t.Fatalf("%s: RequestFromMessage() error: %v", tc.name, err)
+		}
+		if control != tc.want {
+			t.Errorf("%s: control = %v, want %v", tc.name, control, tc.want)
+		}
+	}
+}
+
+func TestRequestFromMessage_Body(t *testing.T) {
+	payload := []byte("body-bytes")
+	_, _, body, err := rcp.RequestFromMessage(relay.Message{Protocol: relay.RCP, ID: "1", Payload: payload})
+	if err != nil {
+		t.Fatalf("RequestFromMessage() error: %v", err)
+	}
+	if string(body) != string(payload) {
+		t.Errorf("body = %q, want %q", body, payload)
+	}
+}
+
+// ── EndpointIDString / ParseEndpointID ───────────────────────────────────────
+
+func TestEndpointID_RoundTrip(t *testing.T) {
+	for _, addr := range []int{0, 1, 42, 255} {
+		s := rcp.EndpointIDString(avtp.ByteBusID(addr))
+		got, err := rcp.ParseEndpointID(s)
+		if err != nil {
+			t.Fatalf("ParseEndpointID(%q) error: %v", s, err)
+		}
+		if int(got) != addr {
+			t.Errorf("ParseEndpointID(%q) = %d, want %d", s, got, addr)
+		}
+	}
+}
+
+func TestParseEndpointID_OutOfRange(t *testing.T) {
+	for _, s := range []string{"-1", "256", "abc", ""} {
+		if _, err := rcp.ParseEndpointID(s); err == nil {
+			t.Errorf("ParseEndpointID(%q) did not return an error", s)
+		}
 	}
 }
