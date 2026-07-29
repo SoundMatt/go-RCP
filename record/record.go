@@ -1,19 +1,6 @@
-//fusa:req REQ-REC-001
-//fusa:req REQ-REC-002
-//fusa:req REQ-REC-003
-//fusa:req REQ-REC-004
-//fusa:req REQ-REC-005
-//fusa:req REQ-REC-006
-//fusa:req REQ-REC-007
-//fusa:req REQ-REC-008
-
-// Package record provides always-on black-box recording of RCP command, response,
-// and status streams to a structured binary log on disk, with ring-buffer semantics
-// and a replay mode for regression testing.
 package record
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -23,30 +10,22 @@ import (
 	"sync/atomic"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/request"
 )
 
-// RecordType identifies the entry type in a log frame.
-type RecordType uint8
-
-const (
-	TypeCommand  RecordType = 1
-	TypeResponse RecordType = 2
-	TypeStatus   RecordType = 3
-)
-
-// Entry is a single logged event.
+// Entry is a single logged request/response event. Response is only
+// meaningful when Err == "" (see marshalEntry/unmarshalEntry).
 type Entry struct {
 	Timestamp time.Time
-	Type      RecordType
-	Zone      rcp.Zone
-
-	Command  *rcp.Command  // non-nil when Type == TypeCommand
-	Response *rcp.Response // non-nil when Type == TypeResponse
-	Status   *rcp.Status   // non-nil when Type == TypeStatus
+	Requester avtp.StreamID
+	Request   acf.Message
+	Response  acf.Message
+	Err       string // non-empty when the wrapped Handler returned an error instead of a response
 }
 
-// Recorder is an append-only, ring-buffer log of RCP events.
+// Recorder is an append-only, ring-buffer log of Entry events.
 // MaxEntries > 0 enables ring-buffer mode; 0 = unlimited.
 type Recorder struct {
 	mu         sync.RWMutex
@@ -81,36 +60,6 @@ func (r *Recorder) append(e Entry) {
 	r.written.Add(1)
 }
 
-// RecordCommand appends a command entry.
-func (r *Recorder) RecordCommand(cmd *rcp.Command) {
-	cp := *cmd
-	if len(cmd.Payload) > 0 {
-		cp.Payload = make([]byte, len(cmd.Payload))
-		copy(cp.Payload, cmd.Payload)
-	}
-	r.append(Entry{Timestamp: time.Now(), Type: TypeCommand, Zone: cmd.Zone, Command: &cp})
-}
-
-// RecordResponse appends a response entry.
-func (r *Recorder) RecordResponse(resp *rcp.Response) {
-	cp := *resp
-	if len(resp.Payload) > 0 {
-		cp.Payload = make([]byte, len(resp.Payload))
-		copy(cp.Payload, resp.Payload)
-	}
-	r.append(Entry{Timestamp: time.Now(), Type: TypeResponse, Zone: resp.Zone, Response: &cp})
-}
-
-// RecordStatus appends a status entry.
-func (r *Recorder) RecordStatus(s *rcp.Status) {
-	cp := *s
-	if len(s.Payload) > 0 {
-		cp.Payload = make([]byte, len(s.Payload))
-		copy(cp.Payload, s.Payload)
-	}
-	r.append(Entry{Timestamp: time.Now(), Type: TypeStatus, Zone: s.Zone, Status: &cp})
-}
-
 // Snapshot returns a copy of all currently held entries in order.
 func (r *Recorder) Snapshot() []Entry {
 	r.mu.RLock()
@@ -136,19 +85,20 @@ func (r *Recorder) Written() int64 { return r.written.Load() }
 // WriteTo serialises the current snapshot to w in a simple binary format.
 // Frame layout per entry:
 //
-//	[8 bytes unix-ns][1 byte type][1 byte zone][4 bytes payload len][payload][4 bytes CRC32]
+//	[8 bytes unix-ns][4 bytes payload len][payload][4 bytes CRC32(payload)]
 func (r *Recorder) WriteTo(w io.Writer) (int64, error) {
 	entries := r.Snapshot()
 	var total int64
 	for _, e := range entries {
-		payload := marshalEntry(e)
+		payload, err := marshalEntry(e)
+		if err != nil {
+			return total, err
+		}
 		checksum := crc32.ChecksumIEEE(payload)
 
-		hdr := make([]byte, 8+1+1+4)
+		hdr := make([]byte, 8+4)
 		binary.BigEndian.PutUint64(hdr[0:], uint64(e.Timestamp.UnixNano()))
-		hdr[8] = byte(e.Type)
-		hdr[9] = byte(e.Zone)
-		binary.BigEndian.PutUint32(hdr[10:], uint32(len(payload)))
+		binary.BigEndian.PutUint32(hdr[8:], uint32(len(payload)))
 
 		n, err := w.Write(hdr)
 		total += int64(n)
@@ -171,12 +121,14 @@ func (r *Recorder) WriteTo(w io.Writer) (int64, error) {
 	return total, nil
 }
 
-// ReadFrom deserialises entries written by WriteTo.
+// ErrCorrupted is returned by ReadFrom when a logged entry's CRC32 does not
+// match its payload.
 var ErrCorrupted = errors.New("rcp/record: log entry CRC mismatch — data corrupted")
 
+// ReadFrom deserialises entries written by WriteTo.
 func ReadFrom(r io.Reader) ([]Entry, error) {
 	var entries []Entry
-	hdr := make([]byte, 8+1+1+4)
+	hdr := make([]byte, 8+4)
 	for {
 		if _, err := io.ReadFull(r, hdr); errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			break
@@ -184,9 +136,7 @@ func ReadFrom(r io.Reader) ([]Entry, error) {
 			return nil, err
 		}
 		tsNs := int64(binary.BigEndian.Uint64(hdr[0:]))
-		recType := RecordType(hdr[8])
-		zone := rcp.Zone(hdr[9])
-		payloadLen := int(binary.BigEndian.Uint32(hdr[10:]))
+		payloadLen := int(binary.BigEndian.Uint32(hdr[8:]))
 
 		payload := make([]byte, payloadLen)
 		if _, err := io.ReadFull(r, payload); err != nil {
@@ -201,81 +151,53 @@ func ReadFrom(r io.Reader) ([]Entry, error) {
 			return nil, ErrCorrupted
 		}
 
-		e, err := unmarshalEntry(tsNs, recType, zone, payload)
+		e, err := unmarshalEntry(payload)
 		if err != nil {
 			return nil, err
 		}
+		e.Timestamp = time.Unix(0, tsNs)
 		entries = append(entries, e)
 	}
 	return entries, nil
 }
 
-// Controller wraps an rcp.Controller and records every Send/Subscribe event.
-type Controller struct {
-	inner    rcp.Controller
+// Handler wraps a request.Handler, recording every request/response pair
+// (or request/error pair) to a Recorder before returning. It implements
+// request.Handler itself, so it is directly registrable into a *udp.Router
+// in place of the endpoint it wraps — the same "wrap, don't require
+// call-site changes" posture e2e.Guard and proxy.Handler already establish.
+type Handler struct {
+	inner    request.Handler
 	recorder *Recorder
-	closed   atomic.Bool
 }
 
-// NewController wraps inner, recording all activity into rec.
-func NewController(inner rcp.Controller, rec *Recorder) *Controller {
-	return &Controller{inner: inner, recorder: rec}
+// NewHandler wraps inner, recording all activity into rec.
+func NewHandler(inner request.Handler, rec *Recorder) *Handler {
+	return &Handler{inner: inner, recorder: rec}
 }
 
-// Zone implements rcp.Controller.
-func (c *Controller) Zone() rcp.Zone { return c.inner.Zone() }
-
-// Send records the command and response before returning.
-func (c *Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/record: %w", rcp.ErrClosed)
-	}
-	c.recorder.RecordCommand(cmd)
-	resp, err := c.inner.Send(ctx, cmd)
-	if err == nil {
-		c.recorder.RecordResponse(resp)
-	}
-	return resp, err
-}
-
-// Subscribe records each Status published on the channel.
-func (c *Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/record: %w", rcp.ErrClosed)
-	}
-	ch, err := c.inner.Subscribe(ctx)
+// HandleRequest implements request.Handler: it delegates to inner, then
+// records the outcome (whichever of Response/Err applies) before returning
+// it unchanged to the caller.
+func (h *Handler) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
+	resp, err := h.inner.HandleRequest(requester, req)
 	if err != nil {
-		return nil, err
+		h.recorder.append(Entry{Timestamp: time.Now(), Requester: requester, Request: cloneMessage(req), Err: err.Error()})
+		return resp, err
 	}
-	out := make(chan *rcp.Status, cap(ch)+1)
-	go func() {
-		defer close(out)
-		for s := range ch {
-			c.recorder.RecordStatus(s)
-			out <- s
-		}
-	}()
-	return out, nil
+	h.recorder.append(Entry{Timestamp: time.Now(), Requester: requester, Request: cloneMessage(req), Response: cloneMessage(resp)})
+	return resp, nil
 }
 
-// Close closes the inner controller. Safe to call multiple times.
-func (c *Controller) Close() error {
-	if !c.closed.CompareAndSwap(false, true) {
-		return nil
-	}
-	return c.inner.Close()
-}
-
-// Replay feeds all recorded entries into target in order of timestamp.
-// Commands are re-sent; responses and status events are compared for assertion.
-// Returns the list of responses received from target.
-func Replay(ctx context.Context, entries []Entry, target rcp.Controller) ([]*rcp.Response, error) {
-	var resps []*rcp.Response
+// Replay feeds every recorded request in entries into target, in order,
+// via target.HandleRequest. It returns the responses received from target
+// for entries whose own outcome was a response (an originally-erroring
+// entry is still replayed — target may behave differently the second time
+// — but its own recorded Err is not itself replayed as an error).
+func Replay(target request.Handler, entries []Entry) ([]acf.Message, error) {
+	var resps []acf.Message
 	for _, e := range entries {
-		if e.Type != TypeCommand {
-			continue
-		}
-		resp, err := target.Send(ctx, e.Command)
+		resp, err := target.HandleRequest(e.Requester, e.Request)
 		if err != nil {
 			return resps, fmt.Errorf("rcp/record: replay failed at %v: %w", e.Timestamp, err)
 		}
@@ -284,108 +206,112 @@ func Replay(ctx context.Context, entries []Entry, target rcp.Controller) ([]*rcp
 	return resps, nil
 }
 
-// marshalEntry converts Entry content to bytes for CRC and storage.
-func marshalEntry(e Entry) []byte {
-	switch e.Type {
-	case TypeCommand:
-		return marshalCommand(e.Command)
-	case TypeResponse:
-		return marshalResponse(e.Response)
-	case TypeStatus:
-		return marshalStatus(e.Status)
-	default:
-		return nil
+// cloneMessage returns a copy of m whose Body has its own backing array, so
+// the recorded Entry cannot be mutated by a caller reusing m's buffer.
+func cloneMessage(m acf.Message) acf.Message {
+	out := m
+	if len(m.Body) > 0 {
+		out.Body = make([]byte, len(m.Body))
+		copy(out.Body, m.Body)
 	}
+	return out
 }
 
-func marshalCommand(c *rcp.Command) []byte {
-	b := make([]byte, 4+2+1+4+len(c.Payload))
-	binary.BigEndian.PutUint32(b[0:], c.ID)
-	binary.BigEndian.PutUint16(b[4:], uint16(c.Type))
-	b[6] = byte(c.Priority)
-	binary.BigEndian.PutUint32(b[7:], uint32(len(c.Payload)))
-	copy(b[11:], c.Payload)
-	return b
-}
-
-func marshalResponse(r *rcp.Response) []byte {
-	b := make([]byte, 4+1+4+len(r.Payload))
-	binary.BigEndian.PutUint32(b[0:], r.CommandID)
-	b[4] = byte(r.Status)
-	binary.BigEndian.PutUint32(b[5:], uint32(len(r.Payload)))
-	copy(b[9:], r.Payload)
-	return b
-}
-
-func marshalStatus(s *rcp.Status) []byte {
-	healthy := uint8(0)
-	if s.Healthy {
-		healthy = 1
+// marshalEntry encodes e's Requester/Request/Response/Err into bytes for
+// CRC and storage:
+//
+//	[8]  Requester
+//	[1]  hasErr (1 = Err carries the outcome, Response is not encoded)
+//	[4]  request length + request (acf.EncodeMessage)
+//	[4]  response length + response (acf.EncodeMessage; 0 length if hasErr)
+//	[4]  error length + error bytes (0 length if !hasErr)
+func marshalEntry(e Entry) ([]byte, error) {
+	reqBytes, err := acf.EncodeMessage(e.Request)
+	if err != nil {
+		return nil, fmt.Errorf("rcp/record: encode request: %w", err)
 	}
-	b := make([]byte, 4+1+4+len(s.Payload))
-	binary.BigEndian.PutUint32(b[0:], s.Seq)
-	b[4] = healthy
-	binary.BigEndian.PutUint32(b[5:], uint32(len(s.Payload)))
-	copy(b[9:], s.Payload)
-	return b
+
+	hasErr := e.Err != ""
+	var respBytes []byte
+	if !hasErr {
+		respBytes, err = acf.EncodeMessage(e.Response)
+		if err != nil {
+			return nil, fmt.Errorf("rcp/record: encode response: %w", err)
+		}
+	}
+	errBytes := []byte(e.Err)
+
+	buf := make([]byte, 0, 8+1+4+len(reqBytes)+4+len(respBytes)+4+len(errBytes))
+	buf = append(buf, e.Requester[:]...)
+	if hasErr {
+		buf = append(buf, 1)
+	} else {
+		buf = append(buf, 0)
+	}
+	buf = appendLenPrefixed(buf, reqBytes)
+	buf = appendLenPrefixed(buf, respBytes)
+	buf = appendLenPrefixed(buf, errBytes)
+	return buf, nil
 }
 
-func unmarshalEntry(tsNs int64, recType RecordType, zone rcp.Zone, payload []byte) (Entry, error) {
-	e := Entry{
-		Timestamp: time.Unix(0, tsNs),
-		Type:      recType,
-		Zone:      zone,
+func appendLenPrefixed(buf, data []byte) []byte {
+	var lenBuf [4]byte
+	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(data)))
+	buf = append(buf, lenBuf[:]...)
+	return append(buf, data...)
+}
+
+// unmarshalEntry decodes a payload produced by marshalEntry.
+func unmarshalEntry(payload []byte) (Entry, error) {
+	if len(payload) < 8+1+4 {
+		return Entry{}, fmt.Errorf("rcp/record: entry payload too short")
 	}
-	switch recType {
-	case TypeCommand:
-		if len(payload) < 11 {
-			return e, fmt.Errorf("rcp/record: short command payload")
-		}
-		plen := int(binary.BigEndian.Uint32(payload[7:]))
-		if len(payload) < 11+plen {
-			return e, fmt.Errorf("rcp/record: truncated command payload")
-		}
-		cmd := &rcp.Command{
-			ID:       binary.BigEndian.Uint32(payload[0:]),
-			Zone:     zone,
-			Type:     rcp.CommandType(binary.BigEndian.Uint16(payload[4:])),
-			Priority: rcp.Priority(payload[6]),
-		}
-		if plen > 0 {
-			cmd.Payload = make([]byte, plen)
-			copy(cmd.Payload, payload[11:11+plen])
-		}
-		e.Command = cmd
-	case TypeResponse:
-		if len(payload) < 9 {
-			return e, fmt.Errorf("rcp/record: short response payload")
-		}
-		plen := int(binary.BigEndian.Uint32(payload[5:]))
-		resp := &rcp.Response{
-			CommandID: binary.BigEndian.Uint32(payload[0:]),
-			Zone:      zone,
-			Status:    rcp.ResponseStatus(payload[4]),
-		}
-		if plen > 0 {
-			resp.Payload = make([]byte, plen)
-			copy(resp.Payload, payload[9:9+plen])
+	var e Entry
+	copy(e.Requester[:], payload[0:8])
+	hasErr := payload[8] == 1
+	off := 9
+
+	reqBytes, off, err := readLenPrefixed(payload, off)
+	if err != nil {
+		return Entry{}, err
+	}
+	req, err := acf.DecodeMessage(reqBytes)
+	if err != nil {
+		return Entry{}, fmt.Errorf("rcp/record: decode request: %w", err)
+	}
+	e.Request = req
+
+	respBytes, off, err := readLenPrefixed(payload, off)
+	if err != nil {
+		return Entry{}, err
+	}
+	if !hasErr {
+		resp, decErr := acf.DecodeMessage(respBytes)
+		if decErr != nil {
+			return Entry{}, fmt.Errorf("rcp/record: decode response: %w", decErr)
 		}
 		e.Response = resp
-	case TypeStatus:
-		if len(payload) < 9 {
-			return e, fmt.Errorf("rcp/record: short status payload")
-		}
-		plen := int(binary.BigEndian.Uint32(payload[5:]))
-		s := &rcp.Status{
-			Zone:    zone,
-			Seq:     binary.BigEndian.Uint32(payload[0:]),
-			Healthy: payload[4] == 1,
-		}
-		if plen > 0 {
-			s.Payload = make([]byte, plen)
-			copy(s.Payload, payload[9:9+plen])
-		}
-		e.Status = s
 	}
+
+	errBytes, _, err := readLenPrefixed(payload, off)
+	if err != nil {
+		return Entry{}, err
+	}
+	if hasErr {
+		e.Err = string(errBytes)
+	}
+
 	return e, nil
+}
+
+func readLenPrefixed(payload []byte, off int) ([]byte, int, error) {
+	if len(payload) < off+4 {
+		return nil, 0, fmt.Errorf("rcp/record: truncated length prefix")
+	}
+	n := int(binary.BigEndian.Uint32(payload[off:]))
+	off += 4
+	if len(payload) < off+n {
+		return nil, 0, fmt.Errorf("rcp/record: truncated field")
+	}
+	return payload[off : off+n], off + n, nil
 }

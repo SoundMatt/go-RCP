@@ -1,20 +1,3 @@
-//fusa:req REQ-CG-001
-//fusa:req REQ-CG-002
-//fusa:req REQ-CG-003
-//fusa:req REQ-CG-004
-//fusa:req REQ-CG-005
-//fusa:req REQ-CG-006
-//fusa:req REQ-CG-007
-//fusa:req REQ-CG-008
-
-// Package codegen generates typed Go controller stubs and go-FuSa requirement
-// skeletons from a zone manifest YAML/JSON file.
-//
-// A manifest declares zone IDs, supported command types, payload schemas, and
-// ASIL levels. The generator emits:
-//   - A Go source file implementing rcp.Controller for each zone type
-//   - A matching _test.go skeleton with //fusa:test annotations
-//   - JSON entries for .fusa-reqs.json ready for go-FuSa compliance
 package codegen
 
 import (
@@ -42,32 +25,35 @@ const (
 	ASILD    ASIL = "ASIL-D"
 )
 
-// CommandSpec describes a command type supported by a zone.
-type CommandSpec struct {
-	Name    string `yaml:"name"    json:"name"`
-	Code    uint16 `yaml:"code"    json:"code"`
-	Payload string `yaml:"payload" json:"payload,omitempty"`
+// EndpointSpec is the manifest entry for one declared endpoint on a server.
+// See doc.go's note on Type for why it is a free-text label rather than a
+// regmap.EndpointType.
+type EndpointSpec struct {
+	Name string `yaml:"name"        json:"name"`
+	Addr uint8  `yaml:"byte_bus_id" json:"byte_bus_id"`
+	Type string `yaml:"type"        json:"type"`
+	ASIL ASIL   `yaml:"asil"        json:"asil"`
 }
 
-// ZoneSpec is the manifest entry for a single zone type.
-type ZoneSpec struct {
-	Name     string        `yaml:"name"     json:"name"`
-	ZoneID   uint8         `yaml:"zone_id"  json:"zone_id"`
-	ASIL     ASIL          `yaml:"asil"     json:"asil"`
-	Commands []CommandSpec `yaml:"commands" json:"commands"`
+// ServerSpec is the manifest entry for one declared RC Server.
+type ServerSpec struct {
+	Name      string         `yaml:"name"      json:"name"`
+	StreamID  string         `yaml:"stream_id" json:"stream_id"` // 16 hex chars (8 bytes), same encoding as config.ServerEntry
+	Endpoints []EndpointSpec `yaml:"endpoints" json:"endpoints"`
 }
 
 // Manifest is the top-level manifest file structure.
 type Manifest struct {
-	Version int        `yaml:"version" json:"version"`
-	Package string     `yaml:"package" json:"package"`
-	Zones   []ZoneSpec `yaml:"zones"   json:"zones"`
+	Version int          `yaml:"version" json:"version"`
+	Package string       `yaml:"package" json:"package"`
+	Servers []ServerSpec `yaml:"servers" json:"servers"`
 }
 
 var (
 	ErrInvalidVersion = errors.New("rcp/codegen: unsupported manifest version")
 	ErrMissingPackage = errors.New("rcp/codegen: manifest missing package field")
-	ErrEmptyName      = errors.New("rcp/codegen: zone name must not be empty")
+	ErrEmptyName      = errors.New("rcp/codegen: server and endpoint names must not be empty")
+	ErrReservedAddr   = errors.New("rcp/codegen: byte_bus_id 0 is reserved for EP0")
 )
 
 // ParseManifest decodes a manifest from r. ext selects the decoder (.yaml/.yml or .json).
@@ -91,9 +77,17 @@ func ParseManifest(r io.Reader, ext string) (*Manifest, error) {
 	if m.Package == "" {
 		return nil, ErrMissingPackage
 	}
-	for _, z := range m.Zones {
-		if z.Name == "" {
+	for _, s := range m.Servers {
+		if s.Name == "" {
 			return nil, ErrEmptyName
+		}
+		for _, ep := range s.Endpoints {
+			if ep.Name == "" {
+				return nil, ErrEmptyName
+			}
+			if ep.Addr == 0 {
+				return nil, ErrReservedAddr
+			}
 		}
 	}
 	return &m, nil
@@ -101,45 +95,50 @@ func ParseManifest(r io.Reader, ext string) (*Manifest, error) {
 
 // GeneratedFile is one generated Go source file.
 type GeneratedFile struct {
-	Name    string // suggested filename, e.g. "frontleft_controller.go"
+	Name    string // suggested filename, e.g. "frontleft_gpio_endpoint.go"
 	Content []byte // gofmt-formatted Go source
 }
 
-// Generate produces Go source files from manifest m.
-// Returns one impl file and one test file per zone.
+// Generate produces Go source files from manifest m: one stub impl file and
+// one test-skeleton file per declared endpoint, across every declared
+// server.
 func Generate(m *Manifest) ([]GeneratedFile, error) {
 	var files []GeneratedFile
-	for _, z := range m.Zones {
-		impl, err := generateImpl(m.Package, z)
-		if err != nil {
-			return nil, fmt.Errorf("rcp/codegen: zone %q impl: %w", z.Name, err)
-		}
-		files = append(files, impl)
+	for _, s := range m.Servers {
+		for _, ep := range s.Endpoints {
+			impl, err := generateImpl(m.Package, s, ep)
+			if err != nil {
+				return nil, fmt.Errorf("rcp/codegen: server %q endpoint %q impl: %w", s.Name, ep.Name, err)
+			}
+			files = append(files, impl)
 
-		test, err := generateTest(m.Package, z)
-		if err != nil {
-			return nil, fmt.Errorf("rcp/codegen: zone %q test: %w", z.Name, err)
+			test, err := generateTest(m.Package, s, ep)
+			if err != nil {
+				return nil, fmt.Errorf("rcp/codegen: server %q endpoint %q test: %w", s.Name, ep.Name, err)
+			}
+			files = append(files, test)
 		}
-		files = append(files, test)
 	}
 	return files, nil
 }
 
-// GenerateRequirements produces .fusa-reqs.json entries for all zones in m.
+// GenerateRequirements produces .fusa-reqs.json entries for every declared
+// endpoint across every declared server in m.
 func GenerateRequirements(m *Manifest) []map[string]string {
 	var reqs []map[string]string
-	for _, z := range m.Zones {
-		prefix := reqPrefix(z.Name)
-		descs := reqDescriptions(z)
-		for i, desc := range descs {
-			reqs = append(reqs, map[string]string{
-				"id":       fmt.Sprintf("%s-%03d", prefix, i+1),
-				"title":    desc.title,
-				"text":     desc.text,
-				"standard": "iso26262",
-				"level":    string(z.ASIL),
-				"asil":     string(z.ASIL),
-			})
+	for _, s := range m.Servers {
+		for _, ep := range s.Endpoints {
+			prefix := reqPrefix(s.Name, ep.Name)
+			for i, desc := range reqDescriptions(s, ep) {
+				reqs = append(reqs, map[string]string{
+					"id":       fmt.Sprintf("%s-%03d", prefix, i+1),
+					"title":    desc.title,
+					"text":     desc.text,
+					"standard": "iso26262",
+					"level":    string(ep.ASIL),
+					"asil":     string(ep.ASIL),
+				})
+			}
 		}
 	}
 	return reqs
@@ -147,17 +146,15 @@ func GenerateRequirements(m *Manifest) []map[string]string {
 
 type reqDesc struct{ title, text string }
 
-func reqDescriptions(z ZoneSpec) []reqDesc {
-	typeName := goTypeName(z.Name)
+func reqDescriptions(s ServerSpec, ep EndpointSpec) []reqDesc {
+	typeName := goTypeName(s.Name) + goTypeName(ep.Name)
 	return []reqDesc{
-		{fmt.Sprintf("%s zone identification", typeName), fmt.Sprintf("The %s controller shall identify itself with ZoneID %d.", typeName, z.ZoneID)},
-		{fmt.Sprintf("%s Send dispatches command", typeName), fmt.Sprintf("The %s controller shall dispatch commands to zone %d via Send.", typeName, z.ZoneID)},
-		{fmt.Sprintf("%s Send rejects zone mismatch", typeName), fmt.Sprintf("The %s controller shall return ErrZoneMismatch when cmd.Zone != %d.", typeName, z.ZoneID)},
-		{fmt.Sprintf("%s Subscribe returns status channel", typeName), fmt.Sprintf("The %s controller shall return a status channel from Subscribe.", typeName)},
-		{fmt.Sprintf("%s Send context cancellation", typeName), fmt.Sprintf("The %s controller shall honour context cancellation in Send.", typeName)},
-		{fmt.Sprintf("%s Send race-free", typeName), fmt.Sprintf("The %s controller shall be safe for concurrent Send calls without data races.", typeName)},
-		{fmt.Sprintf("%s Close idempotent", typeName), fmt.Sprintf("The %s controller Close shall be safe to call multiple times.", typeName)},
-		{fmt.Sprintf("%s Send-after-Close returns ErrClosed", typeName), fmt.Sprintf("The %s controller shall return ErrClosed for Send or Subscribe after Close.", typeName)},
+		{fmt.Sprintf("%s HandleRequest rejects wrong endpoint", typeName), fmt.Sprintf("The %s endpoint stub shall reject a request whose ByteBusID is not %d.", typeName, ep.Addr)},
+		{fmt.Sprintf("%s HandleRequest answers a read request", typeName), fmt.Sprintf("The %s endpoint stub shall answer a FlagRead request with FlagResponse set and FlagRead preserved.", typeName)},
+		{fmt.Sprintf("%s HandleRequest answers a write request", typeName), fmt.Sprintf("The %s endpoint stub shall answer a FlagWrite request with FlagResponse set and FlagWrite preserved.", typeName)},
+		{fmt.Sprintf("%s HandleRequest is race-free", typeName), fmt.Sprintf("The %s endpoint stub shall be safe for concurrent HandleRequest calls without data races.", typeName)},
+		{fmt.Sprintf("%s Close idempotent", typeName), fmt.Sprintf("The %s endpoint stub Close shall be safe to call multiple times.", typeName)},
+		{fmt.Sprintf("%s HandleRequest after Close returns ErrClosed", typeName), fmt.Sprintf("The %s endpoint stub shall return ErrClosed for HandleRequest after Close.", typeName)},
 	}
 }
 
@@ -169,65 +166,47 @@ var implTmpl = template.Must(template.New("impl").Parse(`// Code generated by rc
 package {{.Package}}
 
 import (
-	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 )
 
-{{range .Commands}}// Cmd{{.GoName}} is the command code for {{.Name}}.
-const Cmd{{.GoName}} rcp.CommandType = {{.Code}}
-{{end}}
+// Addr{{.TypeName}} is the declared byte_bus_id for the {{.EndpointType}} endpoint "{{.EndpointName}}" on server "{{.ServerName}}".
+const Addr{{.TypeName}} avtp.ByteBusID = {{.Addr}}
 
-// {{.TypeName}}Controller implements rcp.Controller for zone {{.ZoneID}}.
-type {{.TypeName}}Controller struct {
-	mu     sync.Mutex
+// {{.TypeName}}Endpoint is a generated request.Handler stub for the
+// {{.EndpointType}} endpoint "{{.EndpointName}}" on server "{{.ServerName}}"
+// (ASIL {{.ASIL}}). Replace HandleRequest's body with real endpoint logic.
+type {{.TypeName}}Endpoint struct {
 	closed atomic.Bool
 }
 
-// New{{.TypeName}}Controller returns a new {{.TypeName}}Controller.
-func New{{.TypeName}}Controller() *{{.TypeName}}Controller {
-	return &{{.TypeName}}Controller{}
+// New{{.TypeName}}Endpoint returns a new {{.TypeName}}Endpoint.
+func New{{.TypeName}}Endpoint() *{{.TypeName}}Endpoint {
+	return &{{.TypeName}}Endpoint{}
 }
 
-// Zone returns the fixed zone for this controller.
-func (c *{{.TypeName}}Controller) Zone() rcp.Zone { return rcp.Zone({{.ZoneID}}) }
-
-// Send dispatches cmd to zone {{.ZoneID}}.
-func (c *{{.TypeName}}Controller) Send(ctx context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/{{.Package}}: %w", rcp.ErrClosed)
+// HandleRequest implements request.Handler for Addr{{.TypeName}}.
+func (e *{{.TypeName}}Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
+	if e.closed.Load() {
+		return acf.Message{}, fmt.Errorf("rcp/{{.Package}}: %s: closed", "{{.EndpointName}}")
 	}
-	if cmd.Zone != rcp.Zone({{.ZoneID}}) {
-		return nil, fmt.Errorf("rcp/{{.Package}}: %w", rcp.ErrZoneMismatch)
+	if req.ByteBusID != Addr{{.TypeName}} {
+		return acf.Message{}, fmt.Errorf("rcp/{{.Package}}: %s: wrong endpoint", "{{.EndpointName}}")
 	}
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("rcp/{{.Package}}: %w", rcp.ErrTimeout)
-	default:
-	}
-	_ = c.mu
-	return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}, nil
+	return acf.Message{
+		Kind:           req.Kind,
+		ByteBusID:      req.ByteBusID,
+		TransactionNum: req.TransactionNum,
+		Control:        acf.FlagResponse | (req.Control & (acf.FlagRead | acf.FlagWrite)),
+	}, nil
 }
 
-// Subscribe returns a channel of Status updates.
-func (c *{{.TypeName}}Controller) Subscribe(ctx context.Context) (<-chan *rcp.Status, error) {
-	if c.closed.Load() {
-		return nil, fmt.Errorf("rcp/{{.Package}}: %w", rcp.ErrClosed)
-	}
-	ch := make(chan *rcp.Status, 16)
-	go func() {
-		defer close(ch)
-		<-ctx.Done()
-	}()
-	return ch, nil
-}
-
-// Close releases resources. Safe to call multiple times.
-func (c *{{.TypeName}}Controller) Close() error {
-	c.closed.CompareAndSwap(false, true)
+// Close marks the endpoint closed. Safe to call multiple times.
+func (e *{{.TypeName}}Endpoint) Close() error {
+	e.closed.Store(true)
 	return nil
 }
 `))
@@ -241,17 +220,14 @@ package {{.Package}}_test
 `))
 
 type implData struct {
-	Package  string
-	TypeName string
-	ZoneID   uint8
-	FusaReqs []string
-	Commands []cmdData
-}
-
-type cmdData struct {
-	Name   string
-	GoName string
-	Code   uint16
+	Package      string
+	TypeName     string
+	ServerName   string
+	EndpointName string
+	EndpointType string
+	Addr         uint8
+	ASIL         ASIL
+	FusaReqs     []string
 }
 
 type testData struct {
@@ -260,22 +236,22 @@ type testData struct {
 	FusaTests []string
 }
 
-func generateImpl(pkg string, z ZoneSpec) (GeneratedFile, error) {
-	prefix := reqPrefix(z.Name)
+func generateImpl(pkg string, s ServerSpec, ep EndpointSpec) (GeneratedFile, error) {
+	prefix := reqPrefix(s.Name, ep.Name)
 	var reqs []string
-	for i := 1; i <= 8; i++ {
+	for i := 1; i <= 6; i++ {
 		reqs = append(reqs, fmt.Sprintf("%s-%03d", prefix, i))
 	}
-	var cmds []cmdData
-	for _, c := range z.Commands {
-		cmds = append(cmds, cmdData{Name: c.Name, GoName: goTypeName(c.Name), Code: c.Code})
-	}
+	typeName := goTypeName(s.Name) + goTypeName(ep.Name)
 	d := implData{
-		Package:  pkg,
-		TypeName: goTypeName(z.Name),
-		ZoneID:   z.ZoneID,
-		FusaReqs: reqs,
-		Commands: cmds,
+		Package:      pkg,
+		TypeName:     typeName,
+		ServerName:   s.Name,
+		EndpointName: ep.Name,
+		EndpointType: ep.Type,
+		Addr:         ep.Addr,
+		ASIL:         ep.ASIL,
+		FusaReqs:     reqs,
 	}
 	var buf bytes.Buffer
 	if err := implTmpl.Execute(&buf, d); err != nil {
@@ -286,20 +262,21 @@ func generateImpl(pkg string, z ZoneSpec) (GeneratedFile, error) {
 		return GeneratedFile{}, fmt.Errorf("gofmt: %w\n%s", err, buf.String())
 	}
 	return GeneratedFile{
-		Name:    strings.ToLower(z.Name) + "_controller.go",
+		Name:    strings.ToLower(s.Name) + "_" + strings.ToLower(ep.Name) + "_endpoint.go",
 		Content: formatted,
 	}, nil
 }
 
-func generateTest(pkg string, z ZoneSpec) (GeneratedFile, error) {
-	prefix := reqPrefix(z.Name)
+func generateTest(pkg string, s ServerSpec, ep EndpointSpec) (GeneratedFile, error) {
+	prefix := reqPrefix(s.Name, ep.Name)
 	var tests []string
-	for i := 1; i <= 8; i++ {
+	for i := 1; i <= 6; i++ {
 		tests = append(tests, fmt.Sprintf("%s-%03d", prefix, i))
 	}
+	typeName := goTypeName(s.Name) + goTypeName(ep.Name)
 	d := testData{
 		Package:   pkg,
-		TypeName:  goTypeName(z.Name),
+		TypeName:  typeName,
 		FusaTests: tests,
 	}
 	var buf bytes.Buffer
@@ -311,12 +288,12 @@ func generateTest(pkg string, z ZoneSpec) (GeneratedFile, error) {
 		return GeneratedFile{}, fmt.Errorf("gofmt test: %w\n%s", err, buf.String())
 	}
 	return GeneratedFile{
-		Name:    strings.ToLower(z.Name) + "_controller_test.go",
+		Name:    strings.ToLower(s.Name) + "_" + strings.ToLower(ep.Name) + "_endpoint_test.go",
 		Content: formatted,
 	}, nil
 }
 
-// goTypeName converts a zone name like "front-left" to "FrontLeft".
+// goTypeName converts a name like "front-left" to "FrontLeft".
 func goTypeName(s string) string {
 	var b strings.Builder
 	upper := true
@@ -335,14 +312,18 @@ func goTypeName(s string) string {
 	return b.String()
 }
 
-// reqPrefix returns REQ-XX from a zone name (e.g. "front-left" → "REQ-FL").
-func reqPrefix(name string) string {
+// reqPrefix returns REQ-XXYY from a server/endpoint name pair (e.g.
+// "front-left"/"main-gpio" -> "REQ-FLMG").
+func reqPrefix(serverName, endpointName string) string {
 	var b strings.Builder
-	parts := strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' || r == ' ' })
-	for _, p := range parts {
-		if len(p) > 0 {
-			b.WriteRune(unicode.ToUpper(rune(p[0])))
+	b.WriteString("REQ-")
+	for _, name := range []string{serverName, endpointName} {
+		parts := strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' || r == ' ' })
+		for _, p := range parts {
+			if len(p) > 0 {
+				b.WriteRune(unicode.ToUpper(rune(p[0])))
+			}
 		}
 	}
-	return "REQ-" + b.String()
+	return b.String()
 }

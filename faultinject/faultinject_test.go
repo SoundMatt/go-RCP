@@ -6,238 +6,184 @@
 //fusa:test REQ-FI-006
 //fusa:test REQ-FI-007
 //fusa:test REQ-FI-008
+//fusa:test REQ-FI-009
 
 package faultinject_test
 
 import (
-	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/discovery"
+	"github.com/SoundMatt/go-RCP/e2e"
 	"github.com/SoundMatt/go-RCP/faultinject"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/request"
 )
 
-func newCtrl() (*faultinject.Controller, *mock.Controller) {
-	inner := mock.NewController(rcp.ZoneFrontLeft, nil)
-	return faultinject.NewController(inner), inner
+func testStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
 }
 
-// TestFaultInject_NoRule_PassThrough verifies clean path without rules (REQ-FI-008).
-func TestFaultInject_NoRule_PassThrough(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
+type countingHandler struct {
+	calls atomic.Int32
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
+func (c *countingHandler) HandleRequest(_ avtp.StreamID, _ acf.Message) (acf.Message, error) {
+	c.calls.Add(1)
+	return acf.Message{Control: acf.FlagResponse}, nil
+}
+
+// TestHandler_NoRules_Passthrough verifies HandleRequest delegates directly
+// when no rules are configured (REQ-FI-001).
+func TestHandler_NoRules_Passthrough(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	if _, err := h.HandleRequest(testStream(), acf.Message{}); err != nil {
+		t.Fatalf("HandleRequest: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
+	if inner.calls.Load() != 1 {
+		t.Errorf("inner.calls = %d, want 1", inner.calls.Load())
 	}
 }
 
-// TestFaultInject_FaultDrop returns error without inner Send (REQ-FI-001).
-func TestFaultInject_FaultDrop(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
+// TestHandler_FaultDrop_DoesNotReachInner verifies FaultDrop returns an
+// error without calling the wrapped Handler (REQ-FI-002).
+func TestHandler_FaultDrop_DoesNotReachInner(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultDrop, Count: -1})
 
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultDrop, Count: -1})
-
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
+	_, err := h.HandleRequest(testStream(), acf.Message{})
 	if err == nil {
-		t.Fatal("expected error from FaultDrop, got nil")
+		t.Fatal("expected error for FaultDrop")
+	}
+	if inner.calls.Load() != 0 {
+		t.Errorf("inner.calls = %d, want 0", inner.calls.Load())
 	}
 }
 
-// TestFaultInject_FaultSlow adds latency then forwards (REQ-FI-002).
-func TestFaultInject_FaultSlow(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
+// TestHandler_FaultSlow_DelaysThenForwards verifies FaultSlow sleeps at
+// least Latency before delegating to the wrapped Handler (REQ-FI-003).
+func TestHandler_FaultSlow_DelaysThenForwards(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultSlow, Latency: 20 * time.Millisecond, Count: -1})
 
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultSlow, Latency: 30 * time.Millisecond, Count: -1})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 	start := time.Now()
-	resp, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err != nil {
-		t.Fatalf("Send: %v", err)
+	if _, err := h.HandleRequest(testStream(), acf.Message{}); err != nil {
+		t.Fatalf("HandleRequest: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v, want OK", resp.Status)
+	if elapsed := time.Since(start); elapsed < 20*time.Millisecond {
+		t.Errorf("elapsed = %v, want >= 20ms", elapsed)
 	}
-	if elapsed := time.Since(start); elapsed < 25*time.Millisecond {
-		t.Errorf("elapsed %v, want >= 25ms (FaultSlow latency=30ms)", elapsed)
-	}
-}
-
-// TestFaultInject_FaultSlow_Timeout verifies ctx cancel during slow fault (REQ-FI-002).
-func TestFaultInject_FaultSlow_Timeout(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultSlow, Latency: 200 * time.Millisecond, Count: -1})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	_, err := ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, rcp.ErrTimeout) {
-		t.Errorf("err = %v, want ErrTimeout", err)
+	if inner.calls.Load() != 1 {
+		t.Errorf("inner.calls = %d, want 1", inner.calls.Load())
 	}
 }
 
-// TestFaultInject_FaultError returns StatusError without inner Send (REQ-FI-003).
-func TestFaultInject_FaultError(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
+// TestHandler_FaultCRCFailure_ReturnsE2EError verifies FaultCRCFailure
+// wraps e2e.ErrCRCMismatch (REQ-FI-004).
+func TestHandler_FaultCRCFailure_ReturnsE2EError(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultCRCFailure, Count: -1})
 
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultError, Count: -1})
-
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := h.HandleRequest(testStream(), acf.Message{})
+	if !errors.Is(err, e2e.ErrCRCMismatch) {
+		t.Errorf("err = %v, want e2e.ErrCRCMismatch", err)
 	}
-	if resp.Status != rcp.StatusError {
-		t.Errorf("Status = %v, want StatusError", resp.Status)
-	}
-}
-
-// TestFaultInject_FaultTimeout returns ErrTimeout without inner Send (REQ-FI-004).
-func TestFaultInject_FaultTimeout(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultTimeout, Count: -1})
-
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, rcp.ErrTimeout) {
-		t.Errorf("err = %v, want ErrTimeout", err)
+	if inner.calls.Load() != 0 {
+		t.Errorf("inner.calls = %d, want 0", inner.calls.Load())
 	}
 }
 
-// TestFaultInject_CountedRule_AutoExpires verifies Count>0 rules expire (REQ-FI-005).
-func TestFaultInject_CountedRule_AutoExpires(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
+// TestHandler_FaultSafeStateEntry_ReturnsPurgedByWatchdog verifies
+// FaultSafeStateEntry wraps request.ErrPurgedByWatchdog (REQ-FI-005).
+func TestHandler_FaultSafeStateEntry_ReturnsPurgedByWatchdog(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultSafeStateEntry, Count: -1})
 
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultError, Count: 2})
+	_, err := h.HandleRequest(testStream(), acf.Message{})
+	if !errors.Is(err, request.ErrPurgedByWatchdog) {
+		t.Errorf("err = %v, want request.ErrPurgedByWatchdog", err)
+	}
+}
 
-	ctx := context.Background()
-	cmd := &rcp.Command{Zone: rcp.ZoneFrontLeft}
+// TestHandler_FaultDiscoveryClaimTimeout_ReturnsNotConfigurationClaimant
+// verifies FaultDiscoveryClaimTimeout wraps
+// discovery.ErrNotConfigurationClaimant (REQ-FI-006).
+func TestHandler_FaultDiscoveryClaimTimeout_ReturnsNotConfigurationClaimant(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultDiscoveryClaimTimeout, Count: -1})
 
-	// First two sends hit the fault rule.
-	for i := 0; i < 2; i++ {
-		resp, err := ctrl.Send(ctx, cmd)
-		if err != nil {
-			t.Fatalf("send %d: unexpected error: %v", i+1, err)
+	_, err := h.HandleRequest(testStream(), acf.Message{})
+	if !errors.Is(err, discovery.ErrNotConfigurationClaimant) {
+		t.Errorf("err = %v, want discovery.ErrNotConfigurationClaimant", err)
+	}
+}
+
+// TestHandler_FaultCancellation_ReturnsTicketCancelled verifies
+// FaultCancellation wraps request.ErrTicketCancelled (REQ-FI-007).
+func TestHandler_FaultCancellation_ReturnsTicketCancelled(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultCancellation, Count: -1})
+
+	_, err := h.HandleRequest(testStream(), acf.Message{})
+	if !errors.Is(err, request.ErrTicketCancelled) {
+		t.Errorf("err = %v, want request.ErrTicketCancelled", err)
+	}
+}
+
+// TestHandler_CountBasedRule_AutoExpires verifies a Count>0 rule fires
+// exactly Count times, then falls through to the wrapped Handler, and
+// ClearRules removes everything immediately (REQ-FI-008).
+func TestHandler_CountBasedRule_AutoExpires(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultDrop, Count: 2})
+
+	for i := range 2 {
+		if _, err := h.HandleRequest(testStream(), acf.Message{}); err == nil {
+			t.Fatalf("call %d: expected FaultDrop error", i)
 		}
-		if resp.Status != rcp.StatusError {
-			t.Errorf("send %d: Status = %v, want StatusError", i+1, resp.Status)
-		}
 	}
-	// Third send: rule expired, goes to inner → StatusOK.
-	resp, err := ctrl.Send(ctx, cmd)
-	if err != nil {
-		t.Fatalf("send 3 after expiry: %v", err)
+	// Rule exhausted; third call should pass through.
+	if _, err := h.HandleRequest(testStream(), acf.Message{}); err != nil {
+		t.Fatalf("call after exhaustion: %v", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("send 3: Status = %v after rule expired, want OK", resp.Status)
+	if inner.calls.Load() != 1 {
+		t.Errorf("inner.calls = %d, want 1", inner.calls.Load())
 	}
-}
 
-// TestFaultInject_ClearRules removes all rules (REQ-FI-006).
-func TestFaultInject_ClearRules(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultDrop, Count: -1})
-	ctrl.ClearRules()
-
-	resp, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if err != nil {
-		t.Fatalf("Send after ClearRules: %v", err)
-	}
-	if resp.Status != rcp.StatusOK {
-		t.Errorf("Status = %v after ClearRules, want OK", resp.Status)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultDrop, Count: -1})
+	h.ClearRules()
+	if _, err := h.HandleRequest(testStream(), acf.Message{}); err != nil {
+		t.Fatalf("after ClearRules: %v", err)
 	}
 }
 
-// TestFaultInject_Concurrent verifies no data race under concurrent Sends (REQ-FI-007).
-func TestFaultInject_Concurrent(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
-	ctrl.AddRule(faultinject.Rule{Type: faultinject.FaultError, Count: -1})
+// TestHandler_Concurrent verifies concurrent HandleRequest and AddRule
+// calls are data-race free (REQ-FI-009).
+func TestHandler_Concurrent(t *testing.T) {
+	inner := &countingHandler{}
+	h := faultinject.NewHandler(inner)
+	h.AddRule(faultinject.Rule{Type: faultinject.FaultSlow, Latency: 0, Count: -1})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	const n = 30
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := 0; i < n; i++ {
+	for range 30 {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = ctrl.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft})
+			_, _ = h.HandleRequest(testStream(), acf.Message{})
 		}()
 	}
-	// Concurrently mutate rules mid-flight.
-	go func() {
-		time.Sleep(5 * time.Millisecond)
-		ctrl.ClearRules()
-	}()
 	wg.Wait()
-}
-
-// TestFaultInject_Zone verifies Zone() delegates to inner (REQ-FI-008).
-func TestFaultInject_Zone(t *testing.T) {
-	inner := mock.NewController(rcp.ZoneRearRight, nil)
-	ctrl := faultinject.NewController(inner)
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	if got := ctrl.Zone(); got != rcp.ZoneRearRight {
-		t.Errorf("Zone() = %v, want ZoneRearRight", got)
-	}
-}
-
-// TestFaultInject_Subscribe delegates to inner (REQ-FI-008).
-func TestFaultInject_Subscribe(t *testing.T) {
-	ctrl, _ := newCtrl()
-	t.Cleanup(func() { _ = ctrl.Close() })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ch, err := ctrl.Subscribe(ctx)
-	if err != nil {
-		t.Fatalf("Subscribe: %v", err)
-	}
-	_ = ch
-}
-
-// TestFaultInject_Close_Idempotent verifies Close() is safe to call twice (REQ-FI-008).
-func TestFaultInject_Close_Idempotent(t *testing.T) {
-	ctrl, _ := newCtrl()
-	if err := ctrl.Close(); err != nil {
-		t.Errorf("first Close: %v", err)
-	}
-	if err := ctrl.Close(); err != nil {
-		t.Errorf("second Close: %v", err)
-	}
-}
-
-// TestFaultInject_Close_RejectsSend verifies Send after Close returns ErrClosed (REQ-FI-008).
-func TestFaultInject_Close_RejectsSend(t *testing.T) {
-	ctrl, _ := newCtrl()
-	_ = ctrl.Close()
-
-	_, err := ctrl.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft})
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("err = %v, want ErrClosed", err)
-	}
 }

@@ -1,7 +1,27 @@
-// Package mock provides an in-process RCP controller and registry for unit tests.
+// Package mock provides in-process test doubles for go-RCP.
 //
-// All operations execute synchronously in memory — no network, no goroutines
-// unless Subscribe is called. The mock is safe for concurrent use.
+// This file (Controller/Registry) is this package's original in-process
+// fake of the pre-TC18 bespoke Zone/Command/Response/Status API this repo
+// is in the process of replacing (ROADMAP.md Phase 13 onward). Per Phase
+// 17's disposition table, mock is REPLACE-flagged: the reference test
+// double must implement the new server/endpoint/register-map model (see
+// endpoint.go, client.go, client_registry.go, fixture.go in this same
+// package) to be useful for testing anything built in Phases 13-16.
+//
+// Controller and Registry below are kept, unchanged, rather than renamed
+// or removed, because they remain load-bearing for code this milestone
+// (57, v0.70.0) does not touch — cmd/go-rcp, cmd/rcptool,
+// optional_test.go, adapt_test.go, and safety/command_latency_test.go all
+// still exercise the pre-TC18 rcp.Controller surface directly, and
+// ROADMAP.md's own Phase 17 disposition table explicitly defers rebuilding
+// them (and retiring the Zone/Command/Response/Status API they depend on)
+// to Phase 18's cutover (Milestone 59, v1.0.0) — not to this milestone.
+// This mirrors the precedent tlstransport/legacyframe.go already set at
+// Milestone 54 (v0.67.0): freeze the old surface in place, in its own
+// clearly-labelled corner of the package, rather than force an unrelated
+// dependent's premature migration. See Controller's and Registry's own doc
+// comments for the formal Deprecated notice. All exported methods are safe
+// for concurrent use.
 package mock
 
 //fusa:req REQ-CTRL-001
@@ -74,6 +94,17 @@ func (s *sub) close() { s.once.Do(func() { close(s.ch) }) }
 type Handler func(cmd *rcp.Command) *rcp.Response
 
 // Controller is a mock zone controller that handles commands in-process.
+//
+// Frozen, not migrated by this milestone (57, v0.70.0): this is this
+// package's pre-TC18 fake of the retired rcp.Controller interface, kept
+// only because cmd/go-rcp, cmd/rcptool, optional_test.go, adapt_test.go,
+// and safety/command_latency_test.go still depend on it (see mock.go's
+// package doc comment). This is deliberately not marked with a formal Go
+// "Deprecated:" doc comment, even though it functionally is one — doing so
+// would make every one of those still-legitimate call sites a staticcheck
+// SA1019 finding this milestone did not intend to create work for. Use
+// Client (in client.go) for anything targeting the TC18 server/endpoint
+// model.
 type Controller struct {
 	zone    rcp.Zone
 	handler Handler
@@ -188,6 +219,13 @@ func (c *Controller) Close() error {
 }
 
 // Registry is an in-process RCP registry backed by mock controllers.
+//
+// Frozen, not migrated by this milestone (57, v0.70.0): this is this
+// package's pre-TC18 fake of the retired zone registry, kept only for the
+// same reasons Controller is (see its own doc comment, including why this
+// is deliberately not a formal Go "Deprecated:" comment). Use
+// ClientRegistry (in client_registry.go) for anything targeting the TC18
+// server/endpoint model.
 type Registry struct {
 	mu     sync.RWMutex
 	ctrls  map[rcp.Zone]*Controller

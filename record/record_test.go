@@ -11,238 +11,216 @@ package record_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/record"
 )
 
-func TestRecordCommand(t *testing.T) {
-	rec := record.New(0)
-	cmd := &rcp.Command{ID: 42, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Payload: []byte{1, 2, 3}}
-	rec.RecordCommand(cmd)
+func testStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
+}
 
+type stubHandler struct {
+	resp acf.Message
+	err  error
+}
+
+func (s *stubHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	if s.err != nil {
+		return acf.Message{}, s.err
+	}
+	resp := s.resp
+	resp.Kind = req.Kind
+	resp.TransactionNum = req.TransactionNum
+	return resp, nil
+}
+
+// TestRecorder_RingBuffer_KeepsMostRecent verifies ring-buffer mode retains
+// only the most recent MaxEntries entries while Written still counts every
+// append (REQ-REC-001).
+func TestRecorder_RingBuffer_KeepsMostRecent(t *testing.T) {
+	rec := record.New(2)
+	h := record.NewHandler(&stubHandler{resp: acf.Message{Control: acf.FlagResponse}}, rec)
+	for i := range 3 {
+		_, _ = h.HandleRequest(testStream(), acf.Message{ByteBusID: 1, TransactionNum: avtp.TransactionNum(i)})
+	}
+	snap := rec.Snapshot()
+	if len(snap) != 2 {
+		t.Fatalf("Snapshot len = %d, want 2", len(snap))
+	}
+	if snap[0].Request.TransactionNum != 1 || snap[1].Request.TransactionNum != 2 {
+		t.Errorf("ring buffer did not keep the two most recent entries: %+v", snap)
+	}
+	if rec.Written() != 3 {
+		t.Errorf("Written() = %d, want 3", rec.Written())
+	}
+}
+
+// TestRecorder_Unlimited_KeepsAll verifies maxEntries=0 retains every entry
+// (REQ-REC-002).
+func TestRecorder_Unlimited_KeepsAll(t *testing.T) {
+	rec := record.New(0)
+	h := record.NewHandler(&stubHandler{resp: acf.Message{Control: acf.FlagResponse}}, rec)
+	for i := range 5 {
+		_, _ = h.HandleRequest(testStream(), acf.Message{ByteBusID: 1, TransactionNum: avtp.TransactionNum(i)})
+	}
+	if len(rec.Snapshot()) != 5 {
+		t.Errorf("Snapshot len = %d, want 5", len(rec.Snapshot()))
+	}
+}
+
+// TestHandler_RecordsSuccessfulResponse verifies HandleRequest records a
+// successful call's response and returns it unchanged (REQ-REC-003).
+func TestHandler_RecordsSuccessfulResponse(t *testing.T) {
+	rec := record.New(0)
+	inner := &stubHandler{resp: acf.Message{Control: acf.FlagResponse, Body: []byte("ok")}}
+	h := record.NewHandler(inner, rec)
+
+	resp, err := h.HandleRequest(testStream(), acf.Message{ByteBusID: 1, Control: acf.FlagRead, Body: []byte("req")})
+	if err != nil {
+		t.Fatalf("HandleRequest: %v", err)
+	}
+	if string(resp.Body) != "ok" {
+		t.Errorf("resp.Body = %q, want ok", resp.Body)
+	}
 	snap := rec.Snapshot()
 	if len(snap) != 1 {
-		t.Fatalf("want 1 entry, got %d", len(snap))
+		t.Fatalf("Snapshot len = %d, want 1", len(snap))
 	}
-	if snap[0].Type != record.TypeCommand {
-		t.Errorf("type = %v, want TypeCommand", snap[0].Type)
+	if snap[0].Err != "" {
+		t.Errorf("Err = %q, want empty", snap[0].Err)
 	}
-	if snap[0].Command.ID != 42 {
-		t.Errorf("cmd.ID = %d, want 42", snap[0].Command.ID)
+	if string(snap[0].Response.Body) != "ok" {
+		t.Errorf("recorded Response.Body = %q, want ok", snap[0].Response.Body)
+	}
+	if string(snap[0].Request.Body) != "req" {
+		t.Errorf("recorded Request.Body = %q, want req", snap[0].Request.Body)
 	}
 }
 
-func TestRecordResponse(t *testing.T) {
+// TestHandler_RecordsError verifies HandleRequest records a failing call's
+// error text and returns the error unchanged (REQ-REC-004).
+func TestHandler_RecordsError(t *testing.T) {
 	rec := record.New(0)
-	resp := &rcp.Response{CommandID: 7, Zone: rcp.ZoneCentral, Status: rcp.StatusOK}
-	rec.RecordResponse(resp)
+	wantErr := errors.New("boom")
+	inner := &stubHandler{err: wantErr}
+	h := record.NewHandler(inner, rec)
 
-	snap := rec.Snapshot()
-	if len(snap) != 1 || snap[0].Type != record.TypeResponse {
-		t.Fatalf("want 1 response entry, got %d", len(snap))
+	_, err := h.HandleRequest(testStream(), acf.Message{ByteBusID: 1})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("HandleRequest err = %v, want %v", err, wantErr)
 	}
-	if snap[0].Response.CommandID != 7 {
-		t.Errorf("resp.CommandID = %d, want 7", snap[0].Response.CommandID)
+	snap := rec.Snapshot()
+	if len(snap) != 1 || snap[0].Err != "boom" {
+		t.Fatalf("recorded entry = %+v, want Err=boom", snap)
 	}
 }
 
-func TestRecordStatus(t *testing.T) {
+// TestWriteTo_ReadFrom_RoundTrips verifies entries survive a WriteTo/
+// ReadFrom round trip intact (REQ-REC-005).
+func TestWriteTo_ReadFrom_RoundTrips(t *testing.T) {
 	rec := record.New(0)
-	s := &rcp.Status{Zone: rcp.ZoneRearLeft, Seq: 5, Healthy: true}
-	rec.RecordStatus(s)
-
-	snap := rec.Snapshot()
-	if len(snap) != 1 || snap[0].Type != record.TypeStatus {
-		t.Fatalf("want 1 status entry, got %d", len(snap))
+	h := record.NewHandler(&stubHandler{resp: acf.Message{Control: acf.FlagResponse, Body: []byte("ack")}}, rec)
+	stream := testStream()
+	if _, err := h.HandleRequest(stream, acf.Message{Kind: acf.KindShort, ByteBusID: 3, Control: acf.FlagWrite, Body: []byte("hello")}); err != nil {
+		t.Fatalf("HandleRequest: %v", err)
 	}
-	if !snap[0].Status.Healthy {
-		t.Error("status.Healthy = false, want true")
-	}
-}
-
-func TestRingBuffer_OverwritesOldest(t *testing.T) {
-	rec := record.New(3) // ring of 3
-	for i := 0; i < 5; i++ {
-		rec.RecordCommand(&rcp.Command{ID: uint32(i), Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	}
-
-	snap := rec.Snapshot()
-	if len(snap) != 3 {
-		t.Fatalf("ring size 3, want 3 entries, got %d", len(snap))
-	}
-	// IDs should be 2, 3, 4 (oldest 0,1 overwritten)
-	for i, e := range snap {
-		want := uint32(i + 2)
-		if e.Command.ID != want {
-			t.Errorf("snap[%d].ID = %d, want %d", i, e.Command.ID, want)
-		}
-	}
-	if rec.Written() != 5 {
-		t.Errorf("Written = %d, want 5", rec.Written())
-	}
-}
-
-func TestWriteToReadFrom_RoundTrip(t *testing.T) {
-	rec := record.New(0)
-	rec.RecordCommand(&rcp.Command{ID: 1, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet, Payload: []byte("hello")})
-	rec.RecordResponse(&rcp.Response{CommandID: 1, Zone: rcp.ZoneFrontLeft, Status: rcp.StatusOK})
-	rec.RecordStatus(&rcp.Status{Zone: rcp.ZoneFrontLeft, Seq: 1, Healthy: true})
 
 	var buf bytes.Buffer
 	if _, err := rec.WriteTo(&buf); err != nil {
 		t.Fatalf("WriteTo: %v", err)
 	}
-
-	entries, err := record.ReadFrom(&buf)
+	got, err := record.ReadFrom(&buf)
 	if err != nil {
 		t.Fatalf("ReadFrom: %v", err)
 	}
-	if len(entries) != 3 {
-		t.Fatalf("want 3 entries, got %d", len(entries))
+	if len(got) != 1 {
+		t.Fatalf("ReadFrom len = %d, want 1", len(got))
 	}
-	if entries[0].Command.ID != 1 {
-		t.Errorf("round-trip cmd ID = %d, want 1", entries[0].Command.ID)
+	if got[0].Requester != stream {
+		t.Errorf("Requester = %v, want %v", got[0].Requester, stream)
+	}
+	if got[0].Request.ByteBusID != 3 || string(got[0].Request.Body) != "hello" {
+		t.Errorf("Request round-trip mismatch: %+v", got[0].Request)
+	}
+	if string(got[0].Response.Body) != "ack" {
+		t.Errorf("Response round-trip mismatch: %+v", got[0].Response)
 	}
 }
 
-func TestReadFrom_CorruptCRC(t *testing.T) {
+// TestReadFrom_DetectsCorruption verifies a tampered log reports
+// ErrCorrupted (REQ-REC-006).
+func TestReadFrom_DetectsCorruption(t *testing.T) {
 	rec := record.New(0)
-	rec.RecordCommand(&rcp.Command{ID: 99, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdGet})
+	h := record.NewHandler(&stubHandler{resp: acf.Message{Control: acf.FlagResponse}}, rec)
+	if _, err := h.HandleRequest(testStream(), acf.Message{Kind: acf.KindShort, ByteBusID: 1}); err != nil {
+		t.Fatalf("HandleRequest: %v", err)
+	}
 
 	var buf bytes.Buffer
 	if _, err := rec.WriteTo(&buf); err != nil {
 		t.Fatalf("WriteTo: %v", err)
 	}
+	corrupted := buf.Bytes()
+	corrupted[len(corrupted)-1] ^= 0xFF // flip a bit in the trailing CRC
 
-	// Flip a byte in the payload area.
-	b := buf.Bytes()
-	if len(b) > 15 {
-		b[15] ^= 0xFF
-	}
-
-	_, err := record.ReadFrom(bytes.NewReader(b))
+	_, err := record.ReadFrom(bytes.NewReader(corrupted))
 	if !errors.Is(err, record.ErrCorrupted) {
-		t.Errorf("want ErrCorrupted, got %v", err)
+		t.Errorf("err = %v, want ErrCorrupted", err)
 	}
 }
 
-func TestController_RecordsOnSend(t *testing.T) {
+// TestReplay_FeedsRecordedRequestsInOrder verifies Replay calls target once
+// per recorded request, in order, and reports its responses (REQ-REC-007).
+func TestReplay_FeedsRecordedRequestsInOrder(t *testing.T) {
 	rec := record.New(0)
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := record.NewController(m, rec)
-
-	if _, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet}); err != nil {
-		t.Fatal(err)
-	}
-
-	snap := rec.Snapshot()
-	if len(snap) != 2 {
-		t.Fatalf("want 2 entries (cmd+resp), got %d", len(snap))
-	}
-	if snap[0].Type != record.TypeCommand {
-		t.Errorf("first entry type = %v, want TypeCommand", snap[0].Type)
-	}
-	if snap[1].Type != record.TypeResponse {
-		t.Errorf("second entry type = %v, want TypeResponse", snap[1].Type)
-	}
-}
-
-func TestController_RecordsOnSubscribe(t *testing.T) {
-	rec := record.New(0)
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := record.NewController(m, rec)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ch, err := c.Subscribe(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	m.Publish([]byte("ping"))
-	select {
-	case <-ch:
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for status")
-	}
-	cancel()
-
-	// Drain the channel.
-	for range ch {
-	}
-
-	snap := rec.Snapshot()
-	hasStatus := false
-	for _, e := range snap {
-		if e.Type == record.TypeStatus {
-			hasStatus = true
+	h := record.NewHandler(&stubHandler{resp: acf.Message{Control: acf.FlagResponse}}, rec)
+	stream := testStream()
+	for i := range 3 {
+		if _, err := h.HandleRequest(stream, acf.Message{ByteBusID: 1, TransactionNum: avtp.TransactionNum(i)}); err != nil {
+			t.Fatalf("HandleRequest: %v", err)
 		}
 	}
-	if !hasStatus {
-		t.Error("expected at least one status entry")
-	}
-}
 
-func TestReplay_SendsCommands(t *testing.T) {
-	rec := record.New(0)
-	// Record two commands.
-	rec.RecordCommand(&rcp.Command{ID: 1, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	rec.RecordCommand(&rcp.Command{ID: 2, Zone: rcp.ZoneFrontLeft, Type: rcp.CmdGet})
-	rec.RecordResponse(&rcp.Response{CommandID: 1, Zone: rcp.ZoneFrontLeft, Status: rcp.StatusOK})
-
-	target := mock.NewController(rcp.ZoneFrontLeft, nil)
-	resps, err := record.Replay(context.Background(), rec.Snapshot(), target)
+	var order []avtp.TransactionNum
+	target := &orderTrackingHandler{order: &order}
+	resps, err := record.Replay(target, rec.Snapshot())
 	if err != nil {
 		t.Fatalf("Replay: %v", err)
 	}
-	if len(resps) != 2 {
-		t.Errorf("want 2 responses, got %d", len(resps))
+	if len(resps) != 3 {
+		t.Fatalf("Replay returned %d responses, want 3", len(resps))
+	}
+	if order[0] != 0 || order[1] != 1 || order[2] != 2 {
+		t.Errorf("replay order = %v, want [0 1 2]", order)
 	}
 }
 
-func TestClose_Idempotent(t *testing.T) {
-	rec := record.New(0)
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := record.NewController(m, rec)
-
-	if err := c.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Close(); err != nil {
-		t.Errorf("second Close = %v, want nil", err)
-	}
+type orderTrackingHandler struct {
+	order *[]avtp.TransactionNum
 }
 
-func TestClose_RejectsSend(t *testing.T) {
-	rec := record.New(0)
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := record.NewController(m, rec)
-	_ = c.Close()
-
-	_, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("want ErrClosed, got %v", err)
-	}
+func (o *orderTrackingHandler) HandleRequest(_ avtp.StreamID, req acf.Message) (acf.Message, error) {
+	*o.order = append(*o.order, req.TransactionNum)
+	return acf.Message{Control: acf.FlagResponse}, nil
 }
 
-func TestConcurrent(t *testing.T) {
-	rec := record.New(0)
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := record.NewController(m, rec)
-
+// TestHandler_Concurrent verifies concurrent HandleRequest calls are
+// data-race free (REQ-REC-008).
+func TestHandler_Concurrent(t *testing.T) {
+	rec := record.New(100)
+	h := record.NewHandler(&stubHandler{resp: acf.Message{Control: acf.FlagResponse}}, rec)
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
+	for i := range 30 {
 		wg.Add(1)
-		go func() {
+		go func(id int) {
 			defer wg.Done()
-			c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet}) //nolint:errcheck
-		}()
+			_, _ = h.HandleRequest(testStream(), acf.Message{ByteBusID: 1, TransactionNum: avtp.TransactionNum(id)})
+		}(i)
 	}
 	wg.Wait()
 }
