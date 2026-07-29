@@ -125,16 +125,19 @@
 //
 // The TC18 specification PDF is confidential to OPEN Alliance members. This
 // package was built from a behavioral description of the conditional-
-// request model, not from the primary spec text. Every wire-level choice
+// request model, not from the primary spec text. Most wire-level choices
 // this package makes — the envelope byte layout in envelope.go/chained.go,
 // claiming acf.FlagExtended for the envelope marker, the sequencer-
-// wraparound arithmetic, the exact split between the mandatory and two
-// optional cancellation variants, and the fixed cross-type priority
-// ordering in Kind.Priority — is this implementation's own reasoned,
-// self-consistent encoding rather than a verified transcription of the
-// published wire format or the source specification's own priority table,
-// the same open-item posture avtp/doc.go, server/doc.go, and every Phase 14
-// endpoint package's doc.go already document for their own packages.
+// wraparound arithmetic, and the exact split between the mandatory and two
+// optional cancellation variants — remain this implementation's own
+// reasoned, self-consistent encoding rather than a verified transcription
+// of the published wire format, the same open-item posture avtp/doc.go,
+// server/doc.go, and every Phase 14 endpoint package's doc.go already
+// document for their own packages. The one exception is the fixed
+// cross-type priority ordering in Kind.Priority: that ordering has since
+// been checked directly against the RC Server request-handling chapter of
+// the OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC
+// and now matches it exactly (see priorityRank's doc comment in kind.go).
 package request
 
 //fusa:req REQ-REQ-001

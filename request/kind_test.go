@@ -56,16 +56,16 @@ func TestKind_IsCancellation(t *testing.T) {
 }
 
 // TestKind_Priority checks the fixed cross-type ordering documented on
-// priorityRank: cancellation < chained < triggered < timed < compound-wait <
-// compound < plain (REQ-REQ-002).
+// priorityRank: cancellation < triggered < timed < compound < compound-wait <
+// chained < plain (REQ-REQ-002).
 func TestKind_Priority(t *testing.T) {
 	order := []request.Kind{
 		request.KindCancelAll,
-		request.KindChained,
 		request.KindTriggered,
 		request.KindTimed,
-		request.KindCompoundWait,
 		request.KindCompound,
+		request.KindCompoundWait,
+		request.KindChained,
 		request.KindPlain,
 	}
 	for i := 1; i < len(order); i++ {
