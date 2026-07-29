@@ -1,26 +1,4 @@
-// Package firmware provides OTA firmware delivery for automotive zone controllers.
-//
-// An Updater chunks a firmware image, delivers it to a zone controller via
-// CmdUpdate commands, and verifies installation with a CRC-32 checksum. The
-// CmdUpdate command type is defined here and added to the CommandType space.
-//
-// Delivery uses a simple stop-and-wait protocol: each chunk is sent, the
-// response is checked, and only then is the next chunk sent. The chunk size is
-// configurable to match the zone controller's receive-buffer constraints.
-//
-// ISO 26262 ASIL-B rationale: firmware updates are infrequent but safety-critical
-// operations. The package enforces image size limits, non-zero CRC, and a
-// post-install echo to guard against silent corruption.
 package firmware
-
-//fusa:req REQ-FW-001
-//fusa:req REQ-FW-002
-//fusa:req REQ-FW-003
-//fusa:req REQ-FW-004
-//fusa:req REQ-FW-005
-//fusa:req REQ-FW-006
-//fusa:req REQ-FW-007
-//fusa:req REQ-FW-008
 
 import (
 	"context"
@@ -30,19 +8,26 @@ import (
 	"hash/crc32"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
 )
 
-// CmdUpdate is the command type for firmware chunk delivery.
-// The payload encoding is defined by ChunkPayload.
-const CmdUpdate rcp.CommandType = 10
+// TransportFunc delivers one chunk's raw bytes over whatever underlying
+// channel a caller has wired up and returns the endpoint's response — the
+// same signature *udp.Controller.Write already has, so a caller can pass
+// it directly via a bound closure:
+//
+//	transport := func(ctx context.Context, data []byte) (acf.Message, error) {
+//	    return ctrl.Write(ctx, uartAddr, data)
+//	}
+type TransportFunc func(ctx context.Context, data []byte) (acf.Message, error)
 
 // Sentinel errors for the firmware package.
 var (
-	ErrImageEmpty    = errors.New("rcp/firmware: image is empty")
-	ErrImageTooLarge = errors.New("rcp/firmware: image exceeds MaxImageSize")
-	ErrCRCMismatch   = errors.New("rcp/firmware: CRC mismatch after delivery")
-	ErrZoneRejected  = errors.New("rcp/firmware: zone controller rejected chunk")
+	ErrImageEmpty       = errors.New("rcp/firmware: image is empty")
+	ErrImageTooLarge    = errors.New("rcp/firmware: image exceeds MaxImageSize")
+	ErrCRCMismatch      = errors.New("rcp/firmware: CRC mismatch after delivery")
+	ErrEndpointRejected = errors.New("rcp/firmware: endpoint rejected chunk")
+	ErrUpdateInProgress = errors.New("rcp/firmware: update already in progress")
 )
 
 // MaxImageSize is the maximum accepted firmware image size (4 MiB).
@@ -53,21 +38,18 @@ const DefaultChunkSize = 256
 
 // Config controls firmware delivery behaviour.
 type Config struct {
-	// ChunkSize is the number of image bytes per CmdUpdate payload (default: DefaultChunkSize).
+	// ChunkSize is the number of image bytes per chunk (default: DefaultChunkSize).
 	ChunkSize int
-	// Priority is the command priority used for all CmdUpdate messages.
-	Priority rcp.Priority
 }
 
 // DefaultConfig returns a Config with safe defaults.
 func DefaultConfig() Config {
-	return Config{
-		ChunkSize: DefaultChunkSize,
-		Priority:  rcp.PriorityHigh,
-	}
+	return Config{ChunkSize: DefaultChunkSize}
 }
 
-// ChunkPayload is the binary layout of a CmdUpdate command payload.
+// ChunkPayload is the binary layout of one chunk's raw-byte-endpoint body.
+// This layout is this package's own design (see doc.go); it is not defined
+// by the OPEN Alliance TC18 Remote Control Protocol Specification.
 //
 //	[4 bytes] total image size (big-endian uint32)
 //	[4 bytes] chunk offset    (big-endian uint32)
@@ -105,24 +87,24 @@ func UnmarshalChunkPayload(b []byte) (ChunkPayload, error) {
 	return cp, nil
 }
 
-// Updater delivers a firmware image to a single zone controller.
+// Updater delivers a firmware image over one TransportFunc.
 type Updater struct {
-	ctrl   rcp.Controller
-	cfg    Config
-	active atomic.Bool
+	transport TransportFunc
+	cfg       Config
+	active    atomic.Bool
 }
 
-// NewUpdater returns an Updater targeting ctrl.
-func NewUpdater(ctrl rcp.Controller, cfg Config) *Updater {
+// NewUpdater returns an Updater delivering chunks via transport.
+func NewUpdater(transport TransportFunc, cfg Config) *Updater {
 	if cfg.ChunkSize <= 0 {
 		cfg.ChunkSize = DefaultChunkSize
 	}
-	return &Updater{ctrl: ctrl, cfg: cfg}
+	return &Updater{transport: transport, cfg: cfg}
 }
 
-// Update delivers image to the zone controller and verifies the CRC.
-// Only one Update may be in progress per Updater at a time; concurrent calls
-// return an error immediately.
+// Update delivers image via the Updater's TransportFunc and verifies the
+// CRC. Only one Update may be in progress per Updater at a time;
+// concurrent calls return ErrUpdateInProgress immediately.
 func (u *Updater) Update(ctx context.Context, image []byte) error {
 	if len(image) == 0 {
 		return ErrImageEmpty
@@ -131,7 +113,7 @@ func (u *Updater) Update(ctx context.Context, image []byte) error {
 		return ErrImageTooLarge
 	}
 	if !u.active.CompareAndSwap(false, true) {
-		return fmt.Errorf("rcp/firmware: update already in progress on zone %s", u.ctrl.Zone())
+		return ErrUpdateInProgress
 	}
 	defer u.active.Store(false)
 
@@ -151,39 +133,25 @@ func (u *Updater) Update(ctx context.Context, image []byte) error {
 			CRC32:     crc,
 			Data:      chunk,
 		}
-		cmd := &rcp.Command{
-			Zone:     u.ctrl.Zone(),
-			Type:     CmdUpdate,
-			Priority: u.cfg.Priority,
-			Payload:  cp.Marshal(),
-		}
-		resp, err := u.ctrl.Send(ctx, cmd)
+		resp, err := u.transport(ctx, cp.Marshal())
 		if err != nil {
-			return fmt.Errorf("rcp/firmware: zone %s chunk @%d: %w", u.ctrl.Zone(), offset, err)
+			return fmt.Errorf("rcp/firmware: chunk @%d: %w", offset, err)
 		}
-		if resp.Status != rcp.StatusOK {
-			return fmt.Errorf("rcp/firmware: zone %s chunk @%d: %w", u.ctrl.Zone(), offset, ErrZoneRejected)
+		if resp.Control.Has(acf.FlagError) {
+			return fmt.Errorf("rcp/firmware: chunk @%d: %w", offset, ErrEndpointRejected)
 		}
 	}
 
-	// Post-install verification: send a zero-length chunk with the expected CRC;
-	// the zone controller echoes back StatusOK only if its received image matches.
-	verifyCmd := &rcp.Command{
-		Zone:     u.ctrl.Zone(),
-		Type:     CmdUpdate,
-		Priority: u.cfg.Priority,
-		Payload: ChunkPayload{
-			TotalSize: total,
-			Offset:    total, // sentinel: offset == total means verify
-			CRC32:     crc,
-		}.Marshal(),
-	}
-	resp, err := u.ctrl.Send(ctx, verifyCmd)
+	// Post-install verification: send a zero-length chunk with offset ==
+	// total as a sentinel meaning "verify"; the endpoint echoes back a
+	// non-FlagError response only if its received image matches.
+	verify := ChunkPayload{TotalSize: total, Offset: total, CRC32: crc}
+	resp, err := u.transport(ctx, verify.Marshal())
 	if err != nil {
-		return fmt.Errorf("rcp/firmware: zone %s verify: %w", u.ctrl.Zone(), err)
+		return fmt.Errorf("rcp/firmware: verify: %w", err)
 	}
-	if resp.Status != rcp.StatusOK {
-		return fmt.Errorf("rcp/firmware: zone %s: %w", u.ctrl.Zone(), ErrCRCMismatch)
+	if resp.Control.Has(acf.FlagError) {
+		return ErrCRCMismatch
 	}
 	return nil
 }

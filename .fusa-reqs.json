@@ -825,134 +825,6 @@
       "asil": "ASIL-B"
     },
     {
-      "id": "REQ-SIM-001",
-      "title": "Send returns StatusOK after simulated latency when not faulted",
-      "text": "sim.Controller.Send shall sleep for BaseLatency (plus up to Jitter on LatencyJitter model) then return a Response with StatusOK when no fault is active. If ctx expires during latency, Send shall return rcp.ErrTimeout.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-002",
-      "title": "Fault() causes Send to return StatusError",
-      "text": "After sim.Controller.Fault(err) is called, subsequent Send calls that complete their simulated latency shall return a Response with StatusError rather than StatusOK, simulating a failed zone controller.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-003",
-      "title": "Recover() clears the fault and restores StatusOK",
-      "text": "sim.Controller.Recover() shall clear any active fault and clear the watchdog-missed flag. Subsequent Send calls shall return StatusOK again.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-004",
-      "title": "WatchdogMissed() returns true after WatchdogTimeout elapses without a kick",
-      "text": "When Config.WatchdogTimeout > 0, sim.Controller.WatchdogMissed() shall return true if no CmdWatchdog command has been received within WatchdogTimeout of construction or the last kick.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-005",
-      "title": "CmdWatchdog resets the watchdog timer and clears WatchdogMissed",
-      "text": "Sending a command with Type=CmdWatchdog shall reset the watchdog deadline timer and set WatchdogMissed() to false, allowing the next WatchdogTimeout window to begin fresh.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-006",
-      "title": "Status is published to subscribers at approximately Config.StatusInterval",
-      "text": "When Config.StatusInterval > 0, sim.Controller shall publish a *rcp.Status to every active subscriber at approximately every StatusInterval. Subscribers shall receive at least one Status per two StatusInterval periods under normal operating conditions.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-007",
-      "title": "Subscriber channel closes on Close() or context cancellation",
-      "text": "A channel returned by sim.Controller.Subscribe shall be closed when Controller.Close() is called or the subscriber's context is cancelled. Subscribe shall return rcp.ErrClosed if called after Close().",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-SIM-008",
-      "title": "Close() is idempotent; DefaultConfig returns ASIL-B recommended values",
-      "text": "sim.Controller.Close() shall be safe to call multiple times and shall return nil on all calls. DefaultConfig(zone) shall return a Config with positive BaseLatency, StatusInterval, and WatchdogTimeout.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-001",
-      "title": "FaultDrop returns an error without forwarding to the inner controller",
-      "text": "A faultinject.Controller with a FaultDrop rule shall return an error from Send without calling inner.Send. The inner controller shall receive no commands during the fault window.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-002",
-      "title": "FaultSlow adds Rule.Latency before forwarding to the inner controller",
-      "text": "A faultinject.Controller with a FaultSlow rule shall sleep Rule.Latency then forward the command to the inner controller. If ctx expires during the sleep, Send shall return rcp.ErrTimeout without calling inner.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-003",
-      "title": "FaultError returns StatusError without forwarding to the inner controller",
-      "text": "A faultinject.Controller with a FaultError rule shall return a Response with StatusError from Send without calling inner.Send.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-004",
-      "title": "FaultTimeout returns rcp.ErrTimeout without forwarding to the inner controller",
-      "text": "A faultinject.Controller with a FaultTimeout rule shall return rcp.ErrTimeout from Send without calling inner.Send and without blocking.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-005",
-      "title": "Count-limited rules auto-expire after N applications",
-      "text": "A Rule with Count > 0 shall be automatically removed from the active rules list after it has been applied exactly Count times. Subsequent Sends shall proceed without that rule.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-006",
-      "title": "ClearRules() removes all active rules",
-      "text": "faultinject.Controller.ClearRules() shall atomically remove all active fault rules. Subsequent Send calls shall go directly to the inner controller.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-007",
-      "title": "Controller is safe for concurrent use",
-      "text": "faultinject.Controller shall be safe for concurrent use by multiple goroutines simultaneously calling Send, AddRule, or ClearRules, without data races.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FI-008",
-      "title": "Zone/Subscribe/Close delegate to inner; Close is idempotent",
-      "text": "faultinject.Controller.Zone() and Subscribe() shall delegate to the inner controller. Close() shall close the inner controller and be safe to call multiple times. Subsequent Sends after Close return rcp.ErrClosed.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
       "id": "REQ-AZ-001",
       "title": "Allow entry permits exact principal/stream/endpoint triple",
       "text": "authz.Policy.Evaluate shall return true for a (principal, requester avtp.StreamID, target avtp.ByteBusID) triple that matches an Allow entry before any Deny entry in the ordered list.",
@@ -1013,70 +885,6 @@
       "title": "Close is idempotent; Request after Close returns ErrClosed",
       "text": "Calling authz.Controller.Close more than once shall be safe and return nil. Any Request call after the first Close shall return udp.ErrClosed without forwarding to the inner controller.",
       "standard": "iso21434",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-001",
-      "title": "Update delivers image in chunks via CmdUpdate commands",
-      "text": "firmware.Updater.Update shall split the image into ChunkSize-byte slices and send each as a CmdUpdate command with a ChunkPayload encoding the offset, total size, and CRC-32.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-002",
-      "title": "Chunks cover the full image with correct offsets",
-      "text": "The sequence of ChunkPayload.Offset values shall be 0, ChunkSize, 2*ChunkSize, \\u2026 covering every byte of the image without gaps or overlaps. The last chunk may be shorter than ChunkSize.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-003",
-      "title": "CRC-32 is embedded in every chunk payload",
-      "text": "Every CmdUpdate payload shall carry the CRC-32/IEEE checksum of the complete image in ChunkPayload.CRC32 so the zone controller can detect corruption after the final chunk.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-004",
-      "title": "Zone controller rejection returns ErrZoneRejected",
-      "text": "If any Send call during chunk delivery returns StatusError, Update shall return ErrZoneRejected immediately without sending further chunks.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-005",
-      "title": "Post-install CRC verification detects silent corruption",
-      "text": "After delivering all chunks, Update shall send a verify CmdUpdate (offset == total size) and return ErrCRCMismatch if the zone controller returns StatusError.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-006",
-      "title": "Empty or oversized images are rejected before delivery",
-      "text": "Update shall return ErrImageEmpty for a zero-length image and ErrImageTooLarge for an image exceeding MaxImageSize without sending any commands.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-007",
-      "title": "Concurrent updates on the same Updater are rejected",
-      "text": "Only one Update call may be in progress on an Updater at a time. A second concurrent call shall return an error immediately without initiating delivery.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-FW-008",
-      "title": "ChunkPayload marshals and unmarshals losslessly; DefaultConfig is valid",
-      "text": "ChunkPayload.Marshal followed by UnmarshalChunkPayload shall reproduce the original TotalSize, Offset, CRC32, and Data fields exactly. DefaultConfig shall return ChunkSize > 0 and a valid Priority.",
-      "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
@@ -1337,70 +1145,6 @@
       "asil": "ASIL-B"
     },
     {
-      "id": "REQ-OB-001",
-      "title": "OTel span per Send call",
-      "text": "The observe.Controller shall create and end an OpenTelemetry trace span for every Send call, recording zone, command type, priority, and command ID as span attributes.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-002",
-      "title": "OTel span per Subscribe call",
-      "text": "The observe.Controller shall create and end an OpenTelemetry trace span for every Subscribe call, recording the zone as a span attribute.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-003",
-      "title": "Send latency histogram",
-      "text": "The observe.Controller shall call Metrics.ObserveSendLatency with the round-trip time in milliseconds for every successful Send.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-004",
-      "title": "Send error counter",
-      "text": "The observe.Controller shall call Metrics.IncSendError for every Send that returns an error.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-005",
-      "title": "Zone health gauge",
-      "text": "The observe.Controller shall call Metrics.SetZoneHealth after every successful Send, passing true when the response status is StatusOK.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-006",
-      "title": "Deadline miss counter",
-      "text": "The observe.Controller shall call Metrics.IncDeadlineMiss when a Send error wraps context.DeadlineExceeded or rcp.ErrTimeout.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-007",
-      "title": "Send-after-Close returns ErrClosed",
-      "text": "The observe.Controller shall return a wrapped rcp.ErrClosed error for any Send or Subscribe call made after Close.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-OB-008",
-      "title": "Concurrent Send race-free",
-      "text": "The observe.Controller shall be safe for concurrent Send and Subscribe calls without data races.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
       "id": "REQ-ADM-001",
       "title": "GET /servers lists all registered servers",
       "text": "The admin server shall return a JSON array of ServerInfo for every server key Registered on GET /servers.",
@@ -1465,70 +1209,6 @@
       "asil": "ASIL-B"
     },
     {
-      "id": "REQ-REC-001",
-      "title": "RecordCommand appends command entry",
-      "text": "The Recorder shall append a timestamped Entry of TypeCommand for every RecordCommand call, copying the payload to prevent aliasing.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-002",
-      "title": "RecordResponse appends response entry",
-      "text": "The Recorder shall append a timestamped Entry of TypeResponse for every RecordResponse call.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-003",
-      "title": "RecordStatus appends status entry",
-      "text": "The Recorder shall append a timestamped Entry of TypeStatus for every RecordStatus call.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-004",
-      "title": "Ring-buffer overwrites oldest entry",
-      "text": "When maxEntries > 0, the Recorder shall overwrite the oldest entry when the buffer is full, preserving the most recent maxEntries entries.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-005",
-      "title": "WriteTo/ReadFrom binary round-trip",
-      "text": "The Recorder shall serialise entries to a binary format with CRC-32 per frame via WriteTo, and ReadFrom shall deserialise them and return ErrCorrupted on checksum failure.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-006",
-      "title": "Controller records Send events",
-      "text": "The record.Controller shall record the command before Send and the response after a successful Send.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-007",
-      "title": "Replay sends recorded commands",
-      "text": "Replay shall re-send all TypeCommand entries to the target in order and return the collected responses.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-REC-008",
-      "title": "Concurrent record race-free",
-      "text": "The Recorder and record.Controller shall be safe for concurrent use from multiple goroutines without data races.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
       "id": "REQ-CFG-001",
       "title": "Load parses a YAML server config file",
       "text": "The config package shall parse a v1 YAML server configuration file \u2014 one ServerEntry per declared server, including its stream_id and declared endpoint topology \u2014 and return a validated File struct.",
@@ -1588,70 +1268,6 @@
       "id": "REQ-CFG-008",
       "title": "Watcher.Stop terminates background goroutine",
       "text": "Watcher.Stop shall terminate the background goroutine without leak.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-001",
-      "title": "ParseManifest decodes YAML manifest",
-      "text": "The codegen package shall decode a v1 YAML zone manifest and return a validated Manifest struct.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-002",
-      "title": "ParseManifest decodes JSON manifest",
-      "text": "The codegen package shall decode a v1 JSON zone manifest and return a validated Manifest struct.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-003",
-      "title": "ErrInvalidVersion on bad version",
-      "text": "ParseManifest shall return ErrInvalidVersion when the manifest version field is not 1.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-004",
-      "title": "ErrMissingPackage on empty package",
-      "text": "ParseManifest shall return ErrMissingPackage when the package field is missing or empty.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-005",
-      "title": "Generate produces impl and test files",
-      "text": "Generate shall produce one gofmt-formatted implementation file and one test skeleton file per zone in the manifest.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-006",
-      "title": "Generated impl contains fusa:req annotations",
-      "text": "The generated implementation file shall contain //fusa:req annotations for all 8 zone requirements.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-007",
-      "title": "Generated test contains fusa:test annotations",
-      "text": "The generated test skeleton shall contain //fusa:test annotations for all 8 zone requirements.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "ASIL-B"
-    },
-    {
-      "id": "REQ-CG-008",
-      "title": "GenerateRequirements produces 8 reqs per zone",
-      "text": "GenerateRequirements shall produce exactly 8 requirement entries per zone with correct ASIL and standard fields.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2297,54 +1913,6 @@
       "level": "ASIL-B"
     },
     {
-      "id": "REQ-CAPI-001",
-      "text": "NewController returns a valid positive int32 handle for a new mock rcp.Controller.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-002",
-      "text": "RegisterController registers an externally-created rcp.Controller and returns a unique handle.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-003",
-      "text": "Send dispatches a command to the controller identified by handle and returns StatusOK on success.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-004",
-      "text": "Send returns ErrCodeInvalidHandle for handles that are not registered.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-005",
-      "text": "Subscribe opens a subscription on the controller and returns a positive subscription handle.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-006",
-      "text": "PollStatus returns ErrCodeNoData when no status event is immediately available.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-007",
-      "text": "PollStatus returns ErrCodeOK and a Status event after the controller publishes a status update.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
-      "id": "REQ-CAPI-008",
-      "text": "Close deregisters the handle so subsequent Send calls return ErrCodeInvalidHandle.",
-      "asil": "B",
-      "package": "capi"
-    },
-    {
       "id": "REQ-FORM-001",
       "text": "StateSequence generates exactly n states starting from the initial state.",
       "asil": "B",
@@ -2820,14 +2388,6 @@
       "id": "REQ-CONF-003",
       "title": "SpecVersion sourced from RELAY module",
       "text": "The exported SpecVersion shall equal relay.SpecVersion (not hardcoded) and be non-empty, per spec \u00a717.12/\u00a719.4.",
-      "standard": "iso26262",
-      "level": "ASIL-B",
-      "asil": "B"
-    },
-    {
-      "id": "REQ-SIM-009",
-      "title": "Concurrent publish and subscriber close never panic",
-      "text": "The simulator shall not panic with send-on-closed-channel when statusLoop publish races with Close() or subscriber context cancellation. Subscriber send and close shall be mutually exclusive so a Status is never sent on a closed channel.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "B"
@@ -4924,6 +4484,662 @@
       "id": "REQ-TSN-006",
       "title": "Config VLAN and CycleNs are preserved and accessible",
       "text": "tsn.Controller.Config() shall return the same VLAN and CycleNs values the Controller was constructed with, unmodified.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MEP-001",
+      "title": "Endpoint default handler answers with FlagResponse and preserved Read/Write",
+      "text": "mock.Endpoint.HandleRequest shall, with a nil EndpointFunc, answer a request with acf.FlagResponse set and the originating FlagRead/FlagWrite bit preserved.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MEP-002",
+      "title": "Endpoint invokes a configured EndpointFunc with requester and request",
+      "text": "mock.Endpoint.HandleRequest shall, with a non-nil EndpointFunc, invoke it with the caller's requester and request.Message and return its result verbatim.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MEP-003",
+      "title": "Endpoint rejects a request addressed to a different byte_bus_id",
+      "text": "mock.Endpoint.HandleRequest shall return ErrWrongEndpoint for a request whose ByteBusID does not match the Endpoint's configured address.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MEP-004",
+      "title": "Endpoint rejects a request after Close",
+      "text": "mock.Endpoint.HandleRequest shall return ErrClosed for any request received after Close has been called.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MEP-005",
+      "title": "Endpoint Close is idempotent",
+      "text": "mock.Endpoint.Close shall be safe to call more than once.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MEP-006",
+      "title": "Endpoint Addr reports the configured address",
+      "text": "mock.Endpoint.Addr shall return the byte_bus_id address passed to NewEndpoint.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-001",
+      "title": "Client Request reaches a registered Endpoint with correct requester and body",
+      "text": "mock.Client.Request shall route through the configured *udp.Router to a registered request.Handler, delivering the Client's own avtp.StreamID as requester and the caller's body unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-002",
+      "title": "Client Read/Write set exactly FlagRead/FlagWrite",
+      "text": "mock.Client.Read shall submit a request with exactly acf.FlagRead set and no body; mock.Client.Write shall submit a request with exactly acf.FlagWrite set and the caller's body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-003",
+      "title": "Client Discover round-trips a decodable register map",
+      "text": "mock.Client.Discover shall return a byte slice that regmap.DecodeRegisterMap decodes into a register map reflecting every endpoint declared on the underlying server.Server.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-004",
+      "title": "Client StreamID reports the configured identity",
+      "text": "mock.Client.StreamID shall return the avtp.StreamID passed to NewClient.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-005",
+      "title": "Client Close is idempotent and rejects subsequent Request",
+      "text": "mock.Client.Close shall be safe to call more than once, and mock.Client.Request shall return ErrClosed for any call after Close.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-006",
+      "title": "Client Request honors a pre-cancelled context without invoking the router",
+      "text": "mock.Client.Request shall return an error and must not invoke the configured Router when ctx is already done at call time.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-007",
+      "title": "Client Request is safe for concurrent use",
+      "text": "mock.Client.Request shall be safe for concurrent calls without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCL-008",
+      "title": "Client Request assigns distinct, increasing TransactionNum values",
+      "text": "mock.Client.Request shall assign each successive request a distinct avtp.TransactionNum value, incrementing across calls.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCR-001",
+      "title": "ClientRegistry Register makes a Client retrievable by key",
+      "text": "mock.ClientRegistry.Register shall make client retrievable via Lookup under the given key.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCR-002",
+      "title": "ClientRegistry Register rejects a duplicate key",
+      "text": "mock.ClientRegistry.Register shall return ErrAlreadyExists when key is already registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCR-003",
+      "title": "ClientRegistry Deregister closes and removes a Client; repeat reports ErrNotFound",
+      "text": "mock.ClientRegistry.Deregister shall close and remove the Client registered under key, and shall return ErrNotFound for a key that is not currently registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCR-004",
+      "title": "ClientRegistry Clients reports every registered entry",
+      "text": "mock.ClientRegistry.Clients shall return exactly the set of Clients currently registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MCR-005",
+      "title": "ClientRegistry Close closes all registered Clients, is idempotent, and rejects further use",
+      "text": "mock.ClientRegistry.Close shall call Close on every registered Client, shall be safe to call more than once, and shall cause subsequent Register/Lookup calls to return ErrClosed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MFX-001",
+      "title": "NewFixture claims root and wires a Router the Fixture's Root Client can use",
+      "text": "mock.NewFixture shall claim rootStream as the returned Fixture's Server's root client, and the Fixture's Root Client shall present that same avtp.StreamID identity.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MFX-002",
+      "title": "Independently constructed Fixtures never share server state",
+      "text": "Two mock.NewFixture calls shall each return a Fixture with its own independent *server.Server, such that a stream that is root on one Fixture's Server is rejected as non-root on another Fixture's Server.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MFX-003",
+      "title": "Fixture Close closes its Root Client",
+      "text": "mock.Fixture.Close shall close the Fixture's Root Client.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-001",
+      "title": "Pacer fires unconditionally on the first Pump call",
+      "text": "sim.Pacer.Pump shall invoke its configured FireFunc on the very first call, with no grace period.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-002",
+      "title": "Pacer withholds firing until Interval elapses on its injected Clock",
+      "text": "sim.Pacer.Pump shall be a no-op, reporting fired=false, until at least Interval has elapsed since the previous fire, measured against the Pacer's injected Clock.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-003",
+      "title": "Pacer propagates FireFunc's own error",
+      "text": "sim.Pacer.Pump shall return exactly the error its configured FireFunc returns.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-004",
+      "title": "Pacer Reset restarts the firing cadence",
+      "text": "sim.Pacer.Reset shall cause the next Pump call to fire unconditionally, even if Interval has not yet elapsed since the previous fire.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-005",
+      "title": "Pacer Pump passes its requester argument through to FireFunc",
+      "text": "sim.Pacer.Pump shall invoke FireFunc with exactly the avtp.StreamID passed as Pump's own requester argument.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-006",
+      "title": "NewADCPacer and NewPWMPacer share Pacer's firing semantics",
+      "text": "sim.NewADCPacer and sim.NewPWMPacer shall each return a *sim.Pacer exhibiting the same first-call-always-fires and Interval-gated firing behaviour as sim.NewPacer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-007",
+      "title": "LatencyHandler LatencyConstant adds at least Base delay before delegating",
+      "text": "sim.LatencyHandler.HandleRequest, configured with LatencyConstant, shall sleep at least Base before delegating to the wrapped request.Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-008",
+      "title": "LatencyHandler LatencyJitter stays within Base plus Jitter",
+      "text": "sim.LatencyHandler.HandleRequest, configured with LatencyJitter, shall add a delay of at least Base and at most Base+Jitter before delegating.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-009",
+      "title": "LatencyHandler with zero Base/Jitter adds negligible delay",
+      "text": "sim.LatencyHandler.HandleRequest, configured with Base=0 and Jitter=0, shall add no observable delay before delegating.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SIM-010",
+      "title": "LatencyHandler HandleRequest is safe for concurrent use",
+      "text": "sim.LatencyHandler.HandleRequest shall be safe for concurrent calls without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-001",
+      "title": "RegisterController makes a Controller reachable through its handle",
+      "text": "capi.RegisterController shall return a handle through which capi.Request reaches the registered Controller's own Request method with the given addr/control/body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-002",
+      "title": "Request reports ErrCodeInvalidHandle for an unknown handle",
+      "text": "capi.Request shall return ErrCodeInvalidHandle when handle was never registered or has already been closed.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-003",
+      "title": "Request reports ErrCodeRequestFailed when the underlying Controller errors",
+      "text": "capi.Request shall return ErrCodeRequestFailed when the underlying Controller.Request call returns a non-nil error.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-004",
+      "title": "Read sets exactly FlagRead with no body",
+      "text": "capi.Read shall call the underlying Controller's Request with exactly acf.FlagRead set and a nil body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-005",
+      "title": "Write sets exactly FlagWrite with the given body",
+      "text": "capi.Write shall call the underlying Controller's Request with exactly acf.FlagWrite set and the caller's body.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-006",
+      "title": "Close deregisters the handle and closes the underlying Controller",
+      "text": "capi.Close shall remove handle from the registry (so HandleCount decreases and a subsequent Request returns ErrCodeInvalidHandle) and shall call Close on the underlying Controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-007",
+      "title": "Close on an unknown handle is a safe no-op",
+      "text": "capi.Close shall not panic and shall have no observable effect when called with a handle that was never registered.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CAPI-008",
+      "title": "NewController reports ErrCodeDialFailed for an unresolvable server address",
+      "text": "capi.NewController shall return ErrCodeDialFailed, without panicking, when serverAddr cannot be resolved as a UDP address.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-001",
+      "title": "ParseManifest decodes YAML and JSON server/endpoint manifests",
+      "text": "codegen.ParseManifest shall decode a version-1 manifest's servers and their declared endpoints from both YAML (.yaml/.yml) and JSON (.json) input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-002",
+      "title": "ParseManifest rejects an unsupported file extension",
+      "text": "codegen.ParseManifest shall return a non-nil error for any extension other than .yaml, .yml, or .json.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-003",
+      "title": "ParseManifest rejects an unsupported manifest version",
+      "text": "codegen.ParseManifest shall return an error wrapping ErrInvalidVersion when the manifest's version field is not 1.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-004",
+      "title": "ParseManifest rejects a manifest missing its package field",
+      "text": "codegen.ParseManifest shall return an error wrapping ErrMissingPackage when the manifest's package field is empty.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-005",
+      "title": "ParseManifest rejects an empty server or endpoint name",
+      "text": "codegen.ParseManifest shall return an error wrapping ErrEmptyName when any declared server or endpoint has an empty name.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-006",
+      "title": "ParseManifest rejects byte_bus_id 0 on a declared endpoint",
+      "text": "codegen.ParseManifest shall return an error wrapping ErrReservedAddr when any declared endpoint's byte_bus_id is 0 (the reserved EP0 address).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-007",
+      "title": "Generate emits one impl and one test file per declared endpoint",
+      "text": "codegen.Generate shall emit exactly one impl GeneratedFile and one test-skeleton GeneratedFile for every endpoint declared across every server in the manifest, each containing gofmt-formatted Go source with a package declaration.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-008",
+      "title": "Generated impl and test files carry matching //fusa:req/test annotations",
+      "text": "codegen.Generate's impl GeneratedFile shall contain a //fusa:req annotation and its corresponding test GeneratedFile shall contain a matching //fusa:test annotation, both derived from the same server/endpoint name pair.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-CG-009",
+      "title": "GenerateRequirements produces six .fusa-reqs.json entries per declared endpoint",
+      "text": "codegen.GenerateRequirements shall produce exactly six requirement entries, each with a non-empty asil field, for every endpoint declared across every server in the manifest.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-001",
+      "title": "Recorder ring-buffer mode keeps the most recent MaxEntries while Written counts every append",
+      "text": "record.Recorder, constructed with MaxEntries>0, shall retain only the MaxEntries most recently appended entries in Snapshot while Written continues to report the total number of entries ever appended, including overwritten ones.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-002",
+      "title": "Recorder unlimited mode retains every appended entry",
+      "text": "record.Recorder, constructed with MaxEntries=0, shall retain every entry ever appended in Snapshot.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-003",
+      "title": "Handler records a successful call's request and response",
+      "text": "record.Handler.HandleRequest, when the wrapped request.Handler succeeds, shall append an Entry to its Recorder carrying the request and response bodies with Err empty, and shall return the response unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-004",
+      "title": "Handler records a failing call's error text",
+      "text": "record.Handler.HandleRequest, when the wrapped request.Handler errors, shall append an Entry to its Recorder carrying Err set to the error's message text, and shall return the error unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-005",
+      "title": "WriteTo/ReadFrom round-trip Recorder entries intact",
+      "text": "record.Recorder.WriteTo followed by record.ReadFrom shall reproduce every entry's Requester, Request, and Response fields unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-006",
+      "title": "ReadFrom detects a corrupted log with ErrCorrupted",
+      "text": "record.ReadFrom shall return an error wrapping ErrCorrupted when a logged entry's payload does not match its trailing CRC32.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-007",
+      "title": "Replay feeds recorded requests into a target Handler in order",
+      "text": "record.Replay shall call target.HandleRequest once per recorded request, in the same order as Snapshot, and shall return the responses received.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-REC-008",
+      "title": "Handler HandleRequest is safe for concurrent use",
+      "text": "record.Handler.HandleRequest shall be safe for concurrent calls without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-001",
+      "title": "Controller StreamID delegates to the inner Controller",
+      "text": "observe's wrapped Controller StreamID method shall return exactly the inner Controller's own StreamID.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-002",
+      "title": "Controller Request delegates to the inner Controller and returns its response",
+      "text": "observe's wrapped Controller Request method shall call the inner Controller's Request with the given addr/control/body and return its response unchanged on success.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-003",
+      "title": "A successful Request records latency and sets health true for a non-error response",
+      "text": "observe's wrapped Controller Request method shall, on success, call Metrics.ObserveRequestLatency once and call Metrics.SetEndpointHealth with healthy=true when the response carries no acf.FlagError.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-004",
+      "title": "A successful Request with a FlagError response sets health false",
+      "text": "observe's wrapped Controller Request method shall call Metrics.SetEndpointHealth with healthy=false when a successful Request's response carries acf.FlagError.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-005",
+      "title": "A failing Request increments the error counter without recording latency or health",
+      "text": "observe's wrapped Controller Request method shall, when the inner Controller.Request errors, call Metrics.IncRequestError and shall not call ObserveRequestLatency or SetEndpointHealth.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-006",
+      "title": "A timeout-shaped error also increments the deadline-miss counter",
+      "text": "observe's wrapped Controller Request method shall call Metrics.IncDeadlineMiss when the inner Controller.Request's error wraps udp.ErrTimeout or context.DeadlineExceeded.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-007",
+      "title": "Controller Close is idempotent and closes the inner Controller",
+      "text": "observe's wrapped Controller Close method shall be safe to call more than once and shall call Close on the inner Controller.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-OB-008",
+      "title": "Controller Request is safe for concurrent use",
+      "text": "observe's wrapped Controller Request method shall be safe for concurrent calls without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-001",
+      "title": "Handler with no rules delegates directly to the wrapped Handler",
+      "text": "faultinject.Handler.HandleRequest shall delegate directly to the wrapped request.Handler when no Rule is currently active.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-002",
+      "title": "FaultDrop returns an error without reaching the wrapped Handler",
+      "text": "faultinject.Handler.HandleRequest, with an active FaultDrop rule, shall return a non-nil error and must not call the wrapped request.Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-003",
+      "title": "FaultSlow sleeps at least Latency then forwards to the wrapped Handler",
+      "text": "faultinject.Handler.HandleRequest, with an active FaultSlow rule, shall sleep at least Rule.Latency, then call the wrapped request.Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-004",
+      "title": "FaultCRCFailure returns e2e.ErrCRCMismatch without reaching the wrapped Handler",
+      "text": "faultinject.Handler.HandleRequest, with an active FaultCRCFailure rule, shall return an error wrapping e2e.ErrCRCMismatch and must not call the wrapped request.Handler.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-005",
+      "title": "FaultSafeStateEntry returns request.ErrPurgedByWatchdog",
+      "text": "faultinject.Handler.HandleRequest, with an active FaultSafeStateEntry rule, shall return an error wrapping request.ErrPurgedByWatchdog.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-006",
+      "title": "FaultDiscoveryClaimTimeout returns discovery.ErrNotConfigurationClaimant",
+      "text": "faultinject.Handler.HandleRequest, with an active FaultDiscoveryClaimTimeout rule, shall return an error wrapping discovery.ErrNotConfigurationClaimant.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-007",
+      "title": "FaultCancellation returns request.ErrTicketCancelled",
+      "text": "faultinject.Handler.HandleRequest, with an active FaultCancellation rule, shall return an error wrapping request.ErrTicketCancelled.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-008",
+      "title": "A Count-based rule fires exactly Count times then auto-expires",
+      "text": "faultinject.Handler, given a Rule with Count>0, shall apply that rule on exactly the next Count matching calls, then fall through to the wrapped Handler on subsequent calls; ClearRules shall remove every active rule immediately.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FI-009",
+      "title": "Handler HandleRequest and AddRule are safe for concurrent use",
+      "text": "faultinject.Handler.HandleRequest and AddRule shall be safe for concurrent calls without data races.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-001",
+      "title": "Update rejects an empty image",
+      "text": "firmware.Updater.Update shall return ErrImageEmpty for a zero-length image.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-002",
+      "title": "Update rejects an image larger than MaxImageSize",
+      "text": "firmware.Updater.Update shall return ErrImageTooLarge for an image longer than MaxImageSize.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-003",
+      "title": "Update delivers chunks with consistent CRC32 and advancing offsets",
+      "text": "firmware.Updater.Update shall deliver every chunk via its configured TransportFunc carrying the whole image's CRC-32 in every chunk's ChunkPayload.CRC32, with ChunkPayload.Offset advancing by ChunkSize per chunk.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-004",
+      "title": "A FlagError chunk response aborts delivery with ErrEndpointRejected",
+      "text": "firmware.Updater.Update shall stop sending further chunks and return an error wrapping ErrEndpointRejected as soon as a chunk delivery's response carries acf.FlagError.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-005",
+      "title": "A FlagError verify response reports ErrCRCMismatch",
+      "text": "firmware.Updater.Update shall return ErrCRCMismatch when the post-install verify call's response carries acf.FlagError.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-006",
+      "title": "A fully-acknowledged Update reports no error",
+      "text": "firmware.Updater.Update shall return nil when every chunk delivery and the verify call succeed without acf.FlagError.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-007",
+      "title": "Concurrent Update calls on one Updater are serialized with ErrUpdateInProgress",
+      "text": "firmware.Updater.Update shall return ErrUpdateInProgress immediately for a call that arrives while another Update on the same Updater is still in progress.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-FW-008",
+      "title": "ChunkPayload Marshal/UnmarshalChunkPayload round-trips every field",
+      "text": "firmware.UnmarshalChunkPayload applied to firmware.ChunkPayload.Marshal's output shall reproduce TotalSize, Offset, CRC32, and Data unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

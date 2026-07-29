@@ -10,271 +10,171 @@
 package firmware_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"hash/crc32"
 	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/firmware"
 )
 
-// chunkRecorder is a fake rcp.Controller that records received chunks.
-type chunkRecorder struct {
-	mu       sync.Mutex
-	chunks   []firmware.ChunkPayload
-	failAt   int // -1 = never fail; >= 0 = fail at that chunk index
-	callIdx  int
-	verifyOK bool // whether to return OK on the verify call
-}
-
-func newRecorder(failAt int, verifyOK bool) *chunkRecorder {
-	return &chunkRecorder{failAt: failAt, verifyOK: verifyOK}
-}
-
-func (r *chunkRecorder) Send(_ context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	cp, err := firmware.UnmarshalChunkPayload(cmd.Payload)
-	if err != nil {
-		return &rcp.Response{Status: rcp.StatusError}, nil
+// TestUpdate_RejectsEmptyImage verifies Update refuses a zero-length image
+// (REQ-FW-001).
+func TestUpdate_RejectsEmptyImage(t *testing.T) {
+	u := firmware.NewUpdater(func(context.Context, []byte) (acf.Message, error) {
+		return acf.Message{}, nil
+	}, firmware.DefaultConfig())
+	if err := u.Update(context.Background(), nil); !errors.Is(err, firmware.ErrImageEmpty) {
+		t.Errorf("err = %v, want ErrImageEmpty", err)
 	}
-	isVerify := cp.Offset == cp.TotalSize
-	if !isVerify {
-		if r.failAt >= 0 && r.callIdx == r.failAt {
-			r.callIdx++
-			return &rcp.Response{Status: rcp.StatusError}, nil
+}
+
+// TestUpdate_RejectsOversizedImage verifies Update refuses an image larger
+// than MaxImageSize (REQ-FW-002).
+func TestUpdate_RejectsOversizedImage(t *testing.T) {
+	u := firmware.NewUpdater(func(context.Context, []byte) (acf.Message, error) {
+		return acf.Message{}, nil
+	}, firmware.DefaultConfig())
+	big := make([]byte, firmware.MaxImageSize+1)
+	if err := u.Update(context.Background(), big); !errors.Is(err, firmware.ErrImageTooLarge) {
+		t.Errorf("err = %v, want ErrImageTooLarge", err)
+	}
+}
+
+// TestUpdate_DeliversChunksInOrderWithConsistentCRC verifies every
+// delivered chunk carries the whole image's CRC-32 and offsets advance by
+// ChunkSize (REQ-FW-003).
+func TestUpdate_DeliversChunksInOrderWithConsistentCRC(t *testing.T) {
+	var chunks []firmware.ChunkPayload
+	transport := func(_ context.Context, data []byte) (acf.Message, error) {
+		cp, err := firmware.UnmarshalChunkPayload(data)
+		if err != nil {
+			t.Fatalf("UnmarshalChunkPayload: %v", err)
 		}
-		r.chunks = append(r.chunks, cp)
-		r.callIdx++
-		return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}, nil
+		chunks = append(chunks, cp)
+		return acf.Message{Control: acf.FlagResponse}, nil
 	}
-	// verify call
-	if !r.verifyOK {
-		return &rcp.Response{Status: rcp.StatusError}, nil
-	}
-	return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}, nil
-}
-
-func (r *chunkRecorder) Zone() rcp.Zone { return rcp.ZoneFrontLeft }
-func (r *chunkRecorder) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
-	ch := make(chan *rcp.Status)
-	return ch, nil
-}
-func (r *chunkRecorder) Close() error { return nil }
-
-func (r *chunkRecorder) Assembled() []byte {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if len(r.chunks) == 0 {
-		return nil
-	}
-	total := int(r.chunks[0].TotalSize)
-	buf := make([]byte, total)
-	for _, cp := range r.chunks {
-		end := int(cp.Offset) + len(cp.Data)
-		if end > total {
-			end = total
-		}
-		copy(buf[cp.Offset:end], cp.Data)
-	}
-	return buf
-}
-
-// TestFirmware_SuccessfulUpdate delivers an image and verifies reassembly (REQ-FW-001, REQ-FW-002).
-func TestFirmware_SuccessfulUpdate(t *testing.T) {
-	image := bytes.Repeat([]byte{0xAB}, 1024)
-	rec := newRecorder(-1, true)
-	u := firmware.NewUpdater(rec, firmware.Config{ChunkSize: 256, Priority: rcp.PriorityHigh})
-
+	u := firmware.NewUpdater(transport, firmware.Config{ChunkSize: 4})
+	image := []byte("0123456789") // 3 chunks of 4,4,2 bytes + 1 verify call
 	if err := u.Update(context.Background(), image); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	got := rec.Assembled()
-	if !bytes.Equal(got, image) {
-		t.Errorf("reassembled image mismatch: got %d bytes", len(got))
+	// 3 data chunks + 1 verify call = 4.
+	if len(chunks) != 4 {
+		t.Fatalf("len(chunks) = %d, want 4", len(chunks))
 	}
-}
-
-// TestFirmware_ChunkCount verifies correct number of chunks (REQ-FW-002).
-func TestFirmware_ChunkCount(t *testing.T) {
-	image := make([]byte, 700)
-	for i := range image {
-		image[i] = byte(i)
-	}
-	rec := newRecorder(-1, true)
-	u := firmware.NewUpdater(rec, firmware.Config{ChunkSize: 100, Priority: rcp.PriorityNormal})
-
-	if err := u.Update(context.Background(), image); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	// 700 / 100 = 7 chunks
-	rec.mu.Lock()
-	got := len(rec.chunks)
-	rec.mu.Unlock()
-	if got != 7 {
-		t.Errorf("chunk count = %d, want 7", got)
-	}
-}
-
-// TestFirmware_CRCInPayload verifies CRC is embedded in every chunk (REQ-FW-003).
-func TestFirmware_CRCInPayload(t *testing.T) {
-	image := []byte("hello firmware world")
-	expected := crc32.ChecksumIEEE(image)
-	rec := newRecorder(-1, true)
-	u := firmware.NewUpdater(rec, firmware.DefaultConfig())
-
-	if err := u.Update(context.Background(), image); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	rec.mu.Lock()
-	defer rec.mu.Unlock()
-	for _, cp := range rec.chunks {
-		if cp.CRC32 != expected {
-			t.Errorf("chunk CRC = %08x, want %08x", cp.CRC32, expected)
+	wantCRC := chunks[0].CRC32
+	for i, c := range chunks[:3] {
+		if c.CRC32 != wantCRC {
+			t.Errorf("chunk %d CRC32 = %d, want %d (consistent across all chunks)", i, c.CRC32, wantCRC)
+		}
+		if c.Offset != uint32(i*4) {
+			t.Errorf("chunk %d Offset = %d, want %d", i, c.Offset, i*4)
 		}
 	}
-}
-
-// TestFirmware_ChunkFailure propagates zone error as ErrZoneRejected (REQ-FW-004).
-func TestFirmware_ChunkFailure(t *testing.T) {
-	image := bytes.Repeat([]byte{1}, 512)
-	rec := newRecorder(1, true) // fail on 2nd chunk
-	u := firmware.NewUpdater(rec, firmware.Config{ChunkSize: 128})
-
-	err := u.Update(context.Background(), image)
-	if !errors.Is(err, firmware.ErrZoneRejected) {
-		t.Errorf("err = %v, want ErrZoneRejected", err)
+	// Verify call is the sentinel: Offset == TotalSize.
+	verify := chunks[3]
+	if verify.Offset != verify.TotalSize {
+		t.Errorf("verify call Offset = %d, want %d (== TotalSize)", verify.Offset, verify.TotalSize)
 	}
 }
 
-// TestFirmware_VerifyFailure returns ErrCRCMismatch when zone rejects verify (REQ-FW-005).
-func TestFirmware_VerifyFailure(t *testing.T) {
-	image := []byte("check me")
-	rec := newRecorder(-1, false) // verify returns StatusError
-	u := firmware.NewUpdater(rec, firmware.DefaultConfig())
+// TestUpdate_EndpointRejectsChunk_StopsDelivery verifies a FlagError
+// response mid-delivery aborts Update with ErrEndpointRejected and no
+// further chunks are sent (REQ-FW-004).
+func TestUpdate_EndpointRejectsChunk_StopsDelivery(t *testing.T) {
+	calls := 0
+	transport := func(_ context.Context, data []byte) (acf.Message, error) {
+		calls++
+		cp, _ := firmware.UnmarshalChunkPayload(data)
+		if cp.Offset == 4 {
+			return acf.Message{Control: acf.FlagResponse | acf.FlagError}, nil
+		}
+		return acf.Message{Control: acf.FlagResponse}, nil
+	}
+	u := firmware.NewUpdater(transport, firmware.Config{ChunkSize: 4})
+	err := u.Update(context.Background(), []byte("0123456789"))
+	if !errors.Is(err, firmware.ErrEndpointRejected) {
+		t.Errorf("err = %v, want ErrEndpointRejected", err)
+	}
+	if calls != 2 {
+		t.Errorf("transport called %d times, want 2 (stopped at the rejected chunk)", calls)
+	}
+}
 
-	err := u.Update(context.Background(), image)
+// TestUpdate_VerifyRejected_ReportsCRCMismatch verifies a FlagError
+// response to the post-install verify call reports ErrCRCMismatch
+// (REQ-FW-005).
+func TestUpdate_VerifyRejected_ReportsCRCMismatch(t *testing.T) {
+	transport := func(_ context.Context, data []byte) (acf.Message, error) {
+		cp, _ := firmware.UnmarshalChunkPayload(data)
+		if cp.Offset == cp.TotalSize {
+			return acf.Message{Control: acf.FlagResponse | acf.FlagError}, nil
+		}
+		return acf.Message{Control: acf.FlagResponse}, nil
+	}
+	u := firmware.NewUpdater(transport, firmware.DefaultConfig())
+	err := u.Update(context.Background(), []byte("hello"))
 	if !errors.Is(err, firmware.ErrCRCMismatch) {
 		t.Errorf("err = %v, want ErrCRCMismatch", err)
 	}
 }
 
-// TestFirmware_EmptyImage rejects empty image (REQ-FW-006).
-func TestFirmware_EmptyImage(t *testing.T) {
-	rec := newRecorder(-1, true)
-	u := firmware.NewUpdater(rec, firmware.DefaultConfig())
-
-	err := u.Update(context.Background(), nil)
-	if !errors.Is(err, firmware.ErrImageEmpty) {
-		t.Errorf("err = %v, want ErrImageEmpty", err)
+// TestUpdate_Success_NoError verifies a fully-acknowledged delivery and
+// verify call reports no error (REQ-FW-006).
+func TestUpdate_Success_NoError(t *testing.T) {
+	transport := func(context.Context, []byte) (acf.Message, error) {
+		return acf.Message{Control: acf.FlagResponse}, nil
+	}
+	u := firmware.NewUpdater(transport, firmware.DefaultConfig())
+	if err := u.Update(context.Background(), []byte("firmware image bytes")); err != nil {
+		t.Fatalf("Update: %v", err)
 	}
 }
 
-// TestFirmware_ImageTooLarge rejects images over MaxImageSize (REQ-FW-006).
-func TestFirmware_ImageTooLarge(t *testing.T) {
-	rec := newRecorder(-1, true)
-	u := firmware.NewUpdater(rec, firmware.DefaultConfig())
-
-	oversized := make([]byte, firmware.MaxImageSize+1)
-	err := u.Update(context.Background(), oversized)
-	if !errors.Is(err, firmware.ErrImageTooLarge) {
-		t.Errorf("err = %v, want ErrImageTooLarge", err)
+// TestUpdate_ConcurrentCalls_SecondRejected verifies a second concurrent
+// Update call on the same Updater reports ErrUpdateInProgress (REQ-FW-007).
+func TestUpdate_ConcurrentCalls_SecondRejected(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{})
+	var once sync.Once
+	transport := func(context.Context, []byte) (acf.Message, error) {
+		once.Do(func() { close(started) })
+		<-release
+		return acf.Message{Control: acf.FlagResponse}, nil
 	}
-}
-
-// TestFirmware_NoConcurrentUpdate rejects second simultaneous Update (REQ-FW-007).
-func TestFirmware_NoConcurrentUpdate(t *testing.T) {
-	// Use a blocking controller to hold the first Update in flight.
-	block := make(chan struct{})
-	unblock := make(chan struct{})
-	first := true
-
-	var blockCtrl blockingController
-	blockCtrl.block = block
-	blockCtrl.unblock = unblock
-	blockCtrl.first = &first
-
-	u := firmware.NewUpdater(&blockCtrl, firmware.Config{ChunkSize: 64})
-
-	image := bytes.Repeat([]byte{0xFF}, 64)
+	u := firmware.NewUpdater(transport, firmware.Config{ChunkSize: 1})
 
 	var wg sync.WaitGroup
+	var firstErr error
 	wg.Add(1)
-	var firstErr, secondErr error
 	go func() {
 		defer wg.Done()
-		firstErr = u.Update(context.Background(), image)
+		firstErr = u.Update(context.Background(), []byte("ab"))
 	}()
 
-	// Wait until the first goroutine is inside Send.
-	<-block
-	// Second call should fail immediately with "already in progress".
-	secondErr = u.Update(context.Background(), image)
-	close(unblock) // unblock first goroutine
+	<-started
+	secondErr := u.Update(context.Background(), []byte("cd"))
+	if !errors.Is(secondErr, firmware.ErrUpdateInProgress) {
+		t.Errorf("second Update err = %v, want ErrUpdateInProgress", secondErr)
+	}
+	close(release)
 	wg.Wait()
-
 	if firstErr != nil {
-		t.Errorf("first Update: %v", firstErr)
-	}
-	if secondErr == nil {
-		t.Error("second concurrent Update should have failed")
+		t.Errorf("first Update err = %v, want nil", firstErr)
 	}
 }
 
-// TestFirmware_MarshalRoundTrip encodes and decodes ChunkPayload correctly (REQ-FW-008).
-func TestFirmware_MarshalRoundTrip(t *testing.T) {
-	orig := firmware.ChunkPayload{
-		TotalSize: 1024,
-		Offset:    256,
-		CRC32:     0xDEADBEEF,
-		Data:      []byte("chunk data here"),
-	}
-	b := orig.Marshal()
-	got, err := firmware.UnmarshalChunkPayload(b)
+// TestChunkPayload_MarshalUnmarshal_RoundTrips verifies Marshal/
+// UnmarshalChunkPayload round-trip every field (REQ-FW-008).
+func TestChunkPayload_MarshalUnmarshal_RoundTrips(t *testing.T) {
+	want := firmware.ChunkPayload{TotalSize: 100, Offset: 8, CRC32: 0xDEADBEEF, Data: []byte("chunk")}
+	got, err := firmware.UnmarshalChunkPayload(want.Marshal())
 	if err != nil {
-		t.Fatalf("Unmarshal: %v", err)
+		t.Fatalf("UnmarshalChunkPayload: %v", err)
 	}
-	if got.TotalSize != orig.TotalSize || got.Offset != orig.Offset || got.CRC32 != orig.CRC32 {
-		t.Errorf("header mismatch: got %+v, want %+v", got, orig)
-	}
-	if !bytes.Equal(got.Data, orig.Data) {
-		t.Errorf("data mismatch")
+	if got.TotalSize != want.TotalSize || got.Offset != want.Offset || got.CRC32 != want.CRC32 || string(got.Data) != string(want.Data) {
+		t.Errorf("round-trip mismatch: got %+v, want %+v", got, want)
 	}
 }
-
-// TestFirmware_DefaultConfig returns expected defaults (REQ-FW-008).
-func TestFirmware_DefaultConfig(t *testing.T) {
-	cfg := firmware.DefaultConfig()
-	if cfg.ChunkSize != firmware.DefaultChunkSize {
-		t.Errorf("ChunkSize = %d, want %d", cfg.ChunkSize, firmware.DefaultChunkSize)
-	}
-	if cfg.Priority != rcp.PriorityHigh {
-		t.Errorf("Priority = %v, want PriorityHigh", cfg.Priority)
-	}
-}
-
-// blockingController blocks on the first Send until unblocked.
-type blockingController struct {
-	block   chan struct{}
-	unblock chan struct{}
-	first   *bool
-}
-
-func (b *blockingController) Send(_ context.Context, cmd *rcp.Command) (*rcp.Response, error) {
-	if *b.first {
-		*b.first = false
-		b.block <- struct{}{} // signal that we're inside Send
-		<-b.unblock           // wait to be unblocked
-	}
-	return &rcp.Response{CommandID: cmd.ID, Zone: cmd.Zone, Status: rcp.StatusOK}, nil
-}
-
-func (b *blockingController) Zone() rcp.Zone { return rcp.ZoneFrontLeft }
-func (b *blockingController) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
-	ch := make(chan *rcp.Status)
-	return ch, nil
-}
-func (b *blockingController) Close() error { return nil }

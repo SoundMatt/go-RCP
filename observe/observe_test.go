@@ -12,284 +12,203 @@ package observe_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/mock"
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/observe"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// recordingMetrics collects calls for assertion.
-type recordingMetrics struct {
-	mu           sync.Mutex
-	latencies    []float64
-	errors       int
-	healths      map[rcp.Zone]bool
-	deadlineMiss int
+func testStream() avtp.StreamID {
+	return avtp.NewStreamID([6]byte{0x02, 0x11, 0x22, 0x33, 0x44, 0x55}, 1)
 }
 
-func newRecording() *recordingMetrics {
-	return &recordingMetrics{healths: make(map[rcp.Zone]bool)}
+type stubController struct {
+	stream avtp.StreamID
+	resp   acf.Message
+	err    error
+	closed bool
+
+	mu       sync.Mutex
+	lastAddr avtp.ByteBusID
+	calls    int
 }
 
-func (r *recordingMetrics) ObserveSendLatency(_ rcp.Zone, ms float64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.latencies = append(r.latencies, ms)
-}
-func (r *recordingMetrics) IncSendError(_ rcp.Zone) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.errors++
-}
-func (r *recordingMetrics) SetZoneHealth(zone rcp.Zone, healthy bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.healths[zone] = healthy
-}
-func (r *recordingMetrics) IncDeadlineMiss(_ rcp.Zone) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.deadlineMiss++
-}
+func (s *stubController) StreamID() avtp.StreamID { return s.stream }
 
-// errController always returns a fixed error from Send.
-type errController struct {
-	zone rcp.Zone
-	err  error
-}
-
-func (e *errController) Zone() rcp.Zone { return e.zone }
-func (e *errController) Send(_ context.Context, _ *rcp.Command) (*rcp.Response, error) {
-	return nil, e.err
-}
-func (e *errController) Subscribe(_ context.Context) (<-chan *rcp.Status, error) {
-	return nil, e.err
-}
-func (e *errController) Close() error { return nil }
-
-func newSpanRecorder() (*tracetest.SpanRecorder, trace.Tracer) {
-	rec := tracetest.NewSpanRecorder()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
-	return rec, tp.Tracer("test")
-}
-
-func sendCmd(t *testing.T, c *observe.Controller, zone rcp.Zone) (*rcp.Response, error) {
-	t.Helper()
-	return c.Send(context.Background(), &rcp.Command{Zone: zone, Type: rcp.CmdSet})
-}
-
-func TestSend_SpanCreated(t *testing.T) {
-	rec, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-
-	if _, err := sendCmd(t, c, rcp.ZoneFrontLeft); err != nil {
-		t.Fatal(err)
+func (s *stubController) Request(_ context.Context, addr avtp.ByteBusID, _ acf.ControlFlags, _ []byte) (acf.Message, error) {
+	s.mu.Lock()
+	s.lastAddr = addr
+	s.calls++
+	s.mu.Unlock()
+	if s.err != nil {
+		return acf.Message{}, s.err
 	}
+	return s.resp, nil
+}
 
-	spans := rec.Ended()
-	if len(spans) != 1 {
-		t.Fatalf("want 1 span, got %d", len(spans))
-	}
-	if spans[0].Name() != "rcp.Send" {
-		t.Errorf("span name = %q, want rcp.Send", spans[0].Name())
-	}
-	if spans[0].Status().Code != codes.Ok {
-		t.Errorf("span status = %v, want Ok", spans[0].Status().Code)
+func (s *stubController) Close() error {
+	s.closed = true
+	return nil
+}
+
+type fakeMetrics struct {
+	mu             sync.Mutex
+	latencies      int
+	errors         int
+	deadlineMisses int
+	lastHealthy    bool
+	healthSetCount int
+}
+
+func (m *fakeMetrics) ObserveRequestLatency(avtp.StreamID, avtp.ByteBusID, float64) {
+	m.mu.Lock()
+	m.latencies++
+	m.mu.Unlock()
+}
+func (m *fakeMetrics) IncRequestError(avtp.StreamID, avtp.ByteBusID) {
+	m.mu.Lock()
+	m.errors++
+	m.mu.Unlock()
+}
+func (m *fakeMetrics) SetEndpointHealth(_ avtp.StreamID, _ avtp.ByteBusID, healthy bool) {
+	m.mu.Lock()
+	m.lastHealthy = healthy
+	m.healthSetCount++
+	m.mu.Unlock()
+}
+func (m *fakeMetrics) IncDeadlineMiss(avtp.StreamID, avtp.ByteBusID) {
+	m.mu.Lock()
+	m.deadlineMisses++
+	m.mu.Unlock()
+}
+
+// TestController_StreamID_Delegates verifies StreamID passes through to the
+// inner Controller (REQ-OB-001).
+func TestController_StreamID_Delegates(t *testing.T) {
+	stub := &stubController{stream: testStream()}
+	c := observe.New(stub, observe.DefaultConfig())
+	if c.StreamID() != testStream() {
+		t.Errorf("StreamID() = %v, want %v", c.StreamID(), testStream())
 	}
 }
 
-func TestSend_SpanAttributes(t *testing.T) {
-	rec, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-
-	if _, err := sendCmd(t, c, rcp.ZoneFrontLeft); err != nil {
-		t.Fatal(err)
+// TestController_Request_DelegatesAndReturnsResponse verifies Request
+// reaches the inner Controller and returns its response (REQ-OB-002).
+func TestController_Request_DelegatesAndReturnsResponse(t *testing.T) {
+	stub := &stubController{stream: testStream(), resp: acf.Message{Body: []byte("ok")}}
+	c := observe.New(stub, observe.DefaultConfig())
+	resp, err := c.Request(context.Background(), 3, acf.FlagRead, nil)
+	if err != nil {
+		t.Fatalf("Request: %v", err)
 	}
-
-	span := rec.Ended()[0]
-	attrs := span.Attributes()
-	found := make(map[attribute.Key]bool)
-	for _, a := range attrs {
-		found[a.Key] = true
+	if string(resp.Body) != "ok" {
+		t.Errorf("resp.Body = %q, want ok", resp.Body)
 	}
-	for _, want := range []attribute.Key{"rcp.zone", "rcp.cmd_type", "rcp.priority", "rcp.cmd_id"} {
-		if !found[want] {
-			t.Errorf("missing attribute %q", want)
-		}
+	if stub.lastAddr != 3 {
+		t.Errorf("lastAddr = %d, want 3", stub.lastAddr)
 	}
 }
 
-func TestSend_MetricsLatency(t *testing.T) {
-	_, tr := newSpanRecorder()
-	metrics := newRecording()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr, Metrics: metrics})
-
-	if _, err := sendCmd(t, c, rcp.ZoneFrontLeft); err != nil {
-		t.Fatal(err)
+// TestController_Request_Success_RecordsLatencyAndHealth verifies a
+// successful Request records latency and sets health true when the
+// response carries no FlagError (REQ-OB-003).
+func TestController_Request_Success_RecordsLatencyAndHealth(t *testing.T) {
+	stub := &stubController{stream: testStream(), resp: acf.Message{Control: acf.FlagResponse}}
+	m := &fakeMetrics{}
+	c := observe.New(stub, observe.Config{Metrics: m})
+	if _, err := c.Request(context.Background(), 1, acf.FlagRead, nil); err != nil {
+		t.Fatalf("Request: %v", err)
 	}
-
-	metrics.mu.Lock()
-	defer metrics.mu.Unlock()
-	if len(metrics.latencies) != 1 {
-		t.Fatalf("want 1 latency observation, got %d", len(metrics.latencies))
+	if m.latencies != 1 {
+		t.Errorf("latencies = %d, want 1", m.latencies)
 	}
-	if metrics.latencies[0] < 0 {
-		t.Errorf("latency %v < 0", metrics.latencies[0])
+	if m.healthSetCount != 1 || !m.lastHealthy {
+		t.Errorf("health not set healthy: count=%d healthy=%v", m.healthSetCount, m.lastHealthy)
 	}
 }
 
-func TestSend_MetricsZoneHealth(t *testing.T) {
-	_, tr := newSpanRecorder()
-	metrics := newRecording()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr, Metrics: metrics})
-
-	if _, err := sendCmd(t, c, rcp.ZoneFrontLeft); err != nil {
-		t.Fatal(err)
+// TestController_Request_ErrorFlagResponse_SetsUnhealthy verifies a
+// successful Request whose response carries FlagError still counts as
+// unhealthy (REQ-OB-004).
+func TestController_Request_ErrorFlagResponse_SetsUnhealthy(t *testing.T) {
+	stub := &stubController{stream: testStream(), resp: acf.Message{Control: acf.FlagResponse | acf.FlagError}}
+	m := &fakeMetrics{}
+	c := observe.New(stub, observe.Config{Metrics: m})
+	if _, err := c.Request(context.Background(), 1, acf.FlagRead, nil); err != nil {
+		t.Fatalf("Request: %v", err)
 	}
-
-	metrics.mu.Lock()
-	defer metrics.mu.Unlock()
-	if !metrics.healths[rcp.ZoneFrontLeft] {
-		t.Error("zone health should be true after OK response")
+	if m.lastHealthy {
+		t.Error("expected unhealthy for a FlagError response")
 	}
 }
 
-func TestSend_ErrorSpanAndMetrics(t *testing.T) {
-	rec, tr := newSpanRecorder()
-	metrics := newRecording()
-	inner := &errController{zone: rcp.ZoneFrontLeft, err: fmt.Errorf("bus fault")}
-	c := observe.New(inner, observe.Config{Tracer: tr, Metrics: metrics})
-
-	_, err := c.Send(context.Background(), &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet})
-	if err == nil {
+// TestController_Request_Error_IncrementsErrorCounter verifies a failing
+// Request increments IncRequestError and does not record latency/health
+// (REQ-OB-005).
+func TestController_Request_Error_IncrementsErrorCounter(t *testing.T) {
+	stub := &stubController{stream: testStream(), err: errors.New("boom")}
+	m := &fakeMetrics{}
+	c := observe.New(stub, observe.Config{Metrics: m})
+	if _, err := c.Request(context.Background(), 1, acf.FlagRead, nil); err == nil {
 		t.Fatal("expected error")
 	}
-
-	spans := rec.Ended()
-	if spans[0].Status().Code != codes.Error {
-		t.Errorf("span status = %v, want Error", spans[0].Status().Code)
+	if m.errors != 1 {
+		t.Errorf("errors = %d, want 1", m.errors)
 	}
-
-	metrics.mu.Lock()
-	defer metrics.mu.Unlock()
-	if metrics.errors != 1 {
-		t.Errorf("want 1 error, got %d", metrics.errors)
-	}
-	if len(metrics.latencies) != 0 {
-		t.Errorf("want no latency on error, got %d", len(metrics.latencies))
+	if m.latencies != 0 || m.healthSetCount != 0 {
+		t.Errorf("latencies=%d healthSetCount=%d, want 0 and 0", m.latencies, m.healthSetCount)
 	}
 }
 
-func TestSend_DeadlineMiss(t *testing.T) {
-	_, tr := newSpanRecorder()
-	metrics := newRecording()
-	inner := &errController{zone: rcp.ZoneFrontLeft, err: context.DeadlineExceeded}
-	c := observe.New(inner, observe.Config{Tracer: tr, Metrics: metrics})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	c.Send(ctx, &rcp.Command{Zone: rcp.ZoneFrontLeft, Type: rcp.CmdSet}) //nolint:errcheck
-
-	metrics.mu.Lock()
-	defer metrics.mu.Unlock()
-	if metrics.deadlineMiss == 0 {
-		t.Error("want ≥1 deadline miss, got 0")
+// TestController_Request_TimeoutError_IncrementsDeadlineMiss verifies a
+// udp.ErrTimeout-wrapping error also increments IncDeadlineMiss
+// (REQ-OB-006).
+func TestController_Request_TimeoutError_IncrementsDeadlineMiss(t *testing.T) {
+	stub := &stubController{stream: testStream(), err: context.DeadlineExceeded}
+	m := &fakeMetrics{}
+	c := observe.New(stub, observe.Config{Metrics: m})
+	if _, err := c.Request(context.Background(), 1, acf.FlagRead, nil); err == nil {
+		t.Fatal("expected error")
+	}
+	if m.deadlineMisses != 1 {
+		t.Errorf("deadlineMisses = %d, want 1", m.deadlineMisses)
 	}
 }
 
-func TestSubscribe_SpanCreated(t *testing.T) {
-	rec, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if _, err := c.Subscribe(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	spans := rec.Ended()
-	if len(spans) != 1 {
-		t.Fatalf("want 1 span, got %d", len(spans))
-	}
-	if spans[0].Name() != "rcp.Subscribe" {
-		t.Errorf("span name = %q, want rcp.Subscribe", spans[0].Name())
-	}
-}
-
-func TestClose_Idempotent(t *testing.T) {
-	_, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-
+// TestController_Close_IdempotentAndRejectsRequest verifies Close is safe
+// to call multiple times and closes the inner Controller (REQ-OB-007).
+func TestController_Close_IdempotentAndRejectsRequest(t *testing.T) {
+	stub := &stubController{stream: testStream()}
+	c := observe.New(stub, observe.DefaultConfig())
 	if err := c.Close(); err != nil {
-		t.Fatal(err)
+		t.Fatalf("first close: %v", err)
 	}
 	if err := c.Close(); err != nil {
-		t.Errorf("second Close returned error: %v", err)
+		t.Fatalf("second close: %v", err)
+	}
+	if !stub.closed {
+		t.Error("inner Controller was not closed")
+	}
+	if _, err := c.Request(context.Background(), 1, acf.FlagRead, nil); err == nil {
+		t.Error("expected error requesting through a closed Controller")
 	}
 }
 
-func TestClose_RejectsSend(t *testing.T) {
-	_, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-	_ = c.Close()
-
-	_, err := sendCmd(t, c, rcp.ZoneFrontLeft)
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("want ErrClosed, got %v", err)
-	}
-}
-
-func TestClose_RejectsSubscribe(t *testing.T) {
-	_, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-	_ = c.Close()
-
-	_, err := c.Subscribe(context.Background())
-	if !errors.Is(err, rcp.ErrClosed) {
-		t.Errorf("want ErrClosed, got %v", err)
-	}
-}
-
-func TestConcurrent(t *testing.T) {
-	_, tr := newSpanRecorder()
-	metrics := newRecording()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr, Metrics: metrics})
-
+// TestController_Request_Concurrent verifies concurrent Request calls are
+// data-race free (REQ-OB-008).
+func TestController_Request_Concurrent(t *testing.T) {
+	stub := &stubController{stream: testStream(), resp: acf.Message{Control: acf.FlagResponse}}
+	m := &fakeMetrics{}
+	c := observe.New(stub, observe.Config{Metrics: m})
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
+	for range 30 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sendCmd(t, c, rcp.ZoneFrontLeft) //nolint:errcheck
+			_, _ = c.Request(context.Background(), 1, acf.FlagRead, nil)
 		}()
 	}
 	wg.Wait()
-}
-
-func TestNilMetrics(t *testing.T) {
-	_, tr := newSpanRecorder()
-	m := mock.NewController(rcp.ZoneFrontLeft, nil)
-	c := observe.New(m, observe.Config{Tracer: tr})
-
-	if _, err := sendCmd(t, c, rcp.ZoneFrontLeft); err != nil {
-		t.Errorf("nil Metrics should not panic: %v", err)
-	}
 }

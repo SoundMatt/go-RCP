@@ -1535,13 +1535,150 @@ tested per `gofusa check`/`gofusa trace`. No other package in this repo
 imported any of the nine outside their own test files, so no additional
 call sites needed updating.
 
-### 57. Tooling & Test-Double Rebuild (v0.70.0)
+### 57. Tooling & Test-Double Rebuild (v0.70.0) ✅
 
 - Rebuild `mock`, `sim`, and `capi`; adapt `codegen`, `record`, `observe`,
   `faultinject`, `firmware`
 - Sequenced after the bridges (56) because `sim`'s realistic timing models
   and `faultinject`'s fault catalogue are easiest to validate once real
   endpoint behaviour exists to compare against
+
+**Done (v0.70.0):** the three REPLACE-flagged packages and five
+ADAPT-flagged packages this milestone names are rebuilt per the disposition
+table's own reasoning for each, with one deliberate, documented deviation
+from a mechanical "REPLACE" for `mock` (see below):
+
+- **`mock` REPLACE, but additive rather than a full replacement**: this
+  package uniquely sits in two roles at once — the reference test double
+  Phases 13-16 need, *and* the in-process fake `cmd/go-rcp`, `cmd/rcptool`,
+  `optional_test.go`, `adapt_test.go`, and `safety/command_latency_test.go`
+  all still depend on for the pre-TC18 `rcp.Controller`/`Zone`/`Command`
+  surface — a surface Phase 17's disposition table itself defers retiring
+  to Phase 18's cutover (Milestone 59), not this one. Forcing those five
+  call sites through a premature migration here would pull Phase 18's own
+  scope forward and risk exactly the kind of unrelated-dependent breakage
+  Guiding Principle 10 warns against. Instead, `mock.go`'s original
+  `Controller`/`Registry`/`Handler` are kept byte-for-byte unchanged (not
+  even renamed — a formal Go `Deprecated:` doc comment was deliberately
+  avoided too, since staticcheck's SA1019 would otherwise flag every one of
+  those five still-legitimate call sites as a new finding this milestone
+  did not intend to create), the same "freeze the old surface in its own
+  clearly-labelled corner of the package" precedent Milestone 54
+  established for `tlstransport`/`legacyframe.go`. The new TC18
+  server/endpoint/register-map test double — `Endpoint` (implements
+  `request.Handler`), `Client` (an in-process fake of `*udp.Controller`
+  that calls `*udp.Router.Route` directly, needing no socket, read
+  goroutine, or pending-request map at all since `Route` is already
+  synchronous), `ClientRegistry`, and `Fixture` (bundles a root-claimed
+  `*server.Server` + `*udp.Router` + root `Client`) — is added under new,
+  non-colliding names in the same package, satisfying the disposition
+  table's own purpose test ("useful for testing anything built in Phases
+  13-16") without breaking anything the old names still serve. 27
+  requirements (`REQ-MEP-*`, `REQ-MCL-*`, `REQ-MCR-*`, `REQ-MFX-*`) are
+  added fresh for the new surface; `REQ-CTRL-*`/`REQ-REG-*` are left
+  entirely untouched, since the code they describe did not change.
+- **`sim` REPLACE, narrowed to pure timing realism**: the retired
+  `sim.Controller` bundled simulated latency, periodic Status publishing,
+  and client-push watchdog-miss detection into one type. The latter two
+  concerns already moved elsewhere by earlier milestones (server-push
+  Status has no TC18 equivalent at all per Milestone 56's own framing;
+  watchdog/liveness detection is `e2e.Supervisor`'s job per Milestone 50),
+  so this milestone's rebuild does exactly one thing: `Pacer` (a
+  caller-driven, no-goroutine, injectable-`Clock` periodic action — the
+  same posture `powerstate.Driver.Pump` established at Milestone 53 —
+  naming `NewADCPacer`/`NewPWMPacer` constructors for the ADC-sample-
+  interval/PWM-cycle-timing models the milestone text calls out by name)
+  and `LatencyHandler` (wraps `request.Handler` with simulated constant or
+  jittered response latency, directly registrable into a `*udp.Router`).
+  Neither imports any endpoint-type package directly — both take a
+  caller-supplied `FireFunc`/wrap a `request.Handler`, so a caller adapts
+  whichever concrete endpoint (`adc.Endpoint.Trigger`,
+  `pwm.Endpoint.SetCapturedWaveform`, ...) it is pacing.
+- **`capi` REPLACE, redesigned around Endpoint requests**: the C ABI's
+  handle-based shape is unchanged, but a handle now addresses one RC client
+  by `avtp.StreamID` and every call names an `avtp.ByteBusID` plus
+  `acf.ControlFlags`/body, in place of the retired Zone/CommandType
+  surface. `capi.Controller` is a narrow local interface (`Request`/
+  `Close`) matching `*udp.Controller`'s own shape exactly, so
+  `RegisterController` accepts either the production `*udp.Controller` or
+  a test's own fake without `capi` importing `mock` as a non-test
+  dependency. The retired `Subscribe`/`PollStatus` surface is dropped
+  outright, not adapted — TC18 has no server-push broadcast to poll, the
+  same conclusion Milestone 56's `ddsbr`/`mqttbr`/`grpcbridge`/`restbridge`
+  rebuild already reached.
+- **`codegen` ADAPTed: the manifest schema moves from zone declarations to
+  server/endpoint declarations**, keeping the same YAML/JSON parsing,
+  `text/template` code generation, and `.fusa-reqs.json` entry generation
+  machinery. A manifest now declares servers (each with a 16-hex-char
+  `stream_id`, the same encoding `config.ServerEntry` established at
+  Milestone 55) and, per server, endpoints (a name, `byte_bus_id`, free-text
+  `type` label, and ASIL). `Generate` emits one `request.Handler` stub per
+  declared endpoint rather than one `rcp.Controller` stub per zone.
+- **`record` ADAPTed: the log format and replay engine are unchanged**,
+  only the captured frame type is — a single `Entry` (requester
+  `avtp.StreamID` plus request `acf.Message` plus either a response
+  `acf.Message` or an error string) replaces the retired
+  Command/Response/Status trio, since TC18 has no third (Status/broadcast)
+  case to capture at all. `record.Handler` wraps `request.Handler` and is
+  directly registrable into a `*udp.Router`; `WriteTo`/`ReadFrom` reuse
+  `acf.EncodeMessage`/`DecodeMessage` for the request/response bytes rather
+  than hand-rolling a second wire encoding.
+- **`observe` ADAPTed: re-pointed at the Controller-equivalent interface**,
+  the same narrow local-interface pattern `capi.Controller` establishes
+  (`StreamID`/`Request`/`Close`). OTel spans and Prometheus-style metrics
+  now key on `(avtp.StreamID, avtp.ByteBusID)` in place of the retired
+  `rcp.Zone`; `SetEndpointHealth` derives from the response's own
+  `acf.FlagError` bit rather than a `rcp.ResponseStatus` enum value. The
+  retired `Subscribe` instrumentation is dropped, matching `capi`'s and
+  Milestone 56's own bridge packages' identical conclusion.
+- **`faultinject` ADAPTed: the fault-type catalogue is rebuilt around this
+  repo's actual TC18 safety mechanisms** in place of the retired
+  watchdog/E2E/replay-guard specifics — `FaultCRCFailure`
+  (`e2e.ErrCRCMismatch`, Milestone 50), `FaultSafeStateEntry`
+  (`request.ErrPurgedByWatchdog`, Milestone 50),
+  `FaultDiscoveryClaimTimeout` (`discovery.ErrNotConfigurationClaimant`,
+  Milestone 46), and `FaultCancellation` (`request.ErrTicketCancelled`,
+  Milestone 49) join the carried-over-unchanged `FaultDrop`/`FaultSlow`.
+  `faultinject.Handler` wraps `request.Handler` (previously
+  `rcp.Controller`), so it is directly registrable into a `*udp.Router`.
+  Every injected fault stays a canned, immediate return — this package
+  never drives the real `e2e.Supervisor`/`discovery.Claim`/
+  `request.Dispatcher` machinery to produce these outcomes organically,
+  deliberately, so a caller's handling of each outcome can be tested in
+  isolation.
+- **`firmware` ADAPTed: the chunking/CRC-32-integrity logic is unchanged,
+  only the transport call underneath it is rebuilt**. `TransportFunc`
+  replaces the retired `rcp.Controller.Send` call, matching
+  `*udp.Controller.Write`'s own signature exactly so a caller passes it
+  directly via a bound closure — this package still does not import
+  `uart`, `spi`, or `udsbr` and pick one as "the" transport, per the
+  disposition table's own "riding on top of" framing naming multiple
+  candidate transports. The retired `CmdUpdate` `rcp.CommandType` and
+  `rcp.Priority` fields have no equivalent: a raw-byte endpoint has no
+  command-type space, and prioritization is now a concern of whichever
+  transport call the caller's own closure makes. No rollback logic is
+  added — none existed in the retired implementation either, and this
+  package's own doc.go now says so explicitly rather than leaving it
+  unstated.
+
+82 `//fusa:req`/`//fusa:test`-tagged requirements are added: 27 new
+(`REQ-MEP-*`, `REQ-MCL-*`, `REQ-MCR-*`, `REQ-MFX-*`) for `mock`'s additive
+TC18 surface, and 55 rewritten in place under their original prefixes
+(`REQ-SIM-*`, `REQ-CAPI-*`, `REQ-CG-*`, `REQ-REC-*`, `REQ-OB-*`,
+`REQ-FI-*`, `REQ-FW-*`) for the five REPLACE/ADAPT packages whose old
+`.fusa-reqs.json` entries no longer describe the rebuilt code — `mock`'s
+own `REQ-CTRL-*`/`REQ-REG-*` are the one family in this milestone *not*
+rewritten, since the code they describe did not change. 649 total
+requirements, 100% traced and tested per `gofusa check`/`gofusa trace`. No
+other package in this repo imported `sim`, `capi`, `codegen`, `record`,
+`observe`, `faultinject`, or `firmware` outside their own test files
+(`capi`'s production `NewController` default targets `udp.NewController`
+directly, not `mock`). `mock` is imported outside its own test files by
+`cmd/go-rcp`, `cmd/rcptool`, `optional_test.go`, `adapt_test.go`,
+`safety/command_latency_test.go`, and `examples/quickstart/`'s two demo
+binaries — every one of them needed no changes at all, since they all
+target the frozen legacy `Controller`/`Registry` surface, left byte-for-byte
+unchanged by this milestone (see above).
 
 ### 58. Certification & Formal-Methods Refresh (v0.71.0)
 
@@ -1559,7 +1696,13 @@ call sites needed updating.
 
 - Remove the legacy `Zone`/`Command`/`Response`/`Status`/`Controller`/
   `Registry` API surface once every satellite package that depended on it
-  has migrated (Phases 53-58)
+  has migrated (Phases 53-58) — including `mock.go`'s own frozen
+  `Controller`/`Registry`/`Handler` (kept, unmigrated, at Milestone 57
+  specifically because `cmd/go-rcp`, `cmd/rcptool`, `optional_test.go`,
+  `adapt_test.go`, and `safety/command_latency_test.go` still depended on
+  them; this milestone is where those five finally move onto `mock.Client`/
+  `mock.Endpoint`/`mock.ClientRegistry`/`mock.Fixture` and the frozen file
+  is deleted)
 - Rebuild `Adapt`/`relay.Caller`, the optional `Health`/`Metrics`/`Drainer`
   interfaces, and the `go-rcp` CLI (`version`/`capabilities`/`status`/
   `send`/`monitor`/`convert`) against the new Endpoint/register-map model
