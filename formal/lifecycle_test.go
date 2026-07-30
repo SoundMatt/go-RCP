@@ -10,6 +10,7 @@ import (
 
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/formal"
+	"github.com/SoundMatt/go-RCP/lifecycle"
 )
 
 func lifecycleRoot() avtp.StreamID {
@@ -38,9 +39,9 @@ func TestLifecycleInvariants_ValidSequence(t *testing.T) {
 }
 
 // REQ-FORM-010: an out-of-order transition attempt never advances the
-// observed rank, so it can never falsify the "rank never decreases"
+// observed rank, so it can never falsify the "legal transition shape"
 // invariant, but also never satisfies "eventually fully-configured" — a
-// Checker over this trace must report exactly that second invariant as
+// Checker over this trace must report exactly that third invariant as
 // violated.
 func TestLifecycleInvariants_OutOfOrder_NeverReachesFullyConfigured(t *testing.T) {
 	srv, actions, err := formal.NewOutOfOrderLifecycleTrace(lifecycleRoot())
@@ -52,20 +53,60 @@ func TestLifecycleInvariants_OutOfOrder_NeverReachesFullyConfigured(t *testing.T
 	checker := formal.NewChecker()
 	checker.Add(formal.Invariant{
 		Name:  "eventually reaches fully-configured",
-		Check: formal.LifecycleInvariants()[1].Check,
+		Check: formal.LifecycleInvariants()[2].Check,
 	})
 	var ve *formal.ViolationError
 	if err := checker.Check(trace); !errors.As(err, &ve) {
 		t.Errorf("want ViolationError, got %v", err)
 	}
 
-	// The rank-never-decreases invariant must still hold: a rejected
-	// transition leaves rank at 0 throughout, which is "never decreases"
-	// trivially, not a violation of that specific property.
+	// The legal-transition-shape invariant must still hold: a rejected
+	// transition leaves rank at 0 throughout, which is "no change" at every
+	// step, not a violation of that specific property.
 	rankChecker := formal.NewChecker()
 	rankChecker.Add(formal.LifecycleInvariants()[0])
 	if err := rankChecker.Check(trace); err != nil {
-		t.Errorf("rank-never-decreases should still hold for a rejected transition: %v", err)
+		t.Errorf("legal-transition-shape should still hold for a rejected transition: %v", err)
+	}
+}
+
+// REQ-FORM-010: a plausible trace that demotes from StateHWLocked back to
+// StateUnconfigured and then re-advances all the way to
+// StateFullyConfigured satisfies every LifecycleInvariants property — the
+// legal-transition-shape invariant explicitly permits the one-step
+// HWLocked→Unconfigured fallback, and demoting before full configuration
+// can never trip the never-regresses-once-fully-configured invariant.
+func TestLifecycleInvariants_DemotionThenReconfigure_Satisfied(t *testing.T) {
+	srv, actions, err := formal.NewDemotionThenReconfigureLifecycleTrace(lifecycleRoot(), avtp.ByteBusID(1))
+	if err != nil {
+		t.Fatalf("NewDemotionThenReconfigureLifecycleTrace: %v", err)
+	}
+	trace := formal.LifecycleTrace(srv, actions)
+
+	checker := formal.NewChecker()
+	for _, inv := range formal.LifecycleInvariants() {
+		checker.Add(inv)
+	}
+	if err := checker.Check(trace); err != nil {
+		t.Errorf("Check: %v", err)
+	}
+}
+
+// REQ-FORM-010: a trace that reaches StateFullyConfigured and then
+// synthesizes an illegal regression back to StateUnconfigured (something
+// server.Server itself never permits — DemoteToUnconfigured only accepts
+// StateHWLocked as a starting state) must fail both the legal-transition-
+// shape invariant and the never-regresses-once-fully-configured invariant.
+func TestLifecycleInvariants_IllegalRegressionFromFullyConfigured_Violated(t *testing.T) {
+	trace := []formal.State{
+		{"lifecycle": lifecycle.StateFullyConfigured.String(), "lifecycle_rank": formal.LifecycleRank(lifecycle.StateFullyConfigured)},
+		{"lifecycle": lifecycle.StateUnconfigured.String(), "lifecycle_rank": formal.LifecycleRank(lifecycle.StateUnconfigured)},
+	}
+
+	for _, inv := range formal.LifecycleInvariants()[:2] {
+		if inv.Check(trace) {
+			t.Errorf("invariant %q unexpectedly held for an illegal FullyConfigured→Unconfigured regression", inv.Name)
+		}
 	}
 }
 

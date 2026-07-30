@@ -1940,8 +1940,8 @@
     },
     {
       "id": "REQ-RCS-010",
-      "title": "Functional configuration blocks are permanently locked once fully configured",
-      "text": "Server.WriteFunctional shall return ErrRegisterLocked once the Server reaches StateFullyConfigured, regardless of whether the requester is the root client or a stream with an explicit grant for that endpoint.",
+      "title": "Functional configuration blocks stay writable via an authorized requester once fully configured",
+      "text": "Server.WriteFunctional and Server.WriteEP0 shall continue to accept a change to an endpoint's functional configuration block once the Server reaches StateFullyConfigured, for the root client or a stream with an explicit grant for that endpoint, while Server.SetStreamLimits and Server.SetQueueConfig shall return ErrRegisterLocked for any requester once that state is reached.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2102,6 +2102,14 @@
       "id": "REQ-RCS-030",
       "title": "DiscoverTopology and WriteTopology/ReadTopology round-trip a discovered server's persisted topology",
       "text": "DiscoverTopology shall extract a Topology whose VendorID, ProductID, RegisterMapVersion, and per-endpoint Address/Type entries match the source RegisterMap; WriteTopology followed by ReadTopology shall reproduce an equal Topology value.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-RCS-031",
+      "title": "DemoteToUnconfigured reverses StateHWLocked back to StateUnconfigured for an authorized requester only",
+      "text": "Server.DemoteToUnconfigured shall transition the Server from StateHWLocked to StateUnconfigured and leave declared endpoints, pin assignments, and functional blocks unchanged when requester is the root client or the current Discovery-stream configuration claimant; it shall return ErrDemotionNotAuthorized for any other requester and ErrLifecycleOutOfOrder when the Server is not in StateHWLocked, leaving the state unchanged in both rejection cases.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

@@ -15,7 +15,7 @@ import (
 // driver. An endpoint with none set defaults to simply storing the applied
 // waveform for readback (see Endpoint.applyOutput).
 type OutputTransport interface {
-	SetOutput(periodMicros, activeMicros uint32) error
+	SetOutput(activeTicks, periodTicks uint16) error
 }
 
 // InputTransport supplies a RoleInput endpoint's most recently measured
@@ -25,7 +25,7 @@ type OutputTransport interface {
 // ErrSignalLost if that has never been called or Endpoint.SetSignalLost was
 // called more recently (see Endpoint.capture).
 type InputTransport interface {
-	Capture() (periodMicros, activeMicros uint32, err error)
+	Capture() (activeTicks, periodTicks uint16, err error)
 }
 
 // TriggerKind distinguishes the trigger signals a PWM endpoint emits.
@@ -46,12 +46,12 @@ const (
 )
 
 // TriggerEvent records one output-updated, capture-updated, or signal-lost
-// signal a PWM endpoint queued. PeriodMicros/ActiveMicros are meaningful only
+// signal a PWM endpoint queued. ActiveTicks/PeriodTicks are meaningful only
 // for TriggerOutputUpdated/TriggerCaptureUpdated.
 type TriggerEvent struct {
-	Kind         TriggerKind
-	PeriodMicros uint32
-	ActiveMicros uint32
+	Kind        TriggerKind
+	ActiveTicks uint16
+	PeriodTicks uint16
 }
 
 // Endpoint is one declared PWM endpoint layered on top of a server.Server: it
@@ -68,12 +68,12 @@ type Endpoint struct {
 	cfg Config
 
 	outputTransport OutputTransport
-	appliedPeriod   uint32
-	appliedActive   uint32
+	appliedActive   uint16
+	appliedPeriod   uint16
 
 	inputTransport InputTransport
-	capturedPeriod uint32
-	capturedActive uint32
+	capturedActive uint16
+	capturedPeriod uint16
 	hasCapture     bool
 	signalLost     bool
 
@@ -105,7 +105,7 @@ func (e *Endpoint) Configure(requester avtp.StreamID, cfg Config) error {
 	e.mu.Unlock()
 
 	if cfg.Enabled && cfg.Role == RoleOutput {
-		if err := e.applyOutput(cfg.DefaultPeriodMicros, cfg.DefaultActiveMicros); err != nil {
+		if err := e.applyOutput(cfg.DefaultActiveTicks, cfg.DefaultPeriodTicks); err != nil {
 			return err
 		}
 	}
@@ -135,13 +135,13 @@ func (e *Endpoint) SetInputTransport(t InputTransport) {
 // any prior signal-lost state, and queues a TriggerCaptureUpdated event. It
 // has no effect on the value Endpoint.HandleRequest reports while an
 // InputTransport is configured via SetInputTransport.
-func (e *Endpoint) SetCapturedWaveform(periodMicros, activeMicros uint32) {
+func (e *Endpoint) SetCapturedWaveform(activeTicks, periodTicks uint16) {
 	e.mu.Lock()
-	e.capturedPeriod = periodMicros
-	e.capturedActive = activeMicros
+	e.capturedActive = activeTicks
+	e.capturedPeriod = periodTicks
 	e.hasCapture = true
 	e.signalLost = false
-	e.triggers = append(e.triggers, TriggerEvent{Kind: TriggerCaptureUpdated, PeriodMicros: periodMicros, ActiveMicros: activeMicros})
+	e.triggers = append(e.triggers, TriggerEvent{Kind: TriggerCaptureUpdated, ActiveTicks: activeTicks, PeriodTicks: periodTicks})
 	e.mu.Unlock()
 }
 
@@ -203,38 +203,38 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 		if cfg.Role != RoleOutput {
 			return acf.Message{}, ErrWriteNotSupportedForInput
 		}
-		period, active, err := DecodeWaveform(req.Body)
+		active, period, err := DecodeWaveform(req.Body)
 		if err != nil {
 			return acf.Message{}, err
 		}
-		if err := e.applyOutput(period, active); err != nil {
+		if err := e.applyOutput(active, period); err != nil {
 			return acf.Message{}, err
 		}
-		return responseFor(req, EncodeWaveform(period, active)), nil
+		return responseFor(req, EncodeWaveform(active, period)), nil
 	case req.Control.Has(acf.FlagRead):
 		switch cfg.Role {
 		case RoleOutput:
 			e.mu.Lock()
-			p, a := e.appliedPeriod, e.appliedActive
+			a, p := e.appliedActive, e.appliedPeriod
 			e.mu.Unlock()
-			return responseFor(req, EncodeWaveform(p, a)), nil
+			return responseFor(req, EncodeWaveform(a, p)), nil
 		default: // RoleInput
-			p, a, err := e.capture()
+			a, p, err := e.capture()
 			if err != nil {
 				return acf.Message{}, err
 			}
-			return responseFor(req, EncodeWaveform(p, a)), nil
+			return responseFor(req, EncodeWaveform(a, p)), nil
 		}
 	default:
 		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
 }
 
-// applyOutput applies periodMicros/activeMicros through the configured
+// applyOutput applies activeTicks/periodTicks through the configured
 // OutputTransport (or the default store-for-readback behavior with none
 // set), followed by a TriggerOutputUpdated event.
-func (e *Endpoint) applyOutput(periodMicros, activeMicros uint32) error {
-	if activeMicros > periodMicros {
+func (e *Endpoint) applyOutput(activeTicks, periodTicks uint16) error {
+	if activeTicks > periodTicks {
 		return ErrActiveExceedsPeriod
 	}
 	e.mu.Lock()
@@ -242,15 +242,15 @@ func (e *Endpoint) applyOutput(periodMicros, activeMicros uint32) error {
 	e.mu.Unlock()
 
 	if transport != nil {
-		if err := transport.SetOutput(periodMicros, activeMicros); err != nil {
+		if err := transport.SetOutput(activeTicks, periodTicks); err != nil {
 			return err
 		}
 	}
 
 	e.mu.Lock()
-	e.appliedPeriod = periodMicros
-	e.appliedActive = activeMicros
-	e.triggers = append(e.triggers, TriggerEvent{Kind: TriggerOutputUpdated, PeriodMicros: periodMicros, ActiveMicros: activeMicros})
+	e.appliedActive = activeTicks
+	e.appliedPeriod = periodTicks
+	e.triggers = append(e.triggers, TriggerEvent{Kind: TriggerOutputUpdated, ActiveTicks: activeTicks, PeriodTicks: periodTicks})
 	e.mu.Unlock()
 	return nil
 }
@@ -260,7 +260,7 @@ func (e *Endpoint) applyOutput(periodMicros, activeMicros uint32) error {
 // SetCapturedWaveform/SetSignalLost-driven behavior with none set), failing
 // with ErrSignalLost (or the Transport's own error) rather than returning
 // stale data.
-func (e *Endpoint) capture() (uint32, uint32, error) {
+func (e *Endpoint) capture() (uint16, uint16, error) {
 	e.mu.Lock()
 	transport := e.inputTransport
 	e.mu.Unlock()
@@ -274,7 +274,7 @@ func (e *Endpoint) capture() (uint32, uint32, error) {
 	if e.signalLost || !e.hasCapture {
 		return 0, 0, ErrSignalLost
 	}
-	return e.capturedPeriod, e.capturedActive, nil
+	return e.capturedActive, e.capturedPeriod, nil
 }
 
 // responseFor builds the response Message for req: FlagResponse set, the

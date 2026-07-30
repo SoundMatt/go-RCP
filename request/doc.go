@@ -69,11 +69,12 @@
 //
 // Sequencer is the persistent per-register state store Compound/
 // CompoundWait requests read and (conditionally) advance. It has no
-// declared bit width or active-pin-style mask the way gpio.Config does —
-// every register is a free-running uint32 counter that wraps rather than
-// saturates; see Sequencer.Advance's doc comment for why that is this
-// implementation's own reasoned choice given no declared bound exists to
-// clamp against.
+// declared bit width or active-pin-style mask the way gpio.Config does, but
+// every register still saturates rather than wraps at the uint32 boundary —
+// advancing past math.MaxUint32 clamps at math.MaxUint32 and advancing
+// below zero clamps at 0, the same saturating-arithmetic convention gpio's
+// SemanticSaturatingAdd/SemanticSaturatingSubtract write semantics use; see
+// Sequencer.Advance's doc comment for the exact clamping behavior.
 //
 // # Cancellation requests
 //
@@ -143,16 +144,15 @@
 // Protocol Specification v0.5.1_RC") is available and normative for this
 // package's wire format; it is not being treated as an unreachable
 // reference. The conditional/cancel-request routing signal (KindLong with
-// MTV false — see "Wire layer" above) is a verified transcription of
-// §11.2.2/§11.2.3. The following are known, tracked open items rather than
-// unavoidable ambiguity: the envelope byte layout in envelope.go/
-// chained.go does not match the specification's actual per-request-type
-// field layout (cmp_start_state/cmp_next_state/cmp_sequencer and friends —
-// see "Wire layer" above); Sequencer's free-running wraparound arithmetic
-// has not been reconciled against the specification's state-machine model
-// (see Sequencer's doc comment); and Kind.Priority's cross-type ordering
-// has a known, separately-tracked divergence from the specification's own
-// priority table (see Kind.Priority's doc comment).
+// MTV false — see "Wire layer" above) and Sequencer's saturating-rather-
+// than-wrapping arithmetic (see Sequencer's doc comment) are both verified
+// against the specification. The following remain known, tracked open
+// items rather than unavoidable ambiguity: the envelope byte layout in
+// envelope.go/chained.go does not match the specification's actual
+// per-request-type field layout (cmp_start_state/cmp_next_state/
+// cmp_sequencer and friends — see "Wire layer" above); and Kind.Priority's
+// cross-type ordering has a known, separately-tracked divergence from the
+// specification's own priority table (see Kind.Priority's doc comment).
 package request
 
 //fusa:req REQ-REQ-001

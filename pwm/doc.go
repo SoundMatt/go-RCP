@@ -16,10 +16,10 @@
 //
 // One PWM endpoint plays exactly one of two roles (Config.Role): RoleOutput
 // generates a waveform, RoleInput measures an externally driven incoming
-// one. Both roles share the same symmetric two-field payload shape — a
-// period and an active (high) duration, both in microseconds (see
-// EncodeWaveform/DecodeWaveform) — ROADMAP.md Milestone 48 specifies for PWM
-// output and PWM input alike.
+// one. Both roles share the same symmetric two-field payload shape — an
+// active (high) duration followed by a period, each a count of the
+// endpoint's configured clock ticks (see EncodeWaveform/DecodeWaveform) —
+// the governing specification defines for PWM output and PWM input alike.
 //
 // A RoleOutput endpoint accepts both write requests (apply a new waveform)
 // and read requests (read back the currently applied one); Configure also
@@ -51,18 +51,17 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of a PWM endpoint, not
-// from the primary spec text. Its exact register/request byte layouts
-// (Config's field order/widths and the period-then-active waveform field
-// order) are this implementation's own reasoned, self-consistent encoding
-// rather than a verified transcription of the published byte assignments —
-// the same open-item posture avtp/doc.go, server/doc.go, gpio/doc.go, and
-// spi/doc.go document for their own packages, pending confirmation against a
-// public interoperability reference. Modeling RoleOutput/RoleInput as a
-// single endpoint with a Role switch, rather than two separate endpoint
-// types, is likewise this implementation's own reasoned reading of
-// regmap/types.go's single "OUT" PWM signal name, not a confirmed one.
+// The governing OPEN Alliance TC18 Remote Control Protocol Specification is
+// available and normative. This package's PWM_OUT/PWM_IN request/response
+// byte layout — the 4-byte, active-then-period, 16-bit-tick-count waveform
+// body EncodeWaveform/DecodeWaveform implement — is a verified transcription
+// of that specification's byte assignments, not a reasoned guess. Config's
+// own wire layout (Enabled/Role plus the same active-then-period tick
+// fields) follows the same verified shape for its embedded waveform.
+// Modeling RoleOutput/RoleInput as a single endpoint with a Role switch,
+// rather than two separate endpoint types, reflects the specification's
+// PWM_OUT/PWM_OUTN signal pair sharing one endpoint's physical pins across
+// both roles (see regmap/types.go).
 package pwm
 
 //fusa:req REQ-PWM-001

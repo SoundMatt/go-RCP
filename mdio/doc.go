@@ -27,13 +27,18 @@
 // posture i2c/doc.go's Scope section already establishes for its own
 // address-opaque transfer body.
 //
-// Addressing follows the request's selected AddressMode: ModeClause22
-// carries a 5-bit PHY address and a 5-bit register address (the original,
-// simpler IEEE 802.3 Clause 22 frame shape); ModeClause45 additionally
-// carries a 5-bit device (MMD) address and widens the register address to
-// 16 bits, per Clause 45's extended addressing. Both modes may coexist on
-// one physical MDIO bus targeting different PHYs, so AddressMode is
-// selected per request (see Request), not fixed at Configure time.
+// Addressing follows the request's selected Mode — the wire format's
+// 2-bit mdio_mode field: ModeMMDSingleWord and ModeMMDMultiByte each
+// access a single Clause 45-style MMD (MDIO Manageable Device) register,
+// as one word or as a multiple-byte access respectively, always 16 bits
+// wide; ModeMMSSingleWord and ModeMMSMultiWord instead access an MMS
+// (memory-mapped space) register, as one word or as a multiple
+// (double-word) access respectively, 32 bits wide when the request's
+// DevAddr selects MMS index 0 or 1 ("MMS0"/"MMS1") and 16 bits wide for
+// every other MMS index (see Request.DataWidth). DevAddr selects which
+// MMD or which MMS, depending on Mode. All four modes may coexist on one
+// physical MDIO bus targeting different PHYs, so Mode is selected per
+// request (see Request), not fixed at Configure time.
 //
 // This endpoint type is useful even on a board with no physical MDIO pins
 // wired at all: an integrated on-die PHY commonly exposes its registers
@@ -52,18 +57,21 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of an MDIO pass-through
-// endpoint, not from the primary spec text. Its exact register/request byte
-// layouts (Config's field order/widths, Request's field order and bit
-// widths) are this implementation's own reasoned, self-consistent encoding
-// rather than a verified transcription of the published byte assignments —
-// the same open-item posture avtp/doc.go, server/doc.go, and i2c/doc.go
-// document for their own packages, pending confirmation against a public
-// interoperability reference. The Clause 22/45 addressing field widths
-// themselves (5-bit PHY/device address, 5-bit or 16-bit register address)
-// reflect the publicly documented IEEE 802.3 MDIO frame formats, not any
-// TC18-specific text.
+// The governing OPEN Alliance TC18 Remote Control Protocol Specification is
+// available and normative. This package's Request/Mode addressing model —
+// the four-value mdio_mode field (ModeMMDSingleWord, ModeMMDMultiByte,
+// ModeMMSSingleWord, ModeMMSMultiWord) and the resulting 16-bit-vs-32-bit
+// payload width selection (see Request.DataWidth) — is a verified
+// transcription of that specification's MDIO addressing/access
+// description, not a reasoned guess. Reusing Request.DevAddr to carry
+// either an MMD device address or an MMS index, depending on Mode, rather
+// than adding a second, separate selector field, is this implementation's
+// own judgment call; see the mmsWideIndexMax doc comment in types.go for
+// the reasoning. Config's field order/width remains this implementation's
+// own reasoned, self-consistent encoding rather than a verified
+// transcription — the same open-item posture avtp/doc.go, server/doc.go,
+// and i2c/doc.go document for their own packages, pending confirmation
+// against a public interoperability reference.
 package mdio
 
 //fusa:req REQ-MDIO-001

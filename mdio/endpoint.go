@@ -15,24 +15,27 @@ import (
 // exposing an integrated on-die PHY with no physical MDIO pins wired, per
 // doc.go's Scope section). An endpoint with no Transport set defaults to an
 // in-memory per-(Mode,PhyAddr,DevAddr,RegAddr) register store that reads as
-// zero until written (see Endpoint.read/Endpoint.write).
+// zero until written (see Endpoint.read/Endpoint.write). The register
+// value is a uint32 so it can hold either the 16-bit or 32-bit width a
+// Request's DataWidth selects; a 16-bit-wide access only ever populates the
+// value's low 16 bits.
 type Transport interface {
-	ReadRegister(r Request) (uint16, error)
-	WriteRegister(r Request, data uint16) error
+	ReadRegister(r Request) (uint32, error)
+	WriteRegister(r Request, data uint32) error
 }
 
 // TriggerEvent records one register-access-complete signal an MDIO
 // endpoint queued.
 type TriggerEvent struct {
 	Request Request
-	Data    uint16
+	Data    uint32
 	Write   bool
 }
 
 // registerKey identifies one addressable register across every field a
 // Request's addressing can vary: Mode, PhyAddr, DevAddr, RegAddr.
 type registerKey struct {
-	mode    AddressMode
+	mode    Mode
 	phyAddr uint8
 	devAddr uint8
 	regAddr uint16
@@ -55,7 +58,7 @@ type Endpoint struct {
 
 	cfg       Config
 	transport Transport
-	registers map[registerKey]uint16
+	registers map[registerKey]uint32
 	triggers  []TriggerEvent
 }
 
@@ -64,7 +67,7 @@ type Endpoint struct {
 // with a zero-value Config (endpoint disabled) — call Configure before
 // handling any request.
 func NewEndpoint(srv *server.Server, addr avtp.ByteBusID) *Endpoint {
-	return &Endpoint{srv: srv, addr: addr, registers: make(map[registerKey]uint16)}
+	return &Endpoint{srv: srv, addr: addr, registers: make(map[registerKey]uint32)}
 }
 
 // Configure validates cfg, persists it as this endpoint's functional
@@ -142,7 +145,7 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 		if err := e.write(r, data); err != nil {
 			return acf.Message{}, err
 		}
-		return responseFor(req, acf.FlagWrite, EncodeResponse(data)), nil
+		return responseFor(req, acf.FlagWrite, EncodeResponse(r, data)), nil
 	case req.Control.Has(acf.FlagRead):
 		r, err := DecodeReadRequest(req.Body)
 		if err != nil {
@@ -155,7 +158,7 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 		if err != nil {
 			return acf.Message{}, err
 		}
-		return responseFor(req, acf.FlagRead, EncodeResponse(data)), nil
+		return responseFor(req, acf.FlagRead, EncodeResponse(r, data)), nil
 	default:
 		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
@@ -164,12 +167,12 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 // read performs one register read through the configured Transport (or the
 // default in-memory register store with none set), followed by a
 // register-access-complete trigger.
-func (e *Endpoint) read(r Request) (uint16, error) {
+func (e *Endpoint) read(r Request) (uint32, error) {
 	e.mu.Lock()
 	transport := e.transport
 	e.mu.Unlock()
 
-	var data uint16
+	var data uint32
 	var err error
 	if transport != nil {
 		data, err = transport.ReadRegister(r)
@@ -191,7 +194,7 @@ func (e *Endpoint) read(r Request) (uint16, error) {
 // write performs one register write through the configured Transport (or
 // the default in-memory register store with none set), followed by a
 // register-access-complete trigger.
-func (e *Endpoint) write(r Request, data uint16) error {
+func (e *Endpoint) write(r Request, data uint32) error {
 	e.mu.Lock()
 	transport := e.transport
 	e.mu.Unlock()
