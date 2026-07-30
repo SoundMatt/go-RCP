@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 	rcp "github.com/SoundMatt/go-RCP"
 	"github.com/SoundMatt/go-RCP/mock"
 )
@@ -41,9 +41,11 @@ func newTestFixture(t *testing.T) *mock.Client {
 }
 
 // TestConvert_RoundTrip pins convert's output to rcp.ResponseToMessage's
-// own conversion for a representative addressed response.
+// own conversion for a representative addressed rcp.Message (spec §15.5;
+// see spec/schemas/rcp-message.json). control=80 (0x50) is RELAY's
+// Response(0x10)|Read(0x40) bit pair.
 func TestConvert_RoundTrip(t *testing.T) {
-	const input = `{"byte_bus_id":1,"body":"AQ==","error":false}`
+	const input = `{"byte_bus_id":1,"transaction_num":7,"control":80,"read_size_or_segment":2,"body":"AQ=="}`
 
 	var out, errBuf bytes.Buffer
 	code := cmdConvert([]string{"--protocol", "RCP", "--format", "json"}, strings.NewReader(input), &out, &errBuf)
@@ -64,6 +66,15 @@ func TestConvert_RoundTrip(t *testing.T) {
 	if meta["rcp.error"] != "false" {
 		t.Errorf("meta[rcp.error] = %v, want false", meta["rcp.error"])
 	}
+	if meta["rcp.op"] != "read" {
+		t.Errorf("meta[rcp.op] = %v, want read", meta["rcp.op"])
+	}
+	if meta["rcp.transaction_num"] != "7" {
+		t.Errorf("meta[rcp.transaction_num] = %v, want 7", meta["rcp.transaction_num"])
+	}
+	if meta["rcp.read_size_or_segment"] != "2" {
+		t.Errorf("meta[rcp.read_size_or_segment] = %v, want 2", meta["rcp.read_size_or_segment"])
+	}
 }
 
 func TestConvert_InvalidInput(t *testing.T) {
@@ -72,10 +83,12 @@ func TestConvert_InvalidInput(t *testing.T) {
 		input string
 	}{
 		{"missing required field", `{"body":"AQ=="}`},
-		{"byte_bus_id out of range", `{"byte_bus_id":999,"error":false}`},
-		{"unknown field", `{"byte_bus_id":1,"error":false,"x":1}`},
+		{"missing control", `{"byte_bus_id":1}`},
+		{"byte_bus_id out of range", `{"byte_bus_id":999,"control":16}`},
+		{"control out of range", `{"byte_bus_id":1,"control":999}`},
+		{"unknown field", `{"byte_bus_id":1,"control":16,"x":1}`},
 		{"malformed json", `not json`},
-		{"bad base64 body", `{"byte_bus_id":1,"body":"!!!!","error":false}`},
+		{"bad base64 body", `{"byte_bus_id":1,"body":"!!!!","control":16}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -104,7 +117,7 @@ func TestConvert_InvalidArgs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var out, errBuf bytes.Buffer
-			code := cmdConvert(tc.args, strings.NewReader(`{"byte_bus_id":1,"error":false}`), &out, &errBuf)
+			code := cmdConvert(tc.args, strings.NewReader(`{"byte_bus_id":1,"control":16}`), &out, &errBuf)
 			if code != 2 {
 				t.Errorf("exit code = %d, want 2 (stderr: %s)", code, errBuf.String())
 			}
@@ -112,10 +125,11 @@ func TestConvert_InvalidArgs(t *testing.T) {
 	}
 }
 
-// TestConvert_EmptyBody confirms a response without a body converts cleanly.
+// TestConvert_EmptyBody confirms a response without a body converts
+// cleanly. control=24 (0x18) is RELAY's Response(0x10)|Error(0x08) bit pair.
 func TestConvert_EmptyBody(t *testing.T) {
 	var out, errBuf bytes.Buffer
-	code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"byte_bus_id":5,"error":true}`), &out, &errBuf)
+	code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"byte_bus_id":5,"control":24}`), &out, &errBuf)
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, errBuf.String())
 	}
@@ -356,7 +370,7 @@ func TestSendStream_EmptyInput(t *testing.T) {
 // relay.Message that the send sink can re-publish.
 func TestConvertSendRoundTrip(t *testing.T) {
 	var conv bytes.Buffer
-	if code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"byte_bus_id":1,"error":false}`), &conv, &bytes.Buffer{}); code != 0 {
+	if code := cmdConvert([]string{"--protocol", "RCP"}, strings.NewReader(`{"byte_bus_id":1,"control":16}`), &conv, &bytes.Buffer{}); code != 0 {
 		t.Fatalf("convert exit = %d", code)
 	}
 	ctrl := newTestFixture(t)

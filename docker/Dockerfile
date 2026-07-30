@@ -5,9 +5,9 @@
 # and the go-rcp binary's own `version`/`capabilities` output (§12.1/§12.2) can never
 # drift from the RELAY spec version this module targets and the git tag being built. The
 # defaults below are only a fallback for an ad-hoc local `docker build` with no
-# --build-arg; keep SPEC_VERSION in sync with the github.com/SoundMatt/RELAY
+# --build-arg; keep SPEC_VERSION in sync with the github.com/SoundMatt/RELAY/v2
 # requirement in go.mod.
-ARG SPEC_VERSION=1.11
+ARG SPEC_VERSION=2.0
 ARG TOOL_VERSION=dev
 
 FROM golang:1.25-alpine AS builder

@@ -34,7 +34,7 @@
 package rcp
 
 import (
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 )
 
 // SpecVersion is the RELAY specification version this package implements.

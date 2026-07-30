@@ -1964,3 +1964,102 @@ were wrong in the prior default. `priorityRank` and its two test files
 are corrected to match. `priorityRank` is unexported and has no callers
 outside `prioqueue`'s own consumer, so this is a behavior fix, not a
 public API break.
+
+## RELAY v2.0.4 adoption (v5.0.0, 2026-07-30)
+
+RELAY tagged v2.0 (2026-07-29) as a MAJOR, no-shim replacement of §15.5/
+§15.7.5's RCP canonical types — `Zone`/`Command`/`Response`/`Status`/
+`Priority`/`CommandType` (the placeholder types this repo's own TC18
+cutover, Milestone 59 above, had already disclosed as stale) are gone,
+replaced by `StreamID`/`ByteBusID`/`TransactionNum`/`ControlFlags`/
+`Message` and a new `ToMessage`/`FromMessage` mapping. RELAY's own
+changelog says this rework was designed directly against go-RCP's TC18
+implementation as its reference. v2.0.1-v2.0.4 followed with bug/doc-only
+patches, including a real content fix (v2.0.1: `Meta["rcp.transaction_num"]`/
+`Meta["rcp.read_size_or_segment"]` were added to close a round-trip
+losslessness gap) and, separately, v2.0.4's own module-path fix
+(`github.com/SoundMatt/RELAY` → `github.com/SoundMatt/RELAY/v2`, without
+which the module isn't installable via ordinary `go get`/`go install` —
+RELAY's own issue #70).
+
+**go.mod**: bumped from `github.com/SoundMatt/RELAY v1.11.0` to
+`github.com/SoundMatt/RELAY/v2 v2.0.4`; every source file's import updated
+to match (`relay "github.com/SoundMatt/RELAY/v2"`).
+
+**Verification, not assumption**: RELAY's v2.0 changelog asserted go-RCP
+was very likely already aligned with the new canonical types, since RELAY's
+own rework was modeled on this repo — that claim was checked, not trusted.
+Built RELAY v2.0.4's `relay` CLI from source and ran `relay conform
+--strict` and `relay interop --strict --protocol RCP` against this repo's
+built `go-rcp` binary. `conform` passed outright. `interop` failed on first
+run and surfaced two real, independent gaps in this repo's RELAY-adapter
+code (not in RELAY's own type definitions), both now fixed:
+
+- **`adapt.go`'s `ResponseToMessage`** only ever set `Meta["rcp.error"]`,
+  dropping `TransactionNum`/`ReadSizeOrSegment` (both real `acf.Message`
+  fields) and never setting `rcp.op` at all — the same
+  `Meta["rcp.transaction_num"]`/`Meta["rcp.read_size_or_segment"]`
+  losslessness gap RELAY's own v2.0.1 closed on its reference conversion,
+  left open on this repo's side. `ResponseToMessage` now sets all four
+  Meta keys (`rcp.op`, `rcp.error`, `rcp.transaction_num`,
+  `rcp.read_size_or_segment`), direction-agnostic like RELAY's own
+  reference `rcp.Message.ToMessage()`. `RequestFromMessage` (the inbound
+  direction) is deliberately left reading only `rcp.op`: `Controller.Request`
+  has no parameter for a caller-supplied transaction number or read size —
+  those are the concrete `Controller` implementation's responsibility, not
+  this package's — so there is nothing for `RequestFromMessage` to plumb
+  those two Meta keys into (see its own doc comment for the full reasoning);
+  `relay interop`'s CLI-level check never exercises this direction anyway
+  (`go-rcp convert` only implements the response-shaped conversion).
+- **`cmd/go-rcp/main.go`'s `convert` subcommand** decoded the old
+  `{byte_bus_id, body, error}` response envelope, which the new
+  `spec/vectors/rcp-message.json`/`spec/schemas/rcp-message.json` golden
+  vector no longer uses — the real shape is the full canonical
+  `rcp.Message` (`byte_bus_id`, `transaction_num`, `control`,
+  `read_size_or_segment`, `body`). Beyond the shape mismatch, RELAY's
+  `Control` byte packs Ack/Read/Write/Response/Error/MoreSegments at
+  different bit positions than this package's own `acf.ControlFlags` (both
+  are independently-chosen Go-side convenience representations, neither a
+  literal copy of the real wire bits — see `acf.ControlFlags`'s doc
+  comment) — a direct numeric cast between them silently produced the
+  wrong flags (observed: a vector `control` value RELAY's schema documents
+  as Write decoded to this package's `FlagResponse`). Fixed by decoding the
+  new shape and adding `acfControlFromRELAY`, which translates by flag name
+  rather than bit position. `TestConformance_ResponseToMessage_
+  MatchesGoldenVector` (conformance_test.go) now pins this in-process
+  against RELAY's embedded `rcp-message` vector via `relay.Vector()`, and
+  `.github/workflows/ci.yml`'s `relay-conform` job re-enables `relay
+  interop --strict --protocol RCP` (deliberately disabled since Milestone
+  59, pending exactly this upstream fix — see that job's own comment
+  history) against the built `go-rcp` CLI. Both gates pass.
+
+**Version**: `v5.0.0`, not a patch/minor bump. Even though neither gap
+above nor the RELAY v2.0 rework itself changed this repo's TC18 wire
+encoding, `rcp.Adapt`, `rcp.Send`/`rcp.Call`, `ResponseToMessage`, and
+`RequestFromMessage` all return or accept `relay.Message`/`relay.Caller` —
+types whose Go identity is now `github.com/SoundMatt/RELAY/v2`, not
+`github.com/SoundMatt/RELAY`. Any caller that also imports RELAY directly
+(the normal way to construct the `relay.Message` values these functions
+take) must move its own import to `/v2` in lockstep or its code stops
+compiling against this package — the same "no compatibility shim, signal
+the break through semver" posture this repo's own MAJOR-bump history
+(Milestone 59, and every "(BREAKING)" fix since) already established, and
+the same reasoning RELAY itself gave for its own v2.0 MAJOR bump.
+
+**Also updated**: `docker/Dockerfile`'s local-dev-only `SPEC_VERSION`
+fallback default (`1.11` → `2.0`; CI's own build derives the real value
+from `rcp.SpecVersion` at build time and was never affected).
+
+**Disclosed, out of scope for this change**: `go.mod`'s module path here is
+still bare `github.com/SoundMatt/go-RCP`, with no `/vN` suffix, despite
+this repo having been on major version v4 (now v5) since the TC18 cutover.
+Per the same Go semantic-import-versioning rule RELAY's own issue #70
+documented, that makes `go install github.com/SoundMatt/go-RCP/cmd/go-rcp@v4.0.1`
+fail today with `invalid version: module contains a go.mod file, so module
+path must match major version` — independently confirmed while preparing
+this change, not merely suspected. Fixing it means renaming the module path
+and every one of this repo's own internal import statements across ~60
+packages, plus every downstream consumer's import — a repo-wide change with
+a much larger blast radius than this RELAY-dependency bump, and out of this
+change's scope. Flagged here rather than silently left for the next
+release to rediscover.

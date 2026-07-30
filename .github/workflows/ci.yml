@@ -166,18 +166,18 @@ jobs:
   # well as FAIL). Pin the relay version to the spec version this module
   # targets (go.mod RELAY) so spec bumps are an explicit upgrade.
   #
-  # `relay interop --protocol RCP` is deliberately NOT run here as of
-  # ROADMAP.md Milestone 59 (v1.0.0): its embedded RCP golden vector and the
-  # rcp-command/rcp-status §15.5 canonical-type schemas `relay conform` does
-  # NOT touch are still the retired bespoke Zone/Command/Response/Status
-  # shape (see RELAY spec/vectors/rcp-status.json and
-  # spec/schemas/rcp-{command,status}.json as of RELAY v1.14.0, the latest
-  # tag checked at this milestone) — this module no longer implements or
-  # claims interop with that shape, and updating those upstream is out of
-  # this repo's scope (RELAY is a separate project). Re-enable this step once
-  # a RELAY release publishes a TC18-shaped RCP golden vector; tracked
-  # out-of-repo, not silently dropped (see ROADMAP.md Milestone 59's own
-  # "Done" writeup and Guiding Principle 10).
+  # `relay interop --protocol RCP` was deliberately NOT run here from
+  # ROADMAP.md Milestone 59 (v1.0.0) through the RELAY v1.x series: its
+  # embedded RCP golden vector and the rcp-command/rcp-status §15.5
+  # canonical-type schemas `relay conform` does NOT touch still described
+  # the retired bespoke Zone/Command/Response/Status shape as of RELAY
+  # v1.14.0, and this module no longer implemented or claimed interop with
+  # that shape. RELAY v2.0 replaced those canonical types and the golden
+  # vector (spec/vectors/rcp-message.json, spec/schemas/rcp-message.json)
+  # with a real TC18-shaped rcp.Message — verified locally against this
+  # module's `go-rcp convert` (see adapt.go's ResponseToMessage and
+  # cmd/go-rcp/main.go's convertResponse) as part of adopting RELAY v2.0.4 —
+  # so the step is re-enabled below rather than left disabled.
   relay-conform:
     name: RELAY conform
     runs-on: ubuntu-latest
@@ -187,8 +187,10 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install relay CLI
-        run: go install github.com/SoundMatt/RELAY/cmd/relay@v1.11.0
+        run: go install github.com/SoundMatt/RELAY/v2/cmd/relay@v2.0.4
       - name: Build CLI
         run: go build -o /tmp/go-rcp ./cmd/go-rcp
       - name: relay conform --strict
         run: relay conform --strict /tmp/go-rcp
+      - name: relay interop --strict --protocol RCP
+        run: relay interop --strict --protocol RCP /tmp/go-rcp

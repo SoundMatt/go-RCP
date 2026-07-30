@@ -21,7 +21,7 @@ import (
 	"context"
 	"testing"
 
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 	rcp "github.com/SoundMatt/go-RCP"
 	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
@@ -180,6 +180,48 @@ func TestResponseToMessage_ErrorMeta(t *testing.T) {
 		if got := msg.Meta["rcp.error"]; got != want {
 			t.Errorf("isErr=%v: Meta[rcp.error] = %q, want %q", isErr, got, want)
 		}
+	}
+}
+
+func TestResponseToMessage_OpMeta(t *testing.T) {
+	cases := []struct {
+		name    string
+		control acf.ControlFlags
+		want    string
+	}{
+		{"read bit set", acf.FlagRead, "read"},
+		{"write bit set", acf.FlagWrite, "write"},
+		{"neither bit set", acf.FlagResponse, "read"},
+	}
+	for _, tc := range cases {
+		msg := rcp.ResponseToMessage(testAddr, acf.Message{Control: tc.control})
+		if got := msg.Meta["rcp.op"]; got != tc.want {
+			t.Errorf("%s: Meta[rcp.op] = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestResponseToMessage_TransactionNumAndReadSizeMeta(t *testing.T) {
+	msg := rcp.ResponseToMessage(testAddr, acf.Message{
+		TransactionNum:    42,
+		Control:           acf.FlagWrite,
+		ReadSizeOrSegment: 4,
+	})
+	if got := msg.Meta["rcp.transaction_num"]; got != "42" {
+		t.Errorf("Meta[rcp.transaction_num] = %q, want %q", got, "42")
+	}
+	if got := msg.Meta["rcp.read_size_or_segment"]; got != "4" {
+		t.Errorf("Meta[rcp.read_size_or_segment] = %q, want %q", got, "4")
+	}
+}
+
+func TestResponseToMessage_TransactionNumAndReadSizeMeta_ZeroDefaults(t *testing.T) {
+	msg := rcp.ResponseToMessage(testAddr, acf.Message{})
+	if got := msg.Meta["rcp.transaction_num"]; got != "0" {
+		t.Errorf("Meta[rcp.transaction_num] = %q, want %q", got, "0")
+	}
+	if got := msg.Meta["rcp.read_size_or_segment"]; got != "0" {
+		t.Errorf("Meta[rcp.read_size_or_segment] = %q, want %q", got, "0")
 	}
 }
 
