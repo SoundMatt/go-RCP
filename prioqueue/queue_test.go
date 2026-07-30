@@ -69,11 +69,11 @@ func TestQueue_PopOrdersByKindPriority(t *testing.T) {
 
 	wantOrder := []request.Kind{
 		request.KindCancelAll,
-		request.KindChained,
 		request.KindTriggered,
 		request.KindTimed,
-		request.KindCompoundWait,
 		request.KindCompound,
+		request.KindCompoundWait,
+		request.KindChained,
 		request.KindPlain,
 	}
 	for i, want := range wantOrder {

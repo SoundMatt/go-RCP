@@ -174,39 +174,33 @@ func (k Kind) String() string {
 // priorityRank fixes the cross-type execution-priority ordering Dispatcher.Pump
 // applies when more than one ticket on the same endpoint becomes eligible to
 // advance from Started to Executing within a single Pump call. Lower ranks
-// run first. This ordering is this implementation's own reasoned, documented
-// default (see doc.go's spec-fidelity note); it has not yet been
-// independently re-verified against the governing specification's own
-// table, consistent with this repo's established posture on spec ambiguity
-// (see e.g. gpio/doc.go's eight-write-semantics note):
+// run first. This ordering is a verbatim transcription of the governing OPEN
+// Alliance TC18 Remote Control Protocol Specification's §12.9.2 "Priorities in
+// execution" table (1 highest):
 //
-//  1. Cancellation (all three variants, ranked equally) always runs first —
-//     a pending cancellation must retire the requests it targets before any
-//     of them is allowed to execute, mirroring this repo's general
-//     "reject/stop rather than silently race" posture (server's register-
-//     locking rules, discovery's untimed-header requirement).
-//  2. Chained, because a forced-sequential multi-step request's atomicity
-//     guarantee would be meaningless if another ticket could interleave
-//     between its segments.
-//  3. Triggered, because it exists specifically to respond to an external
+//  1. Cancellation (all three variants, ranked equally) — a pending
+//     cancellation must retire the requests it targets before any of them is
+//     allowed to execute.
+//  2. Triggered, because it exists specifically to respond to an external
 //     event as soon as that event is observed.
-//  4. Timed, because it carries its own explicit target execution time —
+//  3. Timed, because it carries its own explicit target execution time —
 //     already-elapsed by definition once Pump finds it due.
-//  5. CompoundWait, because it is read-only (never touches endpoint output)
-//     and resolving it first lets a caller observe sequencer state before
-//     any gated write below it can change that same state.
-//  6. Compound, the gated write itself.
-//  7. Plain, the unconditional baseline with no ordering constraint of its
-//     own, so it yields to every conditional kind above it.
+//  4. Compound, the sequencer-gated write.
+//  5. CompoundWait, the read-only sequencer condition check.
+//  6. Chained, the forced-sequential multi-step request.
+//  7. Standard (Plain), the unconditional baseline with no ordering
+//     constraint of its own, so it yields to every conditional kind above it.
+//
+// Within equal priority, Dispatcher.Pump preserves arrival order per §12.9.2.
 var priorityRank = map[Kind]int{
 	KindCancelAll:         0,
 	KindCancelTransaction: 0,
 	KindCancelSequencer:   0,
-	KindChained:           1,
-	KindTriggered:         2,
-	KindTimed:             3,
+	KindTriggered:         1,
+	KindTimed:             2,
+	KindCompound:          3,
 	KindCompoundWait:      4,
-	KindCompound:          5,
+	KindChained:           5,
 	KindPlain:             6,
 }
 

@@ -1951,3 +1951,16 @@ on — while retaining its existing, unchanged role as an MMS index for the
 two MMS modes. This is a breaking change to `mdio.Request` and the wire
 encoding; no compatibility shim is provided, consistent with this repo's
 established posture for a fabricated, never-genuinely-specified field.
+
+## Post-cutover correction: cross-type execution-priority ordering (2026-07-30)
+
+`request.priorityRank`'s cross-type ordering (go-RCP-04) was this
+implementation's own reasoned default, explicitly documented as not yet
+independently re-verified against the governing specification. It is now
+independently confirmed against §12.9.2 "Priorities in execution": cancel
+> triggered > timed > compound > compound-wait > chained > standard
+(1 highest) — three positions (chained, timed, compound-wait/compound)
+were wrong in the prior default. `priorityRank` and its two test files
+are corrected to match. `priorityRank` is unexported and has no callers
+outside `prioqueue`'s own consumer, so this is a behavior fix, not a
+public API break.
