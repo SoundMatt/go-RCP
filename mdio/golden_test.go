@@ -21,9 +21,12 @@ import (
 // hand-computed against the governing specification's packed request-header
 // diagram — reserved byte (0x00), then a single byte packing mdio_mode into
 // its top two bits and mdio_address (this package's DevAddr) into its low
-// six, then RegAddr as two big-endian bytes, then a DataWidth()-wide
-// big-endian data field for write requests and responses — not merely
-// round-tripped through the package's own encoders.
+// six, with no third field after it — plus a DataWidth()-wide big-endian
+// data field for write requests and responses — not merely round-tripped
+// through the package's own encoders. (An earlier revision of this file
+// pinned a spurious extra 2-byte "RegAddr" field between the header and
+// the data field; that field never existed on the wire and is removed —
+// see doc.go's "A note on spec fidelity" section.)
 
 // goldenConfig is Enabled=1.
 var goldenConfig = []byte{0x01}
@@ -43,13 +46,12 @@ func TestGolden_Config(t *testing.T) {
 	}
 }
 
-// goldenReadRequest is an MMD single-word read of MMD device 3, register
-// 0x0006: reserved=0x00, packed byte=0x03 (mode=00b<<6 | address=000011b),
-// RegAddr=0x00,0x06.
-var goldenReadRequest = []byte{0x00, 0x03, 0x00, 0x06}
+// goldenReadRequest is an MMD single-word read at MMD address 3:
+// reserved=0x00, packed byte=0x03 (mode=00b<<6 | address=000011b).
+var goldenReadRequest = []byte{0x00, 0x03}
 
 func TestGolden_ReadRequest(t *testing.T) {
-	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 3, RegAddr: 0x0006}
+	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 3}
 	got := mdio.EncodeReadRequest(r)
 	if !bytes.Equal(got, goldenReadRequest) {
 		t.Fatalf("EncodeReadRequest changed:\n got  % X\n want % X", got, goldenReadRequest)
@@ -63,18 +65,20 @@ func TestGolden_ReadRequest(t *testing.T) {
 	}
 }
 
-// goldenWriteRequestMMD is an MMD multiple-byte write of MMD device 7,
-// register 0x1234, value 0xBEEF: reserved=0x00, packed byte=0x47
-// (mode=01b<<6 | address=000111b), RegAddr=0x12,0x34, then the 16-bit (MMD
-// is always 16-bit) data field 0xBE,0xEF.
-var goldenWriteRequestMMD = []byte{0x00, 0x47, 0x12, 0x34, 0xBE, 0xEF}
+// goldenWriteRequestMMD is an MMD multiple-byte write at MMD address 7,
+// value 0xBEEF: reserved=0x00, packed byte=0x47 (mode=01b<<6 |
+// address=000111b), then the 16-bit (MMD is always 16-bit) data field
+// 0xBE,0xEF — 4 bytes total, matching the specification's mdio
+// request-format figure exactly (2-byte header + 2-byte payload = 32
+// bits, the one case the figure depicts).
+var goldenWriteRequestMMD = []byte{0x00, 0x47, 0xBE, 0xEF}
 
 // goldenResponseMMD is the 16-bit response value 0xCAFE for the same
 // (MMD) request shape as goldenWriteRequestMMD: 0xCA,0xFE.
 var goldenResponseMMD = []byte{0xCA, 0xFE}
 
 func TestGolden_WriteRequestAndResponse_MMD(t *testing.T) {
-	r := mdio.Request{Mode: mdio.ModeMMDMultiByte, DevAddr: 7, RegAddr: 0x1234}
+	r := mdio.Request{Mode: mdio.ModeMMDMultiByte, DevAddr: 7}
 	got := mdio.EncodeWriteRequest(r, 0xBEEF)
 	if !bytes.Equal(got, goldenWriteRequestMMD) {
 		t.Fatalf("EncodeWriteRequest(MMD) changed:\n got  % X\n want % X", got, goldenWriteRequestMMD)
@@ -101,18 +105,17 @@ func TestGolden_WriteRequestAndResponse_MMD(t *testing.T) {
 }
 
 // goldenWriteRequestMMS0 is an MMS single-word write of MMS index 0
-// ("MMS0"), register 0x0010, value 0xDEADBEEF: reserved=0x00, packed
-// byte=0x80 (mode=10b<<6 | address=000000b), RegAddr=0x00,0x10, then the
-// 32-bit (MMS0 is 32-bit — see Request.DataWidth) data field
-// 0xDE,0xAD,0xBE,0xEF.
-var goldenWriteRequestMMS0 = []byte{0x00, 0x80, 0x00, 0x10, 0xDE, 0xAD, 0xBE, 0xEF}
+// ("MMS0"), value 0xDEADBEEF: reserved=0x00, packed byte=0x80 (mode=10b<<6
+// | address=000000b), then the 32-bit (MMS0 is 32-bit — see
+// Request.DataWidth) data field 0xDE,0xAD,0xBE,0xEF.
+var goldenWriteRequestMMS0 = []byte{0x00, 0x80, 0xDE, 0xAD, 0xBE, 0xEF}
 
 // goldenResponseMMS0 is the 32-bit response value 0x12345678 for the same
 // (MMS0) request shape as goldenWriteRequestMMS0: 0x12,0x34,0x56,0x78.
 var goldenResponseMMS0 = []byte{0x12, 0x34, 0x56, 0x78}
 
 func TestGolden_WriteRequestAndResponse_MMS0(t *testing.T) {
-	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0, RegAddr: 0x0010}
+	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0}
 	got := mdio.EncodeWriteRequest(r, 0xDEADBEEF)
 	if !bytes.Equal(got, goldenWriteRequestMMS0) {
 		t.Fatalf("EncodeWriteRequest(MMS0) changed:\n got  % X\n want % X", got, goldenWriteRequestMMS0)
@@ -139,13 +142,13 @@ func TestGolden_WriteRequestAndResponse_MMS0(t *testing.T) {
 }
 
 // goldenWriteRequestMMS1 is an MMS multi-word write of MMS index 1
-// ("MMS1"), register 0x0020, value 0xAABBCCDD: reserved=0x00, packed
-// byte=0xC1 (mode=11b<<6 | address=000001b), RegAddr=0x00,0x20, then the
-// 32-bit (MMS1 is also 32-bit) data field 0xAA,0xBB,0xCC,0xDD.
-var goldenWriteRequestMMS1 = []byte{0x00, 0xC1, 0x00, 0x20, 0xAA, 0xBB, 0xCC, 0xDD}
+// ("MMS1"), value 0xAABBCCDD: reserved=0x00, packed byte=0xC1 (mode=11b<<6
+// | address=000001b), then the 32-bit (MMS1 is also 32-bit) data field
+// 0xAA,0xBB,0xCC,0xDD.
+var goldenWriteRequestMMS1 = []byte{0x00, 0xC1, 0xAA, 0xBB, 0xCC, 0xDD}
 
 func TestGolden_WriteRequest_MMS1(t *testing.T) {
-	r := mdio.Request{Mode: mdio.ModeMMSMultiWord, DevAddr: 1, RegAddr: 0x0020}
+	r := mdio.Request{Mode: mdio.ModeMMSMultiWord, DevAddr: 1}
 	got := mdio.EncodeWriteRequest(r, 0xAABBCCDD)
 	if !bytes.Equal(got, goldenWriteRequestMMS1) {
 		t.Fatalf("EncodeWriteRequest(MMS1) changed:\n got  % X\n want % X", got, goldenWriteRequestMMS1)
@@ -160,16 +163,15 @@ func TestGolden_WriteRequest_MMS1(t *testing.T) {
 }
 
 // goldenWriteRequestMMSOther is an MMS single-word write of MMS index 5
-// (neither MMS0 nor MMS1), register 0x0008, value 0x1357: reserved=0x00,
-// packed byte=0x85 (mode=10b<<6 | address=000101b), RegAddr=0x00,0x08,
-// then the 16-bit (every non-MMS0/MMS1 index is 16-bit) data field
-// 0x13,0x57 — this is the case an earlier fix pass got wrong by assuming
-// every MDIO access was 16-bit-vs-fixed-Clause22/45 shaped rather than
-// mode-and-index-dependent.
-var goldenWriteRequestMMSOther = []byte{0x00, 0x85, 0x00, 0x08, 0x13, 0x57}
+// (neither MMS0 nor MMS1), value 0x1357: reserved=0x00, packed byte=0x85
+// (mode=10b<<6 | address=000101b), then the 16-bit (every non-MMS0/MMS1
+// index is 16-bit) data field 0x13,0x57 — this is the case an earlier fix
+// pass got wrong by assuming every MDIO access was
+// 16-bit-vs-fixed-Clause22/45 shaped rather than mode-and-index-dependent.
+var goldenWriteRequestMMSOther = []byte{0x00, 0x85, 0x13, 0x57}
 
 func TestGolden_WriteRequest_MMSOther(t *testing.T) {
-	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 5, RegAddr: 0x0008}
+	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 5}
 	got := mdio.EncodeWriteRequest(r, 0x1357)
 	if !bytes.Equal(got, goldenWriteRequestMMSOther) {
 		t.Fatalf("EncodeWriteRequest(MMS, non-0/1) changed:\n got  % X\n want % X", got, goldenWriteRequestMMSOther)
@@ -236,13 +238,13 @@ func TestGolden_EndToEndDispatch_MMS0(t *testing.T) {
 		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
 		Control:   acf.FlagRead,
-		Body:      mdio.EncodeReadRequest(mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0, RegAddr: 0x0010}),
+		Body:      mdio.EncodeReadRequest(mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0}),
 	}
 	resp, err := ep.HandleRequest(root, readReq)
 	if err != nil {
 		t.Fatalf("HandleRequest(golden read MMS0): %v", err)
 	}
-	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0, RegAddr: 0x0010}
+	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0}
 	got, err := mdio.DecodeResponse(r, resp.Body)
 	if err != nil {
 		t.Fatalf("DecodeResponse: %v", err)

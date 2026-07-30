@@ -36,21 +36,21 @@ func writeReq(r mdio.Request, data uint32) acf.Message {
 // map, so tests can tell the configured Transport actually ran rather than
 // the default in-memory store.
 type recordingTransport struct {
-	regs  map[uint16]uint32
+	regs  map[uint8]uint32
 	reads int
 }
 
 func newRecordingTransport() *recordingTransport {
-	return &recordingTransport{regs: make(map[uint16]uint32)}
+	return &recordingTransport{regs: make(map[uint8]uint32)}
 }
 
 func (r *recordingTransport) ReadRegister(req mdio.Request) (uint32, error) {
 	r.reads++
-	return r.regs[req.RegAddr] + 1, nil // offset by 1 so tests can distinguish from the default store
+	return r.regs[req.DevAddr] + 1, nil // offset by 1 so tests can distinguish from the default store
 }
 
 func (r *recordingTransport) WriteRegister(req mdio.Request, data uint32) error {
-	r.regs[req.RegAddr] = data
+	r.regs[req.DevAddr] = data
 	return nil
 }
 
@@ -107,7 +107,7 @@ func TestHandleRequest_DefaultStoreAndTransport(t *testing.T) {
 	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
-	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 2, RegAddr: 0x10}
+	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 2}
 
 	// Default store: reads as zero until written.
 	resp, err := ep.HandleRequest(root, readReq(r))
@@ -164,7 +164,7 @@ func TestHandleRequest_MMSWideWidth(t *testing.T) {
 	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
-	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0, RegAddr: 0x10}
+	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0}
 
 	if _, werr := ep.HandleRequest(root, writeReq(r, 0xFEEDFACE)); werr != nil {
 		t.Fatalf("HandleRequest(write, MMS0): %v", werr)

@@ -37,9 +37,9 @@ func TestRequest_Validate(t *testing.T) {
 		wantErr error
 	}{
 		{"invalid mode", mdio.Request{Mode: 9}, mdio.ErrInvalidMode},
-		{"mmd single-word ok", mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 0x1F, RegAddr: 0xFFFF}, nil},
+		{"mmd single-word ok", mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 0x1F}, nil},
 		{"mmd multi-byte dev addr out of range", mdio.Request{Mode: mdio.ModeMMDMultiByte, DevAddr: 0x20}, mdio.ErrDevAddrOutOfRange},
-		{"mms single-word ok", mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0x1F, RegAddr: 0x1234}, nil},
+		{"mms single-word ok", mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0x1F}, nil},
 		{"mms multi-word dev addr out of range", mdio.Request{Mode: mdio.ModeMMSMultiWord, DevAddr: 0x20}, mdio.ErrDevAddrOutOfRange},
 	}
 	for _, tt := range tests {

@@ -6,12 +6,20 @@ import (
 	"github.com/SoundMatt/go-RCP/avtp"
 )
 
-// requestHeaderLen is the packed 4-byte request header: an 8-bit reserved
-// byte (must be 0 — see decodeRequest), a second byte packing the 2-bit
-// mdio_mode field in its top two bits and the 6-bit mdio_address field
-// (this package's DevAddr) in its low six bits, and a 16-bit big-endian
-// RegAddr.
-const requestHeaderLen = 1 + 1 + 2
+// requestHeaderLen is the packed 2-byte request header: an 8-bit reserved
+// byte (must be 0 — see decodeRequest), then a second byte packing the
+// 2-bit mdio_mode field in its top two bits and the 6-bit mdio_address
+// field (this package's DevAddr) in its low six bits. A read request is
+// exactly this header (see EncodeReadRequest); a write request is this
+// header followed by the r.DataWidth()-byte value to write (see
+// EncodeWriteRequest) — together matching the specification's 32-bit
+// mdio request-format figure for the 16-bit-payload case (2-byte header +
+// 2-byte payload = 4 bytes = 32 bits), the one case the figure depicts.
+// There is no third, separate register-address field on the wire: the
+// specification's own MDIO request-handling description states the
+// request carries the target MMD and the address within it as a single
+// concept occupying mdio_address, not two.
+const requestHeaderLen = 1 + 1
 
 // modeShift and addrMask position Mode and DevAddr within the packed
 // second header byte: Mode occupies bits 7:6 (the more significant two
@@ -94,13 +102,11 @@ func DecodeResponse(r Request, b []byte) (uint32, error) {
 
 // encodeRequest is the shared Request header encoding EncodeReadRequest and
 // EncodeWriteRequest both use: byte 0 is the reserved byte (always 0), byte
-// 1 packs Mode into its top two bits and DevAddr into its low six, and
-// bytes 2:4 are RegAddr, big-endian.
+// 1 packs Mode into its top two bits and DevAddr into its low six.
 func encodeRequest(r Request) []byte {
 	buf := make([]byte, requestHeaderLen)
 	buf[0] = 0
 	buf[1] = byte(r.Mode)<<modeShift | r.DevAddr&addrMask
-	binary.BigEndian.PutUint16(buf[2:4], r.RegAddr)
 	return buf
 }
 
@@ -126,7 +132,6 @@ func decodeRequest(b []byte) (Request, error) {
 	return Request{
 		Mode:    Mode(b[1] >> modeShift),
 		DevAddr: b[1] & addrMask,
-		RegAddr: binary.BigEndian.Uint16(b[2:4]),
 	}, nil
 }
 

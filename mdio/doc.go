@@ -68,19 +68,30 @@
 // description, not a reasoned guess. So is the request header's wire
 // layout request.go's encodeRequest/decodeRequest implement: a reserved
 // byte, then a single byte packing mdio_mode and mdio_address together,
-// then RegAddr — measured directly against the specification's own request
-// format diagram rather than assumed to be one byte per logical field.
-// Reusing Request.DevAddr to carry either an MMD device address or an MMS
-// index, depending on Mode, rather than adding a second, separate selector
-// field, is this implementation's own judgment call; see the
-// mmsWideIndexMax doc comment in types.go for the reasoning. There is no
-// separate PHY-address field because the specification's request format
-// has no room for one alongside mdio_mode/mdio_address/RegAddr — see
-// Request's doc comment in types.go. Config's field order/width remains
-// this implementation's own reasoned, self-consistent encoding rather than
-// a verified transcription — the same open-item posture avtp/doc.go,
-// server/doc.go, and i2c/doc.go document for their own packages, pending
-// confirmation against a public interoperability reference.
+// with no further field after it (a write request's value, and a read
+// response's value, occupy their own separate location — see
+// EncodeWriteRequest/EncodeResponse — not a third field within the
+// request header itself) — measured directly against the specification's
+// own request format diagram, cross-checked against its accompanying
+// prose, which describes the target MMD and the address within it as a
+// single addressing concept the request carries, not two separate
+// fields, rather than assumed to be one byte per logical field. An
+// earlier revision of this package added a
+// spurious extra 16-bit field between mdio_address and the payload,
+// believing it was diagram-verified when it was not; that field is
+// removed. DevAddr's meaning genuinely depends on Mode — for the two MMD
+// modes it is the address of a register within an (implicitly selected)
+// MMD, not a device selector; for the two MMS modes it selects which MMS,
+// per the specification's own MMS0/MMS1-vs-other-MMS payload-width rule
+// (see mmsWideIndexMax's doc comment in types.go). There is no separate
+// PHY-address field because a target PHY is selected by which endpoint
+// (byte_bus_id) a request addresses, not by a field within the request
+// body — see Request's doc comment in types.go. Config's field
+// order/width remains this implementation's own reasoned, self-consistent
+// encoding rather than a verified transcription — the same open-item
+// posture avtp/doc.go, server/doc.go, and i2c/doc.go document for their
+// own packages, pending confirmation against a public interoperability
+// reference.
 package mdio
 
 //fusa:req REQ-MDIO-001
