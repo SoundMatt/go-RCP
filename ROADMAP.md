@@ -49,11 +49,14 @@ table for a per-package call.
 
 ## Vision
 
-go-RCP is a Go-native Remote Control Protocol for automotive zonal architecture.
+go-RCP is a Go-native implementation of the OPEN Alliance TC18 Remote
+Control Protocol.
 
 The project focuses on:
 
-- Reliable command delivery from a central computer to distributed zone controllers
+- Reliable request delivery from a central computer to distributed RC
+  Servers, each exposing its endpoints via stream ID / byte-bus-ID
+  addressing and a register-map configuration model
 - Safety-first design with traceability to ISO 26262 ASIL-B requirements
 - Modern Go developer experience — zero CGo, pure interfaces, swappable transports
 - Deterministic latency suitable for hard real-time automotive contexts
@@ -67,7 +70,8 @@ The project focuses on:
 2. Safety as a first-class concern — requirements in `.fusa-reqs.json`, traced to tests
 3. Simplicity over completeness — clean interfaces, not a protocol kitchen sink
 4. Testability by default — mock backend ships with the library
-5. Zonal architecture native — Zone is a first-class type, not an afterthought
+5. Endpoint/register-map native — RC Servers expose Endpoints addressed by
+   `(stream_id, byte_bus_id)` as first-class concepts, not an afterthought
 6. Transport-agnostic — swap in-process mock for UDP or TCP without API changes
 
 ---
@@ -141,7 +145,7 @@ The project focuses on:
 
 ### 2. Requirements (v0.2.0) ✅
 
-- 79 atomic SEOOC requirements across 10 groups (REQ-ZONE, REQ-PRI, REQ-CMD, REQ-STATUS, REQ-ERR, REQ-CMDSTRUCT, REQ-RESP, REQ-STAT, REQ-CTRL, REQ-REG)
+- 79 atomic SEOOC requirements across 10 groups (REQ-ZONE, REQ-PRI, REQ-CMD, REQ-STATUS, REQ-ERR, REQ-CMDSTRUCT, REQ-RESP, REQ-STAT, REQ-CTRL, REQ-REG) — this is the historical baseline as shipped at v0.2.0, under the retired Zone/Command protocol; those ten groups were retired at the Milestone 59 (v1.0.0) cutover along with the API they described (see "TC18 Conformance Cutover & RELAY Re-Certification" below). The current `.fusa-reqs.json` holds a much larger set of requirements under TC18-era group names (REQ-REQ, REQ-ERR, REQ-CLI, REQ-SPEC, REQ-CONF, and others); see that file for the current total and grouping.
 - 45 ASIL-B + 34 ASIL-A requirements; zero coverage gaps
 - Full go-FuSa v0.30.0 trace and check compliance ✅
 
