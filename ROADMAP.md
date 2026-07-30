@@ -1926,3 +1926,28 @@ Endpoint/register-map model:
 No other package in this repo imported `mock.Controller`/`mock.Registry`,
 `rcp.Controller`/`rcp.Registry`/`rcp.Zone`/`rcp.Command`/`rcp.Response`/
 `rcp.Status`, or `tlstransport` outside the call sites named above.
+
+## Post-cutover correction: `mdio` request layout (2026-07-30)
+
+A 2026-07-30 ecosystem re-audit and two rounds of independent verification
+found the `mdio` package's request wire encoding, added during the TC18
+cutover above, carried a fabricated field: a 2-byte `RegAddr` positioned
+between the packed `mdio_mode`/`mdio_address` header byte and the payload.
+That field is not present in the specification's mdio request-format
+figure, and the specification's own MDIO request-handling prose (§13.7.13.3)
+describes the target MMD and the address within it as a single addressing
+concept the request carries — one field, `mdio_address` (this package's
+`DevAddr`) — not two. Two prior attempts to fix this (first correcting only
+the mode taxonomy and payload-width rules, later still leaving the
+fabricated field in place) were each independently re-checked and found
+incomplete before this one, which removes `RegAddr` from `Request` and the
+wire format entirely: a read request is now exactly the 2-byte header; a
+write request is the header plus the `DataWidth()`-byte value — 4 bytes
+total for the 16-bit-payload case, matching the specification's figure
+exactly. `DevAddr`'s doc comments are corrected to describe it as the
+address within an (implicitly selected) MMD for the two MMD modes — not a
+device selector, which was the false claim `RegAddr`'s existence rested
+on — while retaining its existing, unchanged role as an MMS index for the
+two MMS modes. This is a breaking change to `mdio.Request` and the wire
+encoding; no compatibility shim is provided, consistent with this repo's
+established posture for a fabricated, never-genuinely-specified field.

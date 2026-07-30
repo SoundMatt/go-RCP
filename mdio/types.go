@@ -14,12 +14,15 @@ type Mode uint8
 
 const (
 	// ModeMMDSingleWord accesses a single word of a Clause 45-style MMD
-	// (MDIO Manageable Device) register. Request.DevAddr selects which MMD.
+	// (MDIO Manageable Device) register. Request.DevAddr is the address of
+	// that register within the MMD, not a selector for which MMD (see
+	// Request's doc comment).
 	ModeMMDSingleWord Mode = iota
 
 	// ModeMMDMultiByte accesses a Clause 45-style MMD register using the
 	// specification's multiple-byte access shape rather than a single
-	// fixed word. Request.DevAddr selects which MMD.
+	// fixed word. Request.DevAddr is the address of that register within
+	// the MMD, same as ModeMMDSingleWord.
 	ModeMMDMultiByte
 
 	// ModeMMSSingleWord accesses a single word of an MMS (memory-mapped
@@ -55,34 +58,36 @@ const devAddrMax = 0x1F
 // 1). Every other MMS index uses a 16-bit register width. See
 // Request.DataWidth.
 //
-// This package reuses Request.DevAddr — the field that already carries an
-// MMD's device address in the two MMD modes — to also carry the MMS index
-// in the two MMS modes, rather than introducing a second, separate
-// selector field. That reuse is this implementation's own judgment call:
-// an MMS index plays the same "which register space does RegAddr index
-// into" role an MMD device address plays, both share the wire's single
-// mdio_address selector field, and the two are never both meaningful for
-// the same Request (Mode picks exactly one interpretation). See doc.go's
-// "A note on spec fidelity" section.
+// This package reuses Request.DevAddr — the single wire field the
+// specification's mdio_address occupies — for two different meanings
+// depending on Mode: for the two MMD modes it is the address of a
+// register within an (implicitly selected) MMD, per the specification's
+// own MDIO request-handling description; for the two MMS modes it selects
+// which MMS. Both readings share the wire's single mdio_address field,
+// and the two are never both meaningful for the same Request (Mode picks
+// exactly one interpretation). See doc.go's "A note on spec fidelity"
+// section.
 const mmsWideIndexMax = 1
 
-// Request is one addressed MDIO register access. Mode selects one of this
-// package's four mdio_mode access shapes (see Mode); DevAddr selects the
-// target MMD (ModeMMDSingleWord, ModeMMDMultiByte) or the target MMS
-// (ModeMMSSingleWord, ModeMMSMultiWord) — the wire's single mdio_address
-// selector field; RegAddr addresses a register within whichever space
-// DevAddr selected. See DataWidth for how Mode and DevAddr together
-// determine this access's payload width.
+// Request is one addressed MDIO register access, matching the
+// specification's mdio request format: Mode selects one of this package's
+// four mdio_mode access shapes (see Mode); DevAddr is the wire's single
+// 6-bit mdio_address field, whose meaning depends on Mode — the address of
+// a register within an (implicitly selected) MMD for the two MMD modes, or
+// the target MMS index for the two MMS modes (see Mode's own doc comments
+// and mmsWideIndexMax). There is no separate device-selector field and no
+// separate register-address field beyond mdio_address itself — the
+// specification's request-handling description states the request carries
+// "the MMD and the address in the MMD" as a single concept, not two. See
+// DataWidth for how Mode and DevAddr together determine this access's
+// payload width.
 //
-// There is deliberately no separate PHY-address field: the wire request
-// header (see request.go) has room for exactly one 6-bit address selector
-// alongside mdio_mode, which DevAddr fills; a target PHY is selected by
-// which endpoint (byte_bus_id) a request addresses, not by a field within
-// the request body.
+// There is deliberately no separate PHY-address field either: a target PHY
+// is selected by which endpoint (byte_bus_id) a request addresses, not by
+// a field within the request body.
 type Request struct {
 	Mode    Mode
 	DevAddr uint8
-	RegAddr uint16
 }
 
 // DataWidth reports the width, in bytes, of the register-value payload
