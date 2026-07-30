@@ -53,11 +53,12 @@
 //
 // Sequencer is the persistent per-register state store Compound/
 // CompoundWait requests read and (conditionally) advance. It has no
-// declared bit width or active-pin-style mask the way gpio.Config does —
-// every register is a free-running uint32 counter that wraps rather than
-// saturates; see Sequencer.Advance's doc comment for why that is this
-// implementation's own reasoned choice given no declared bound exists to
-// clamp against.
+// declared bit width or active-pin-style mask the way gpio.Config does, but
+// every register still saturates rather than wraps at the uint32 boundary —
+// advancing past math.MaxUint32 clamps at math.MaxUint32 and advancing
+// below zero clamps at 0, the same saturating-arithmetic convention gpio's
+// SemanticSaturatingAdd/SemanticSaturatingSubtract write semantics use; see
+// Sequencer.Advance's doc comment for the exact clamping behavior.
 //
 // # Cancellation requests
 //
@@ -127,9 +128,9 @@
 // package was built from a behavioral description of the conditional-
 // request model, not from the primary spec text. Every wire-level choice
 // this package makes — the envelope byte layout in envelope.go/chained.go,
-// claiming acf.FlagExtended for the envelope marker, the sequencer-
-// wraparound arithmetic, the exact split between the mandatory and two
-// optional cancellation variants, and the fixed cross-type priority
+// claiming acf.FlagExtended for the envelope marker, the exact split
+// between the mandatory and two optional cancellation variants, and the
+// fixed cross-type priority
 // ordering in Kind.Priority — is this implementation's own reasoned,
 // self-consistent encoding rather than a verified transcription of the
 // published wire format or the source specification's own priority table,

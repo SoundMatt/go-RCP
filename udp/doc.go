@@ -65,17 +65,22 @@
 // fragment.Gateway in front of a Router-registered request.Dispatcher
 // itself, the same "wrap, don't edit" posture Milestone 49 established.
 //
-// # A note on spec fidelity (Guiding Principle 10)
+// # Error-response wire shape
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. The
-// error-response wire shape this package introduces (Control's FlagError
-// bit set, Body carrying a UTF-8 diagnostic string) has no precedent
-// elsewhere in this repo — every earlier milestone's Handler-shaped code
-// returns a bare Go error up the call stack and leaves wire-level error
-// framing to whichever transport calls it, which is exactly this
-// package's own job. This is this implementation's own reasoned,
-// self-consistent choice, not a verified transcription of the source
-// specification's own error-reporting format.
+// The error-response wire shape this package introduces — Control's
+// FlagError bit set, Body carrying a numeric ErrorCode as its leading byte
+// (see errorCodeFor and EncodeErrorBody/DecodeErrorBody), with an optional
+// UTF-8 diagnostic string trailing it — has no precedent elsewhere in this
+// repo: every earlier milestone's Handler-shaped code returns a bare Go
+// error up the call stack and leaves wire-level error framing to whichever
+// transport calls it, which is exactly this package's own job. ErrorCode's
+// eight values are drawn from the specification's own request-response
+// error-code enumeration; the mapping from this repo's internal Go errors
+// onto those codes (errorCodeFor) is this implementation's own reasoned
+// choice where more than one code plausibly fits (see errorCodeFor's doc
+// comment), not a verified transcription of the source specification's own
+// error-condition-to-internal-error correspondence, since no such
+// correspondence exists to transcribe in the first place.
 package udp
 
 //fusa:req REQ-UDP-001

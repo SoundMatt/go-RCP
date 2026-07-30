@@ -12,6 +12,7 @@ import (
 	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/request"
 	"github.com/SoundMatt/go-RCP/server"
 	"github.com/SoundMatt/go-RCP/udp"
 )
@@ -78,5 +79,107 @@ func TestRouter_Route_ExecutesTimedWithTimeSync(t *testing.T) {
 	}
 	if h.callCount != 1 {
 		t.Errorf("handler was called %d times, want 1", h.callCount)
+	}
+}
+
+// TestRouter_Route_UnknownEndpointErrorBody verifies that routing a request
+// to an unregistered byte_bus_id produces a wire-level error response whose
+// Body carries the numeric ErrorCodeUnsupportedCommand as its leading byte
+// (not err.Error()'s free text as the whole payload) — the actual bug
+// behind #134.
+func TestRouter_Route_UnknownEndpointErrorBody(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+
+	hdr := avtp.Header{}
+	req := acf.Message{ByteBusID: 9, Control: acf.FlagRead}
+	resp, shouldReply := router.Route(hdr, req)
+	if !shouldReply {
+		t.Fatalf("shouldReply = false, want true (error response)")
+	}
+	if !resp.Control.Has(acf.FlagError) {
+		t.Fatalf("Control = %v, want FlagError set", resp.Control)
+	}
+
+	code, _, err := udp.DecodeErrorBody(resp.Body)
+	if err != nil {
+		t.Fatalf("DecodeErrorBody: %v", err)
+	}
+	if code != udp.ErrorCodeUnsupportedCommand {
+		t.Errorf("code = %v, want ErrorCodeUnsupportedCommand", code)
+	}
+}
+
+// TestRouter_Route_ChainedSegmentFailedErrorBody verifies that a Handler
+// error wrapping request.ErrChainedSegmentFailed maps to the numeric
+// ErrorCodeChainAborted, exercising errorCodeFor's request-package
+// sentinel mapping rather than emitting the raw Go error string.
+func TestRouter_Route_ChainedSegmentFailedErrorBody(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	h := &stubHandler{err: request.ErrChainedSegmentFailed}
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	hdr := avtp.Header{}
+	req := acf.Message{ByteBusID: 1, Control: acf.FlagRead}
+	resp, shouldReply := router.Route(hdr, req)
+	if !shouldReply {
+		t.Fatalf("shouldReply = false, want true (error response)")
+	}
+
+	code, diagnostic, err := udp.DecodeErrorBody(resp.Body)
+	if err != nil {
+		t.Fatalf("DecodeErrorBody: %v", err)
+	}
+	if code != udp.ErrorCodeChainAborted {
+		t.Errorf("code = %v, want ErrorCodeChainAborted", code)
+	}
+	if diagnostic != request.ErrChainedSegmentFailed.Error() {
+		t.Errorf("diagnostic = %q, want %q", diagnostic, request.ErrChainedSegmentFailed.Error())
+	}
+}
+
+// TestRouter_Route_TicketCancelledErrorBody verifies request.ErrTicketCancelled
+// maps to ErrorCodeRequestCancelled.
+func TestRouter_Route_TicketCancelledErrorBody(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	h := &stubHandler{err: request.ErrTicketCancelled}
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	hdr := avtp.Header{}
+	req := acf.Message{ByteBusID: 1, Control: acf.FlagRead}
+	resp, _ := router.Route(hdr, req)
+
+	code, _, err := udp.DecodeErrorBody(resp.Body)
+	if err != nil {
+		t.Fatalf("DecodeErrorBody: %v", err)
+	}
+	if code != udp.ErrorCodeRequestCancelled {
+		t.Errorf("code = %v, want ErrorCodeRequestCancelled", code)
+	}
+}
+
+// TestErrorCode_UnrecognizedErrorFallsBackToInvalidParameter verifies
+// errorCodeFor's default fallback for a Go error that matches none of the
+// request/udp package sentinels it recognizes.
+func TestErrorCode_UnrecognizedErrorFallsBackToInvalidParameter(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	h := &stubHandler{err: errors.New("some endpoint-specific decode failure")}
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	hdr := avtp.Header{}
+	req := acf.Message{ByteBusID: 1, Control: acf.FlagRead}
+	resp, _ := router.Route(hdr, req)
+
+	code, _, err := udp.DecodeErrorBody(resp.Body)
+	if err != nil {
+		t.Fatalf("DecodeErrorBody: %v", err)
+	}
+	if code != udp.ErrorCodeInvalidParameter {
+		t.Errorf("code = %v, want ErrorCodeInvalidParameter", code)
 	}
 }

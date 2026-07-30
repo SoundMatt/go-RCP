@@ -117,13 +117,16 @@ func (r *Router) Route(hdr avtp.Header, req acf.Message) (acf.Message, bool) {
 // set, the originating Read/Write flag preserved (mirroring every Phase 14
 // endpoint type's own responseFor helper, e.g. gpio.Endpoint's), Kind/
 // ByteBusID/TransactionNum carried over from req for correlation, and Body
-// as err's message text.
+// as the numeric ErrorCode errorCodeFor(err) maps err onto, followed by
+// err's message text as an optional trailing diagnostic (see
+// EncodeErrorBody) — the code is the primary, authoritative payload; the
+// diagnostic text is for local debugging only.
 func errorResponse(req acf.Message, err error) acf.Message {
 	return acf.Message{
 		Kind:           req.Kind,
 		ByteBusID:      req.ByteBusID,
 		TransactionNum: req.TransactionNum,
 		Control:        acf.FlagResponse | acf.FlagError | (req.Control & (acf.FlagRead | acf.FlagWrite)),
-		Body:           []byte(err.Error()),
+		Body:           EncodeErrorBody(errorCodeFor(err), err.Error()),
 	}
 }
