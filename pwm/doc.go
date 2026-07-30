@@ -16,8 +16,8 @@
 //
 // One PWM endpoint plays exactly one of two roles (Config.Role): RoleOutput
 // generates a waveform, RoleInput measures an externally driven incoming
-// one. Both roles share the same symmetric two-field payload shape — an
-// active (high) duration followed by a period, each a count of the
+// one. Both roles share the same symmetric two-field payload shape — a
+// period followed by an active (high) duration, each a count of the
 // endpoint's configured clock ticks (see EncodeWaveform/DecodeWaveform) —
 // the governing specification defines for PWM output and PWM input alike.
 //
@@ -53,11 +53,16 @@
 //
 // The governing OPEN Alliance TC18 Remote Control Protocol Specification is
 // available and normative. This package's PWM_OUT/PWM_IN request/response
-// byte layout — the 4-byte, active-then-period, 16-bit-tick-count waveform
+// byte layout — the 4-byte, period-then-active, 16-bit-tick-count waveform
 // body EncodeWaveform/DecodeWaveform implement — is a verified transcription
-// of that specification's byte assignments, not a reasoned guess. Config's
-// own wire layout (Enabled/Role plus the same active-then-period tick
-// fields) follows the same verified shape for its embedded waveform.
+// of that specification's byte assignments (measured directly against the
+// specification's own request-format diagrams), not a reasoned guess.
+// Config's own wire layout (Enabled/Role plus an active-then-period tick
+// field pair) is this implementation's own internal register-map encoding,
+// not a transcription of a specification-defined wire shape — the
+// specification's functional-configuration table for this endpoint type
+// has no default-waveform fields, so Config's field order carries no
+// spec-fidelity claim independent of the request/response body it seeds.
 // Modeling RoleOutput/RoleInput as a single endpoint with a Role switch,
 // rather than two separate endpoint types, reflects the specification's
 // PWM_OUT/PWM_OUTN signal pair sharing one endpoint's physical pins across

@@ -22,9 +22,10 @@ import (
 
 // goldenConfig is Enabled=1, Role=RoleOutput(0), DefaultActiveTicks=1500
 // (0x05DC), DefaultPeriodTicks=20000 (0x4E20) — hand-computed: 1500 decimal
-// is 0x05DC, 20000 decimal is 0x4E20, each a big-endian 16-bit field, active
-// before period per the governing specification's PWM_OUT/PWM_IN body
-// layout.
+// is 0x05DC, 20000 decimal is 0x4E20, each a big-endian 16-bit field,
+// active before period per Config's own field order (see EncodeConfig) —
+// this package's own internal register-map encoding, independent of the
+// request/response wire order goldenWaveform below pins.
 var goldenConfig = []byte{
 	0x01, 0x00,
 	0x05, 0xDC,
@@ -46,10 +47,11 @@ func TestGolden_Config(t *testing.T) {
 	}
 }
 
-// goldenWaveform is active=1500 (0x05DC), period=20000 (0x4E20), each a
-// hand-computed big-endian 16-bit field, active first per the governing
-// specification's PWM_OUT/PWM_IN body layout.
-var goldenWaveform = []byte{0x05, 0xDC, 0x4E, 0x20}
+// goldenWaveform is period=20000 (0x4E20), active=1500 (0x05DC), each a
+// hand-computed big-endian 16-bit field, period first per the governing
+// specification's PWM_OUT/PWM_IN body layout (Figure 26/Figure 28 in the
+// governing specification, measured directly rather than assumed).
+var goldenWaveform = []byte{0x4E, 0x20, 0x05, 0xDC}
 
 func TestGolden_Waveform(t *testing.T) {
 	got := pwm.EncodeWaveform(1500, 20000)
