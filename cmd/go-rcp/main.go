@@ -19,7 +19,9 @@
 // RELAY interop driver (spec §11.2):
 //
 //	go-rcp convert --protocol RCP [--format json]
-//	    — read one addressed endpoint response as JSON on stdin, run it
+//	    — read one rcp.Message-shaped value (RELAY spec §15.5 canonical
+//	      type: byte_bus_id, transaction_num, control, read_size_or_segment,
+//	      body — see spec/schemas/rcp-message.json) as JSON on stdin, run it
 //	      through rcp.ResponseToMessage (the §15.7.5-analogue conversion
 //	      this package uses at runtime on the Call direction), and write the
 //	      resulting relay.Message as JSON on stdout. Exit 0 converted, 1
@@ -47,7 +49,7 @@ import (
 	"syscall"
 	"time"
 
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 	rcp "github.com/SoundMatt/go-RCP"
 	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
@@ -430,17 +432,75 @@ func cmdConvert(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// convertResponse decodes raw as {"byte_bus_id": int, "body": base64,
-// "error": bool} and returns rcp.ResponseToMessage's JSON with a zeroed
-// timestamp. It returns errInvalidInput for any input the validator
-// rejects. A pointer byte_bus_id field distinguishes "absent" from 0.
+// relayControlBit{Ack,Read,Write,Response,Error,MoreSegments} are the bit
+// positions RELAY spec §15.5's rcp.Message.Control byte assigns to each
+// flag (see spec/schemas/rcp-message.json's field description), used only
+// to translate an incoming golden-vector/interop "control" value into this
+// package's own acf.ControlFlags. The two types are independently-chosen
+// Go-side convenience packings of the same semantic flags, not required to
+// share bit positions — the same is true of acf.ControlFlags relative to
+// the real wire bits (see its own doc comment) — so a numeric cast between
+// them (as convertResponse used before this fix) silently produces the
+// wrong flags.
+const (
+	relayControlBitAck          = 1 << 7
+	relayControlBitRead         = 1 << 6
+	relayControlBitWrite        = 1 << 5
+	relayControlBitResponse     = 1 << 4
+	relayControlBitError        = 1 << 3
+	relayControlBitMoreSegments = 1 << 2
+)
+
+// acfControlFromRELAY translates a RELAY rcp.Message.Control byte value
+// into acf.ControlFlags by semantic flag name, not bit position (see the
+// relayControlBit* constants' doc comment). RELAY's Ack bit has no
+// acf.ControlFlags equivalent — this package tracks a request-acknowledge
+// flag via acf.Message.EVT instead (see EVT's doc comment) — and is
+// intentionally dropped here, matching RELAY's own reference
+// rcp.Message.ToMessage() (spec §15.7.5), which never surfaces Ack in a
+// converted relay.Message either.
+func acfControlFromRELAY(wire int) acf.ControlFlags {
+	var c acf.ControlFlags
+	if wire&relayControlBitRead != 0 {
+		c |= acf.FlagRead
+	}
+	if wire&relayControlBitWrite != 0 {
+		c |= acf.FlagWrite
+	}
+	if wire&relayControlBitResponse != 0 {
+		c |= acf.FlagResponse
+	}
+	if wire&relayControlBitError != 0 {
+		c |= acf.FlagError
+	}
+	if wire&relayControlBitMoreSegments != 0 {
+		c |= acf.FlagMoreSegments
+	}
+	return c
+}
+
+// convertResponse decodes raw as an rcp.Message-shaped value per RELAY spec
+// §15.5/spec/schemas/rcp-message.json ("byte_bus_id", "transaction_num",
+// "control", "read_size_or_segment", "body" — RELAY's own reference
+// rcp.Message.ToMessage() is direction-agnostic, so the same shape covers
+// both a request and a response; the field name "convertResponse" predates
+// that and is kept only for its established call sites) and returns
+// rcp.ResponseToMessage's JSON with a zeroed timestamp. It returns
+// errInvalidInput for any input the validator rejects. Pointer byte_bus_id/
+// control fields distinguish "absent" (invalid — both are required per the
+// schema) from an explicit 0. "control" is translated via
+// acfControlFromRELAY rather than cast directly — RELAY's Control byte and
+// this package's acf.ControlFlags pack the same flags at different bit
+// positions.
 func convertResponse(raw []byte) ([]byte, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	var in struct {
-		ByteBusID *int   `json:"byte_bus_id"`
-		Body      []byte `json:"body"` // base64-decoded by encoding/json
-		Error     bool   `json:"error"`
+		ByteBusID         *int   `json:"byte_bus_id"`
+		TransactionNum    uint16 `json:"transaction_num"`
+		Control           *int   `json:"control"`
+		ReadSizeOrSegment uint16 `json:"read_size_or_segment"`
+		Body              []byte `json:"body"` // base64-decoded by encoding/json
 	}
 	if err := dec.Decode(&in); err != nil {
 		return nil, errInvalidInput
@@ -448,14 +508,15 @@ func convertResponse(raw []byte) ([]byte, error) {
 	if in.ByteBusID == nil || *in.ByteBusID < 0 || *in.ByteBusID > 255 {
 		return nil, errInvalidInput
 	}
-
-	control := acf.FlagResponse
-	if in.Error {
-		control |= acf.FlagError
+	if in.Control == nil || *in.Control < 0 || *in.Control > 255 {
+		return nil, errInvalidInput
 	}
+
 	msg := rcp.ResponseToMessage(avtp.ByteBusID(*in.ByteBusID), acf.Message{
-		Control: control,
-		Body:    in.Body,
+		TransactionNum:    avtp.TransactionNum(in.TransactionNum),
+		Control:           acfControlFromRELAY(*in.Control),
+		ReadSizeOrSegment: in.ReadSizeOrSegment,
+		Body:              in.Body,
 	})
 	msg.Timestamp = time.Time{} // deterministic interop output
 	return json.Marshal(msg)

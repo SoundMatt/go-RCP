@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 )
 
 // Compile-time assertions that the adapter satisfies the optional RELAY

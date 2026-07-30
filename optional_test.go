@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 	rcp "github.com/SoundMatt/go-RCP"
 )
 

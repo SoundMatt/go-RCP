@@ -25,7 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	relay "github.com/SoundMatt/RELAY"
+	relay "github.com/SoundMatt/RELAY/v2"
 	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 )
@@ -223,6 +223,16 @@ func ParseEndpointID(id string) (avtp.ByteBusID, error) {
 // presence" default this package's retired CommandFromMessage applied to
 // its own rcp.cmd_type default. body is m.Payload, unchanged.
 //
+// m's "rcp.transaction_num"/"rcp.read_size_or_segment" Meta keys (see
+// ResponseToMessage) are intentionally not read here: Controller.Request
+// has no parameter for either — this package's narrow Controller interface
+// (see Controller's own doc comment) leaves transaction-number assignment
+// and read-size selection to the concrete Controller implementation
+// (*udp.Controller, *mock.Client) rather than exposing them to a caller
+// converting a generic relay.Message. This is a one-directional, disclosed
+// subset of RELAY's own reference rcp.Message.FromMessage() mapping, not an
+// oversight.
+//
 //fusa:req REQ-MSG-007
 //fusa:req REQ-MSG-008
 func RequestFromMessage(m relay.Message) (avtp.ByteBusID, acf.ControlFlags, []byte, error) {
@@ -249,21 +259,36 @@ func RequestFromMessage(m relay.Message) (avtp.ByteBusID, acf.ControlFlags, []by
 // ResponseToMessage converts addr's acf.Message response into a
 // relay.Message — this package's RELAY spec §15.7.5 canonical-conversion
 // analogue for the TC18 request/response model. ID is
-// EndpointIDString(addr), Payload is the response Body, and the
-// "rcp.error" Meta key mirrors the response's acf.FlagError bit.
+// EndpointIDString(addr), Payload is the response Body. Four Meta keys are
+// always set, mirroring RELAY's own reference rcp.Message.ToMessage()
+// (direction-agnostic: both op and error are set regardless of whether resp
+// represents a response or, as here, is also used to render a bare request
+// for interop/testing purposes): "rcp.op" mirrors resp.Control's
+// Read/Write bit, "rcp.error" mirrors its Error bit, and
+// "rcp.transaction_num"/"rcp.read_size_or_segment" carry resp.TransactionNum
+// and resp.ReadSizeOrSegment as decimal strings — closing the §15.7.5
+// "MUST be lossless for all mandatory fields" gap those two previously
+// unmapped acf.Message fields left open.
 //
 //fusa:req REQ-MSG-003
 //fusa:req REQ-MSG-005
 //fusa:req REQ-MSG-006
 //fusa:req REQ-CONF-001
 func ResponseToMessage(addr avtp.ByteBusID, resp acf.Message) relay.Message {
+	op := "read"
+	if resp.Control.Has(acf.FlagWrite) {
+		op = "write"
+	}
 	return relay.Message{
 		Protocol:  relay.RCP,
 		ID:        EndpointIDString(addr),
 		Payload:   resp.Body,
 		Timestamp: time.Now(),
 		Meta: map[string]string{
-			"rcp.error": strconv.FormatBool(resp.Control.Has(acf.FlagError)),
+			"rcp.op":                   op,
+			"rcp.error":                strconv.FormatBool(resp.Control.Has(acf.FlagError)),
+			"rcp.transaction_num":      strconv.FormatUint(uint64(resp.TransactionNum), 10),
+			"rcp.read_size_or_segment": strconv.FormatUint(uint64(resp.ReadSizeOrSegment), 10),
 		},
 	}
 }
