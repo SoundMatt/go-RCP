@@ -38,11 +38,11 @@ func TestPinMap_ValidateRejectsDuplicatePin(t *testing.T) {
 // (REQ-RCS-019).
 func TestPinMap_ValidateRejectsSignalIndexOutOfRange(t *testing.T) {
 	reg := NewRegisterMap()
-	// EndpointTypeGPIO defines exactly one named signal (index 0).
-	reg.endpoints[1] = &EndpointRegisters{Generic: GenericEndpointBlock{Address: 1, Type: EndpointTypeGPIO, Enabled: true}}
+	// EndpointTypeADC defines exactly one named signal (index 0).
+	reg.endpoints[1] = &EndpointRegisters{Generic: GenericEndpointBlock{Address: 1, Type: EndpointTypeADC, Enabled: true}}
 
 	pm := &PinMap{entries: []PinAssignment{
-		{Pin: 10, Endpoint: 1, SignalIndex: 5}, // out of range for GPIO
+		{Pin: 10, Endpoint: 1, SignalIndex: 5}, // out of range for ADC
 	}}
 
 	if err := pm.Validate(reg); !errors.Is(err, ErrPinMapInvalid) {

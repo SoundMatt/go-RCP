@@ -20,16 +20,19 @@ import (
 // from current behaviour, the same posture gpio/golden_test.go and
 // spi/golden_test.go established.
 
-// goldenConfig is Enabled=1, Role=RoleOutput(0), DefaultPeriodMicros=20000
-// (0x00004E20), DefaultActiveMicros=1500 (0x000005DC).
+// goldenConfig is Enabled=1, Role=RoleOutput(0), DefaultActiveTicks=1500
+// (0x05DC), DefaultPeriodTicks=20000 (0x4E20) — hand-computed: 1500 decimal
+// is 0x05DC, 20000 decimal is 0x4E20, each a big-endian 16-bit field, active
+// before period per the governing specification's PWM_OUT/PWM_IN body
+// layout.
 var goldenConfig = []byte{
 	0x01, 0x00,
-	0x00, 0x00, 0x4E, 0x20,
-	0x00, 0x00, 0x05, 0xDC,
+	0x05, 0xDC,
+	0x4E, 0x20,
 }
 
 func TestGolden_Config(t *testing.T) {
-	cfg := pwm.Config{Enabled: true, Role: pwm.RoleOutput, DefaultPeriodMicros: 20000, DefaultActiveMicros: 1500}
+	cfg := pwm.Config{Enabled: true, Role: pwm.RoleOutput, DefaultActiveTicks: 1500, DefaultPeriodTicks: 20000}
 	got := pwm.EncodeConfig(cfg)
 	if !bytes.Equal(got, goldenConfig) {
 		t.Fatalf("EncodeConfig changed:\n got  % X\n want % X", got, goldenConfig)
@@ -43,26 +46,28 @@ func TestGolden_Config(t *testing.T) {
 	}
 }
 
-// goldenWaveform is period=20000 (0x00004E20), active=1500 (0x000005DC).
-var goldenWaveform = []byte{0x00, 0x00, 0x4E, 0x20, 0x00, 0x00, 0x05, 0xDC}
+// goldenWaveform is active=1500 (0x05DC), period=20000 (0x4E20), each a
+// hand-computed big-endian 16-bit field, active first per the governing
+// specification's PWM_OUT/PWM_IN body layout.
+var goldenWaveform = []byte{0x05, 0xDC, 0x4E, 0x20}
 
 func TestGolden_Waveform(t *testing.T) {
-	got := pwm.EncodeWaveform(20000, 1500)
+	got := pwm.EncodeWaveform(1500, 20000)
 	if !bytes.Equal(got, goldenWaveform) {
 		t.Fatalf("EncodeWaveform changed:\n got  % X\n want % X", got, goldenWaveform)
 	}
-	period, active, err := pwm.DecodeWaveform(goldenWaveform)
+	active, period, err := pwm.DecodeWaveform(goldenWaveform)
 	if err != nil {
 		t.Fatalf("DecodeWaveform(golden): %v", err)
 	}
-	if period != 20000 || active != 1500 {
-		t.Errorf("DecodeWaveform(golden) = (%d, %d), want (20000, 1500)", period, active)
+	if active != 1500 || period != 20000 {
+		t.Errorf("DecodeWaveform(golden) = (%d, %d), want (1500, 20000)", active, period)
 	}
 }
 
 func TestGolden_EndToEndDispatch(t *testing.T) {
 	ep, root := newDeclaredEndpoint(t)
-	cfg := pwm.Config{Enabled: true, Role: pwm.RoleOutput, DefaultPeriodMicros: 1000, DefaultActiveMicros: 500}
+	cfg := pwm.Config{Enabled: true, Role: pwm.RoleOutput, DefaultActiveTicks: 500, DefaultPeriodTicks: 1000}
 	if err := ep.Configure(root, cfg); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}

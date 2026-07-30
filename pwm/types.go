@@ -9,9 +9,10 @@ const EndpointType = regmap.EndpointTypePWM
 
 // Role selects whether one PWM endpoint generates an output waveform or
 // measures an incoming one. Unlike gpio's per-pin Direction, Role is a
-// whole-endpoint setting: regmap/types.go's PWM signal list names a single
-// "OUT" signal, since PWM input observes the same physical pin in a
-// different mode rather than adding a second signal.
+// whole-endpoint setting: regmap/types.go's PWM signal list names the
+// normal- and inverted-phase output pins (PWM_OUT/PWM_OUTN), since PWM
+// input observes the same physical pins in a different mode rather than
+// adding separate input signals.
 type Role uint8
 
 const (

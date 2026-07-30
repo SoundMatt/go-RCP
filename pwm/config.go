@@ -15,21 +15,22 @@ type Config struct {
 	// Role selects output vs input (see Role).
 	Role Role
 
-	// DefaultPeriodMicros and DefaultActiveMicros are the waveform a
+	// DefaultActiveTicks and DefaultPeriodTicks are the waveform a
 	// RoleOutput endpoint applies immediately on Configure, before any write
-	// request arrives. Ignored for RoleInput.
-	DefaultPeriodMicros uint32
-	DefaultActiveMicros uint32
+	// request arrives, each a count of the endpoint's configured clock
+	// ticks (see EncodeWaveform). Ignored for RoleInput.
+	DefaultActiveTicks uint16
+	DefaultPeriodTicks uint16
 }
 
-// configLen is Enabled(1) + Role(1) + DefaultPeriodMicros(4) +
-// DefaultActiveMicros(4).
-const configLen = 1 + 1 + 4 + 4
+// configLen is Enabled(1) + Role(1) + DefaultActiveTicks(2) +
+// DefaultPeriodTicks(2).
+const configLen = 1 + 1 + 2 + 2
 
 // Validate reports whether c is plausible: an Enabled endpoint must have a
 // recognized Role, and a RoleOutput endpoint's default waveform must satisfy
-// the same ActiveMicros<=PeriodMicros invariant Endpoint.SetOutput enforces
-// for a write request.
+// the same DefaultActiveTicks<=DefaultPeriodTicks invariant Endpoint.applyOutput
+// enforces for a write request.
 func (c Config) Validate() error {
 	if !c.Enabled {
 		return nil
@@ -37,7 +38,7 @@ func (c Config) Validate() error {
 	if !c.Role.Valid() {
 		return ErrInvalidRole
 	}
-	if c.Role == RoleOutput && c.DefaultActiveMicros > c.DefaultPeriodMicros {
+	if c.Role == RoleOutput && c.DefaultActiveTicks > c.DefaultPeriodTicks {
 		return ErrActiveExceedsPeriod
 	}
 	return nil
@@ -50,8 +51,8 @@ func EncodeConfig(c Config) []byte {
 		buf[0] = 1
 	}
 	buf[1] = byte(c.Role)
-	binary.BigEndian.PutUint32(buf[2:6], c.DefaultPeriodMicros)
-	binary.BigEndian.PutUint32(buf[6:10], c.DefaultActiveMicros)
+	binary.BigEndian.PutUint16(buf[2:4], c.DefaultActiveTicks)
+	binary.BigEndian.PutUint16(buf[4:6], c.DefaultPeriodTicks)
 	return buf
 }
 
@@ -67,9 +68,9 @@ func DecodeConfig(b []byte) (Config, error) {
 		return Config{}, ErrTrailingBytes
 	}
 	return Config{
-		Enabled:             b[0] != 0,
-		Role:                Role(b[1]),
-		DefaultPeriodMicros: binary.BigEndian.Uint32(b[2:6]),
-		DefaultActiveMicros: binary.BigEndian.Uint32(b[6:10]),
+		Enabled:            b[0] != 0,
+		Role:               Role(b[1]),
+		DefaultActiveTicks: binary.BigEndian.Uint16(b[2:4]),
+		DefaultPeriodTicks: binary.BigEndian.Uint16(b[4:6]),
 	}, nil
 }
