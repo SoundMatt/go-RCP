@@ -74,13 +74,17 @@
 // repo: every earlier milestone's Handler-shaped code returns a bare Go
 // error up the call stack and leaves wire-level error framing to whichever
 // transport calls it, which is exactly this package's own job. ErrorCode's
-// eight values are drawn from the specification's own request-response
-// error-code enumeration; the mapping from this repo's internal Go errors
-// onto those codes (errorCodeFor) is this implementation's own reasoned
-// choice where more than one code plausibly fits (see errorCodeFor's doc
-// comment), not a verified transcription of the source specification's own
-// error-condition-to-internal-error correspondence, since no such
-// correspondence exists to transcribe in the first place.
+// eight defined values are a subset of the specification's own
+// request-response error-code enumeration, and each one's numeric value is
+// that enumeration's own verified assignment (measured directly against the
+// specification's own error-code table) rather than a locally invented
+// sequence — see errorcode.go's const block. The mapping from this repo's
+// internal Go errors onto those codes (errorCodeFor) is this
+// implementation's own reasoned choice where more than one code plausibly
+// fits (see errorCodeFor's doc comment), not a verified transcription of
+// the source specification's own error-condition-to-internal-error
+// correspondence, since no such correspondence exists to transcribe in the
+// first place.
 package udp
 
 //fusa:req REQ-UDP-001
