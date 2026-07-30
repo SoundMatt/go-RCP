@@ -49,15 +49,14 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of the RC Server
-// register map, not from the primary spec text. GeneralBlock's field
-// order, widths, and offsets (issue go-RCP-N2-02) have since been
+// The governing OPEN Alliance TC18 Remote Control Protocol Specification is
+// available and normative for this package's register byte layouts.
+// GeneralBlock's field order, widths, and offsets (issue go-RCP-N2-02) and
+// the named-signal-index scheme (issue go-RCP-06) have both since been
 // independently verified directly against the specification's own
-// register-map table and are now authoritative — see GeneralBlock's doc
-// comment. The pin-mapping entry format and the named-signal-index scheme
-// remain this implementation's own reasoned, self-consistent encoding
-// rather than a verified transcription of the published register
-// addresses — the same open-item posture avtp/doc.go documents for its
-// subtype tags.
+// register-map and per-endpoint-type signal tables and are now
+// authoritative — see GeneralBlock's and signalNames' doc comments. The
+// pin-mapping entry format has not yet been independently re-verified; see
+// the ecosystem audit tracking issues for known gaps — the same open-item
+// posture avtp/doc.go documents for its subtype tags.
 package regmap

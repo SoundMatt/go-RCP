@@ -65,14 +65,14 @@ the test function. Untested requirements block CI.
 | `.` | Core interfaces (`rcp.go`) |
 | `mock/` | In-process mock implementation |
 | `cmd/go-rcp/` | RELAY-conformant CLI (`version`/`capabilities`/`status`/`convert`, spec §11.1/§11.2) — the primary CLI, exercised by CI's `relay conform --strict` gate |
-| `cmd/rcptool/` | Older, non-conformant CLI kept for backward compatibility |
-| `examples/quickstart/` | Controller and zone simulator examples |
+| `examples/quickstart/` | Controller and single byte-bus-ID-addressed endpoint examples, communicating over UDP/IP, demonstrating the current request/response model |
 | `docker/` | Dockerfile and docker-compose quickstart |
 | `.github/workflows/` | CI, DCO, release, docker-publish |
 | `.fusa-reqs.json` | Traced software requirements |
 | `.fusa-hara.json` | Hazard analysis and risk assessment |
 
-Beyond the directories above, the repo ships ~45 packages covering RCP
-control-plane concerns, protocol bridges, transports, and safety/reliability
-primitives (spec §13.7.2's named module registry). See
-[README.md#packages](README.md#packages) for the full, grouped list.
+Beyond the directories above, the repo ships a further set of packages
+covering RCP control-plane concerns, protocol bridges, transports, and
+safety/reliability primitives (spec §13.7.2's named module registry). See
+[README.md#packages](README.md#packages) for the current count and the
+full, grouped list.

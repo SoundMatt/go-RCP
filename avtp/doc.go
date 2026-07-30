@@ -66,19 +66,17 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of the wire format, not
-// from the primary spec text, and its exact numeric AVTPDU subtype tags
-// (SubtypeNTSCF, SubtypeTSCF) and internal header bit-field widths are this
-// implementation's own reasoned, self-consistent encoding rather than a
-// verified transcription of the published byte assignments. Structural
-// behaviour — which fields exist, what they mean, and the validation/
-// fallback rules around them — is what this milestone targets and tests;
-// the precise numeric tag values are flagged here as an open item to
-// confirm once a public interoperability reference becomes available, per
-// this repo's established practice of surfacing spec ambiguity rather than
-// silently guessing (see the I²C bus-speed-enum note at Milestone 48 for
-// precedent).
+// This package's exact numeric AVTPDU subtype tags (SubtypeNTSCF,
+// SubtypeTSCF) and internal header bit-field widths have not yet been
+// independently re-verified against the governing OPEN Alliance TC18
+// Remote Control Protocol Specification; see the ecosystem audit tracking
+// issues for known gaps. Structural behaviour — which fields exist, what
+// they mean, and the validation/fallback rules around them — is what this
+// milestone targets and tests; the precise numeric tag values are flagged
+// here as an open item to confirm once a public interoperability reference
+// becomes available, per this repo's established practice of surfacing
+// spec ambiguity rather than silently guessing (see the I²C bus-speed-enum
+// note at Milestone 48 for precedent).
 package avtp
 
 //fusa:req REQ-AVTP-001

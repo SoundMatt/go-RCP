@@ -70,19 +70,16 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of an ISELED controller
-// endpoint, not from the primary spec text. Its exact register/request byte
-// layouts (Config's field order/widths, Command/Response's field order) and
-// the ISELED-native CRC's specific polynomial (ComputeCRC uses CRC-8/SAE
-// J1850, a publicly documented standard 8-bit CRC, chosen because the
-// specification's own native-CRC algorithm details are exactly the kind of
-// text this note cannot reproduce) are this implementation's own reasoned,
-// self-consistent encoding rather than a verified transcription of the
-// published byte assignments and algorithm — the same open-item posture
-// avtp/doc.go, server/doc.go, and e2e/doc.go document for their own
-// packages, pending confirmation against a public interoperability
-// reference.
+// This package's exact register/request byte layouts (Config's field
+// order/widths, Command/Response's field order) and the ISELED-native
+// CRC's specific polynomial (ComputeCRC uses CRC-8/SAE J1850, a publicly
+// documented standard 8-bit CRC, chosen as this implementation's own
+// reasoned, self-consistent encoding) have not yet been independently
+// re-verified against the governing OPEN Alliance TC18 Remote Control
+// Protocol Specification's own published byte assignments and native-CRC
+// algorithm — the same open-item posture avtp/doc.go, server/doc.go, and
+// e2e/doc.go document for their own packages; see the ecosystem audit
+// tracking issues for known gaps.
 package iseled
 
 //fusa:req REQ-ISELED-001

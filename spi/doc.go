@@ -37,15 +37,14 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of a SPI endpoint, not
-// from the primary spec text. Its exact register/request byte layouts
-// (ChannelConfig's field order and widths, the Channel sub-opcode
-// convention, and the four-value clock-polarity/phase Mode enumeration) are
-// this implementation's own reasoned, self-consistent encoding rather than a
-// verified transcription of the published byte assignments — the same
-// open-item posture avtp/doc.go, server/doc.go, and gpio/doc.go document for
-// their own packages. Structural behaviour — six independently configured
+// This package's exact register/request byte layouts (ChannelConfig's
+// field order and widths, the Channel sub-opcode convention, and the
+// four-value clock-polarity/phase Mode enumeration) have not yet been
+// independently re-verified against the governing OPEN Alliance TC18
+// Remote Control Protocol Specification's own published byte assignments —
+// the same open-item posture avtp/doc.go, server/doc.go, and gpio/doc.go
+// document for their own packages; see the ecosystem audit tracking
+// issues for known gaps. Structural behaviour — six independently configured
 // channels, sub-opcode channel selection, full-duplex raw transfer, and the
 // transfer-complete/chip-select-edge trigger model — is what this milestone
 // targets and tests; the precise wire byte assignments are flagged here as

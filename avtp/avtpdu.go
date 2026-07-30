@@ -5,8 +5,8 @@ import "encoding/binary"
 // AVTPDU subtype tags this package assigns to the two RCP-carrying control
 // formats it implements: the untimed form (NTSCF) and the presentation-
 // timestamped form (TSCF). See the package doc's "note on spec fidelity" —
-// these exact byte values are this implementation's own choice, not a
-// verified transcription of a published registry.
+// these exact byte values have not yet been independently re-verified
+// against the published registry.
 const (
 	SubtypeNTSCF byte = 0x82 // untimed, "execute as soon as possible"
 	SubtypeTSCF  byte = 0x83 // presentation-timestamped

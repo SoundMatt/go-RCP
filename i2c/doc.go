@@ -41,23 +41,23 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of an I2C endpoint, not
-// from the primary spec text, the same open-item posture avtp/doc.go,
+// This package's register/request byte layout has not yet been
+// independently re-verified against the governing OPEN Alliance TC18
+// Remote Control Protocol Specification; see the ecosystem audit tracking
+// issues for known gaps, the same open-item posture avtp/doc.go,
 // server/doc.go, gpio/doc.go, and spi/doc.go document for their own
 // packages. One design choice here is flagged as an unresolved open item
 // rather than a confirmed reading, per this milestone's own explicit
 // instruction to surface it instead of guessing:
 //
-//   - The behavioral description this package was built from names a
-//     bus-speed selector field whose enumerated value assignments read as
-//     ambiguous/colliding in the source material (more than one named speed
-//     class appears to share what would decode to the same wire value) —
-//     ROADMAP.md Milestone 48 explicitly calls this out as an item to flag
-//     rather than silently resolve, the same posture this repo's other
-//     packages take toward their own open spec-ambiguity items (Guiding
-//     Principle 10). Rather than guess which collision arm the source spec
-//     actually intends, this package
+//   - The specification's bus-speed selector field has enumerated value
+//     assignments that read as ambiguous/colliding in the source material
+//     (more than one named speed class appears to share what would decode
+//     to the same wire value) — ROADMAP.md Milestone 48 explicitly calls
+//     this out as an item to flag rather than silently resolve, the same
+//     posture this repo's other packages take toward their own open
+//     spec-ambiguity items (Guiding Principle 10). Rather than guess which
+//     collision arm the spec actually intends, this package
 //     defines BusSpeed as its own freestanding, self-consistent one-based
 //     enumeration covering the five conventional I2C speed classes
 //     (Standard/Fast/Fast-Plus/High-Speed/Ultra-Fast-Mode). This is this

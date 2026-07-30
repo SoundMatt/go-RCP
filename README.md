@@ -1,7 +1,9 @@
 # go-RCP
 
 A Go implementation of the OPEN Alliance TC18 Remote Control Protocol
-Specification v0.5.1_RC for automotive zonal architecture.
+Specification v0.5.1_RC, connecting a central computer to distributed RC
+Servers whose endpoints are addressed by stream ID and byte-bus-ID rather
+than a zonal addressing scheme.
 
 RCP connects a high-performance central computer to distributed RC Servers
 over IEEE 1722 AVTPDU/ACF framing, keeping application logic centralised
@@ -42,7 +44,7 @@ was retired at v1.0.0 once the bespoke API it targeted was removed.
 
 ## Packages
 
-The repo ships ~53 packages beyond the root module. The table below groups
+The repo ships 59 packages beyond the root module. The table below groups
 them by concern; see each package's doc comment (`go doc ./<pkg>`) for
 details.
 

@@ -119,18 +119,15 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of the CRC safe-point
-// mechanism, the safety-request tagging scheme, and the automatic-safe-
-// state-entry watchdog, not from the primary spec text. Every concrete
-// choice this package makes — the CRC32 polynomial (crc32.IEEE), the exact
-// covered-field byte layout and ordering in writeCovered, appending the CRC
-// as a trailing field rather than a leading one, the KindSafetyFlag bit
-// position (0x80) and which three base Kinds get a safety counterpart, the
-// StreamConfig field set, and Supervisor's "never observed = already timed
-// out" default — is this implementation's own reasoned, self-consistent
-// encoding rather than a verified transcription of the published wire
-// format or the source specification's own rules, the same open-item
+// Every concrete choice this package makes — the CRC32 polynomial
+// (crc32.IEEE), the exact covered-field byte layout and ordering in
+// writeCovered, appending the CRC as a trailing field rather than a
+// leading one, the KindSafetyFlag bit position (0x80) and which three base
+// Kinds get a safety counterpart, the StreamConfig field set, and
+// Supervisor's "never observed = already timed out" default — has not yet
+// been independently re-verified against the governing OPEN Alliance TC18
+// Remote Control Protocol Specification's own wire format and rules; see
+// the ecosystem audit tracking issues for known gaps, the same open-item
 // posture avtp/doc.go, server/doc.go, and request/doc.go already document
 // for their own packages.
 package e2e

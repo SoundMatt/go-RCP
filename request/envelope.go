@@ -12,9 +12,9 @@ import (
 // acf.FlagExtended is set. Every encoder writes the envelope's Kind byte
 // first; every decoder validates it against the Kind the caller asked for.
 // As with every other package's envelope/register byte layout in this repo,
-// these exact field widths and orderings are this implementation's own
-// reasoned, self-consistent encoding, not a verified transcription of the
-// (confidential) source specification's own wire format — see doc.go.
+// these exact field widths and orderings have not yet been independently
+// re-verified against the governing specification's own wire format — see
+// doc.go.
 
 // PeekKind reads and validates only body's leading Kind byte, without
 // attempting to decode the rest — the routing step Dispatcher.Submit uses to

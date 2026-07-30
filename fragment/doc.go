@@ -69,10 +69,10 @@
 // # This package's own reasoned reassembly policy (Guiding Principle 10)
 //
 // Out-of-order segments, duplicate segments, and a stalled/abandoned
-// sequence are not addressed by ROADMAP.md's own text or (so far as this
-// package's author could determine without access to the confidential
-// specification's primary text) spelled out unambiguously enough to
-// transcribe rather than decide. Reassembler's own doc comment states this
+// sequence are not addressed by ROADMAP.md's own text or by the governing
+// specification clearly enough to transcribe rather than decide; this
+// package's exact handling has not yet been independently re-verified
+// against the specification. Reassembler's own doc comment states this
 // package's specific, reversible choices for each; see there rather than
 // this file for the reasoning, per this repo's practice of keeping a single
 // authoritative location for a given design decision rather than repeating
@@ -96,15 +96,13 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of multi-AVTPDU
-// fragmentation, not from the primary spec text. DefaultMaxSegmentBody,
-// DefaultReassemblyTimeout, DefaultMaxSegments, and the strict-in-order
-// reassembly policy Reassembler documents are this implementation's own
-// reasoned, self-consistent choices rather than a verified transcription of
-// the source specification's own rules — the same open-item posture
-// avtp/doc.go, server/doc.go, request/doc.go, and e2e/doc.go already
-// document for their own packages.
+// DefaultMaxSegmentBody, DefaultReassemblyTimeout, DefaultMaxSegments, and
+// the strict-in-order reassembly policy Reassembler documents have not yet
+// been independently re-verified against the governing OPEN Alliance TC18
+// Remote Control Protocol Specification's own multi-AVTPDU fragmentation
+// rules; see the ecosystem audit tracking issues for known gaps — the same
+// open-item posture avtp/doc.go, server/doc.go, request/doc.go, and
+// e2e/doc.go already document for their own packages.
 package fragment
 
 //fusa:req REQ-FRAG-001

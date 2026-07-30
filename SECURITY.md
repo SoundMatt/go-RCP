@@ -29,13 +29,16 @@ severity findings.
 go-RCP targets deployment in automotive safety-critical environments (ISO 26262 ASIL-B,
 IEC 62443 SL-2). The security posture reflects these requirements:
 
-- **Command integrity:** Zone and CommandID fields must be validated by the recipient
-  to prevent misdirected command delivery.
+- **Command integrity:** The addressing carried by each inbound `acf.Message` — the
+  enclosing AVTPDU's stream ID together with the message's own byte-bus-ID — must be
+  validated by the recipient to prevent misdirected command delivery.
 - **Transport isolation:** The mock transport is process-local. Network transports
   (planned) will be constrained to declared network segments.
 - **No remote code execution surface:** No dynamic plugin loading; all transports are
   compiled in.
 - **Dependency minimisation:** The core `rcp` and `mock` packages have zero
   non-standard-library dependencies.
-- **Watchdog support:** `CmdWatchdog` is a first-class command type to support
-  hardware watchdog integration in zone controllers.
+- **Watchdog support:** the `e2e.Supervisor` mechanism times request arrivals on a
+  per-stream basis and drives automatic safe-state entry (plus a
+  `request.Dispatcher.PurgeNonSafety` sweep of non-safety requests) when a stream goes
+  quiet, without requiring any dedicated keepalive command on the wire.

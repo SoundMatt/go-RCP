@@ -34,12 +34,11 @@ package iso21434
 //
 // These threat scenarios reason about the *behavior* this repository's own
 // packages implement (confirmed by reading their doc comments and source,
-// cited by file below), not about the OPEN Alliance TC18 Remote Control
-// Protocol Specification v0.5.1_RC's own text, which is confidential to
-// OPEN Alliance members. Where a package's own doc comment already flags a
-// design choice as this implementation's own reasoned interpretation
-// rather than a verified transcription of the spec (e.g. e2e/doc.go's CRC
-// polynomial choice), the corresponding threat/countermeasure below
+// cited by file below), not by re-deriving them independently from the
+// OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC's own
+// text. Where a package's own doc comment already flags a design choice as
+// not yet independently re-verified against the spec (e.g. e2e/doc.go's
+// CRC polynomial choice), the corresponding threat/countermeasure below
 // inherits that same caveat rather than re-asserting it as spec fact.
 
 // BuildTARA returns the Milestone 58 Threat Analysis and Risk Assessment

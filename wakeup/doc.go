@@ -81,18 +81,15 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of a Wakeup
-// power-management endpoint, not from the primary spec text. Its exact
-// register/request byte layouts (Config's field order/widths,
-// WakeHandshake's field order), PowerUnpowered's non-requestable/
-// non-reportable-as-current-state treatment, and the
-// lifecycle.LifecycleState-orthogonality reading above are this
-// implementation's own reasoned, self-consistent choices rather than a
-// verified transcription of the published byte assignments or state-machine
-// relationship — the same open-item posture avtp/doc.go, server/doc.go, and
-// pwm/doc.go document for their own packages, pending confirmation against
-// a public interoperability reference.
+// This package's exact register/request byte layouts (Config's field
+// order/widths, WakeHandshake's field order), PowerUnpowered's
+// non-requestable/non-reportable-as-current-state treatment, and the
+// lifecycle.LifecycleState-orthogonality reading above have not yet been
+// independently re-verified against the governing OPEN Alliance TC18
+// Remote Control Protocol Specification's own published byte assignments
+// or state-machine relationship — the same open-item posture avtp/doc.go,
+// server/doc.go, and pwm/doc.go document for their own packages; see the
+// ecosystem audit tracking issues for known gaps.
 package wakeup
 
 //fusa:req REQ-WAKEUP-001

@@ -152,16 +152,15 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of the RC Server
-// lifecycle and register map, not from the primary spec text.
+// The governing OPEN Alliance TC18 Remote Control Protocol Specification is
+// available and normative for this package's register byte layouts.
 // regmap.GeneralBlock's field order, widths, and offsets (issue
-// go-RCP-N2-02) have since been independently verified directly against
-// the specification's own register-map table and are now authoritative.
-// The pin-mapping entry format and the named-signal-index scheme remain
-// this implementation's own reasoned, self-consistent encoding rather than
-// a verified transcription of the published register addresses — the same
-// open-item posture avtp/doc.go documents for its subtype tags. Structural behaviour
+// go-RCP-N2-02) and the named-signal-index scheme (issue go-RCP-06) have
+// both since been independently verified directly against the
+// specification's own register-map and per-endpoint-type signal tables and
+// are now authoritative. The pin-mapping entry format has not yet been
+// independently re-verified — the same open-item posture avtp/doc.go
+// documents for its subtype tags. Structural behaviour
 // — the three-state lifecycle, the generic/functional split, EP0's
 // root-client model, and the plausibility checks gating each transition —
 // is what this milestone targets and tests; the precise wire byte

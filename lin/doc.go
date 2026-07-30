@@ -45,14 +45,12 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of a LIN commander
-// endpoint, not from the primary spec text. Its exact register/request byte
-// layout (Config's field order/widths) is this implementation's own
-// reasoned, self-consistent encoding rather than a verified transcription
-// of the published byte assignments — the same open-item posture avtp/doc.go,
-// server/doc.go, and i2c/doc.go document for their own packages, pending
-// confirmation against a public interoperability reference.
+// This package's exact register/request byte layout (Config's field
+// order/widths) has not yet been independently re-verified against the
+// governing OPEN Alliance TC18 Remote Control Protocol Specification's own
+// published byte assignments — the same open-item posture avtp/doc.go,
+// server/doc.go, and i2c/doc.go document for their own packages; see the
+// ecosystem audit tracking issues for known gaps.
 package lin
 
 //fusa:req REQ-LINEP-001
