@@ -97,7 +97,7 @@ jobs:
 
   # ── go-FuSa safety checks (RELAY §20 continuous-conformance lifecycle) ─────
   gofusa:
-    name: go-FuSa safety check (v0.30.0)
+    name: go-FuSa safety check (v0.48.0)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -105,7 +105,7 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install go-FuSa
-        run: go install github.com/SoundMatt/go-FuSa/cmd/gofusa@v0.30.0
+        run: go install github.com/SoundMatt/go-FuSa/cmd/gofusa@v0.48.0
       - name: gofusa check (0 errors required)
         run: gofusa check ./...
       - name: gofusa vuln (dependency vulnerability scan, §20.1.2)
