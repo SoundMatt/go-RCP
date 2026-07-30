@@ -14,7 +14,7 @@ import (
 // simulated PHY, a test double, or a real hardware driver (including one
 // exposing an integrated on-die PHY with no physical MDIO pins wired, per
 // doc.go's Scope section). An endpoint with no Transport set defaults to an
-// in-memory per-(Mode,PhyAddr,DevAddr,RegAddr) register store that reads as
+// in-memory per-(Mode,DevAddr,RegAddr) register store that reads as
 // zero until written (see Endpoint.read/Endpoint.write). The register
 // value is a uint32 so it can hold either the 16-bit or 32-bit width a
 // Request's DataWidth selects; a 16-bit-wide access only ever populates the
@@ -33,16 +33,15 @@ type TriggerEvent struct {
 }
 
 // registerKey identifies one addressable register across every field a
-// Request's addressing can vary: Mode, PhyAddr, DevAddr, RegAddr.
+// Request's addressing can vary: Mode, DevAddr, RegAddr.
 type registerKey struct {
 	mode    Mode
-	phyAddr uint8
 	devAddr uint8
 	regAddr uint16
 }
 
 func keyFor(r Request) registerKey {
-	return registerKey{mode: r.Mode, phyAddr: r.PhyAddr, devAddr: r.DevAddr, regAddr: r.RegAddr}
+	return registerKey{mode: r.Mode, devAddr: r.DevAddr, regAddr: r.RegAddr}
 }
 
 // Endpoint is one declared MDIO endpoint layered on top of a server.Server:
