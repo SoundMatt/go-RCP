@@ -49,4 +49,8 @@ var (
 	// whose ByteBusID is not regmap.EP0 — a Router-internal invariant that
 	// should never observably fire outside a misuse of EP0Handler directly.
 	ErrWrongEndpoint = errors.New("rcp/udp: request addressed to a different endpoint than EP0Handler serves")
+
+	// ErrShortBuffer is returned by DecodeErrorBody when handed an empty
+	// buffer — there is no leading ErrorCode byte to read.
+	ErrShortBuffer = errors.New("rcp/udp: buffer too short")
 )
