@@ -23,38 +23,47 @@ import (
 
 // goldenOriginal is a 12-byte KindShort write request split at a 5-byte
 // per-segment budget: two non-terminal 5-byte segments plus a 2-byte
-// terminal one.
+// terminal one. TransactionNum is 0x42 — the acf wire field is only 8 bits
+// wide (see acf.ErrTransactionNumOverflow), unlike the pre-v2.0 16-bit
+// field this fixture originally exercised.
 var goldenOriginal = acf.Message{
 	Kind:              acf.KindShort,
 	ByteBusID:         avtp.ByteBusID(9),
-	TransactionNum:    0x0102,
+	TransactionNum:    0x42,
 	Control:           acf.FlagWrite,
 	ReadSizeOrSegment: 0,
 	Body:              []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
 }
 
-// Segment 0: kind(1)=0x01, pad/reserved(1)=0x00, length(2)=0x000F (10
-// descriptor + 5 body), byte_bus_id(1)=0x09, transaction_num(2)=0x0102,
-// control(1)=FlagWrite|FlagMoreSegments=0x20|0x04=0x24, read-size-or-
-// segment(2)=0x0000 (segment number 0), body=[0,1,2,3,4].
+// Segment 0: byte0 acf_msg_type=0x0E<<1|len-top-bit=0x1C, byte1
+// acf_msg_length(quadlets)=0x04 (16 bytes = 4 quadlets: 4-byte row1 + 4-byte
+// row2 + 5-byte body + 3-byte pad), byte2 pad=3<<6|mtv=0|rsv=0|
+// byte_bus_id-top3=0=0xC0, byte3 byte_bus_id-low8=0x09, byte4
+// evt=0|hs=0|cs=0=0x00, byte5 transaction_num=0x42, byte6
+// op=1(write)|rsp=0|err=0|ms=1(more segments)|read_size-top4=0=0x90, byte7
+// read_size-low8=0x00 (segment number 0), bytes8-12 body=[0,1,2,3,4],
+// bytes13-15 pad=0,0,0.
 var goldenSegment0 = []byte{
-	0x01, 0x00, 0x00, 0x0F, 0x09, 0x01, 0x02, 0x24, 0x00, 0x00,
-	0x00, 0x01, 0x02, 0x03, 0x04,
+	0x1C, 0x04, 0xC0, 0x09, 0x00, 0x42, 0x90, 0x00,
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00,
 }
 
-// Segment 1: identical shape, read-size-or-segment=0x0001, body=[5,6,7,8,9].
+// Segment 1: identical shape to segment 0, byte7 read_size-low8=0x01
+// (segment number 1), body=[5,6,7,8,9].
 var goldenSegment1 = []byte{
-	0x01, 0x00, 0x00, 0x0F, 0x09, 0x01, 0x02, 0x24, 0x00, 0x01,
-	0x05, 0x06, 0x07, 0x08, 0x09,
+	0x1C, 0x04, 0xC0, 0x09, 0x00, 0x42, 0x90, 0x01,
+	0x05, 0x06, 0x07, 0x08, 0x09, 0x00, 0x00, 0x00,
 }
 
-// Segment 2 (terminal): length(2)=0x000C (10 descriptor + 2 body),
-// control(1)=FlagWrite only=0x20 (FlagMoreSegments clear), read-size-or-
-// segment(2) restored to the original message's own value (0x0000),
-// body=[10,11].
+// Segment 2 (terminal): byte1 acf_msg_length(quadlets)=0x03 (12 bytes = 3
+// quadlets: 4-byte row1 + 4-byte row2 + 2-byte body + 2-byte pad), byte2
+// pad=2<<6|mtv=0|rsv=0|byte_bus_id-top3=0=0x80, byte6
+// op=1(write)|rsp=0|err=0|ms=0(FlagMoreSegments clear)|read_size-top4=0=0x80,
+// byte7 read_size-low8=0x00 (the original message's own read_size/segment
+// value, restored on the terminal segment), body=[10,11], pad=0,0.
 var goldenSegment2 = []byte{
-	0x01, 0x00, 0x00, 0x0C, 0x09, 0x01, 0x02, 0x20, 0x00, 0x00,
-	0x0A, 0x0B,
+	0x1C, 0x03, 0x80, 0x09, 0x00, 0x42, 0x80, 0x00,
+	0x0A, 0x0B, 0x00, 0x00,
 }
 
 func TestGolden_Split(t *testing.T) {

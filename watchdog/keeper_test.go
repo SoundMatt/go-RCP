@@ -146,8 +146,8 @@ func TestKeeper_TickPurgesTrippedStreams(t *testing.T) {
 	ordinary := submitPlain(t, dTripped, tripped, avtp.ByteBusID(1), 1)
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 1}
 	safeID, err := dTripped.Submit(tripped, acf.Message{
-		Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), TransactionNum: 2,
-		Control: acf.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond),
+		Kind: acf.KindLong, ByteBusID: avtp.ByteBusID(1), TransactionNum: 2,
+		Body: request.EncodeCompoundWaitSafety(cond),
 	})
 	if err != nil {
 		t.Fatalf("Submit(safety): %v", err)

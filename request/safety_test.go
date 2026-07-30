@@ -113,8 +113,8 @@ func TestDispatcher_SafeStateGate(t *testing.T) {
 
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 0}
 	safeReq := acf.Message{
-		Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1,
-		Control: acf.FlagWrite | acf.FlagExtended,
+		Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1,
+		Control: acf.FlagWrite,
 		Body:    request.EncodeCompoundSafety(cond, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001)),
 	}
 
@@ -174,7 +174,7 @@ func TestDispatcher_PurgeNonSafety(t *testing.T) {
 
 	// An ordinary pending Timed ticket, not yet due.
 	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
-	timedID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: timedBody})
+	timedID, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: timedBody})
 	if err != nil {
 		t.Fatalf("Submit(timed): %v", err)
 	}
@@ -182,7 +182,7 @@ func TestDispatcher_PurgeNonSafety(t *testing.T) {
 	// A safety-request CompoundWaitSafety ticket, gated ready (SafeStateCheck
 	// always true here), but not yet executed by a Pump call.
 	cond := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 1}
-	safeID, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagExtended, Body: request.EncodeCompoundWaitSafety(cond)})
+	safeID, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 2, Body: request.EncodeCompoundWaitSafety(cond)})
 	if err != nil {
 		t.Fatalf("Submit(safety): %v", err)
 	}
