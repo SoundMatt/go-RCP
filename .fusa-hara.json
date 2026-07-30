@@ -2,7 +2,7 @@
   "project": "go-RCP",
   "standard": "ISO 26262",
   "createdAt": "2026-06-13T00:00:00Z",
-  "updatedAt": "2026-07-29T00:00:00Z",
+  "updatedAt": "2026-07-30T00:00:00Z",
   "operationalSituations": [
     {
       "id": "OS-001",
@@ -42,7 +42,7 @@
         "severity": "S3",
         "exposure": "E4",
         "controllability": "C2",
-        "asil": "ASIL-B"
+        "asil": "ASIL-C"
       },
       "safetyGoals": [
         "SG-001"
@@ -205,7 +205,7 @@
   "safetyGoals": [
     {
       "id": "SG-001",
-      "description": "The RCP library shall detect and report request delivery failures within the timeout period.",
+      "description": "The RCP library shall detect and report request delivery failures within the timeout period. (ASIL-C per H-001's ISO 26262-3:2018 Table 4 derivation — see HARA.md open item: this repository's stated project-wide SEOOC target is still ASIL-B pending a decomposition argument or retarget decision.)",
       "addressedBy": [
         "v0.11.0 Watchdog & Heartbeat",
         "v0.12.0 Deadline Monitoring"
@@ -215,7 +215,18 @@
       "id": "SG-002",
       "description": "The RCP library shall validate that responses are addressed to the requesting endpoint and reject mismatched deliveries.",
       "addressedBy": [
-        "REQ-CTRL-025 ErrZoneMismatch guard (v0.3.0)"
+        "REQ-GPIO-007 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-SPI-005 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-I2C-004 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-UART-005 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-ADC-006 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-PWM-004 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-LINEP-003 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-CANEP-006 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-ISELED-005 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-MDIO-005 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-WAKEUP-005 ErrWrongEndpoint guard (v0.60.0+)",
+        "REQ-MEP-003 ErrWrongEndpoint guard (v0.60.0+, mock reference implementation)"
       ]
     },
     {
