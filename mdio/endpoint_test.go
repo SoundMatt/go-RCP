@@ -23,7 +23,7 @@ func readReq(r mdio.Request) acf.Message {
 	}
 }
 
-func writeReq(r mdio.Request, data uint16) acf.Message {
+func writeReq(r mdio.Request, data uint32) acf.Message {
 	return acf.Message{
 		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
@@ -36,20 +36,20 @@ func writeReq(r mdio.Request, data uint16) acf.Message {
 // map, so tests can tell the configured Transport actually ran rather than
 // the default in-memory store.
 type recordingTransport struct {
-	regs  map[uint16]uint16
+	regs  map[uint16]uint32
 	reads int
 }
 
 func newRecordingTransport() *recordingTransport {
-	return &recordingTransport{regs: make(map[uint16]uint16)}
+	return &recordingTransport{regs: make(map[uint16]uint32)}
 }
 
-func (r *recordingTransport) ReadRegister(req mdio.Request) (uint16, error) {
+func (r *recordingTransport) ReadRegister(req mdio.Request) (uint32, error) {
 	r.reads++
 	return r.regs[req.RegAddr] + 1, nil // offset by 1 so tests can distinguish from the default store
 }
 
-func (r *recordingTransport) WriteRegister(req mdio.Request, data uint16) error {
+func (r *recordingTransport) WriteRegister(req mdio.Request, data uint32) error {
 	r.regs[req.RegAddr] = data
 	return nil
 }
@@ -93,9 +93,9 @@ func TestHandleRequest_RejectsDisabledEndpointAndInvalidRequest(t *testing.T) {
 	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
-	bad := mdio.Request{Mode: mdio.ModeClause22, DevAddr: 1}
-	if _, err := ep.HandleRequest(root, readReq(bad)); !errors.Is(err, mdio.ErrDevAddrNotSupported) {
-		t.Errorf("HandleRequest(invalid request) err = %v, want ErrDevAddrNotSupported", err)
+	bad := mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 0x20}
+	if _, err := ep.HandleRequest(root, readReq(bad)); !errors.Is(err, mdio.ErrDevAddrOutOfRange) {
+		t.Errorf("HandleRequest(invalid request) err = %v, want ErrDevAddrOutOfRange", err)
 	}
 }
 
@@ -107,14 +107,14 @@ func TestHandleRequest_DefaultStoreAndTransport(t *testing.T) {
 	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
-	r := mdio.Request{Mode: mdio.ModeClause45, PhyAddr: 1, DevAddr: 2, RegAddr: 0x10}
+	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, PhyAddr: 1, DevAddr: 2, RegAddr: 0x10}
 
 	// Default store: reads as zero until written.
 	resp, err := ep.HandleRequest(root, readReq(r))
 	if err != nil {
 		t.Fatalf("HandleRequest(read, default): %v", err)
 	}
-	if got, _ := mdio.DecodeResponse(resp.Body); got != 0 {
+	if got, _ := mdio.DecodeResponse(r, resp.Body); got != 0 {
 		t.Errorf("HandleRequest(read, unset) = %#x, want 0", got)
 	}
 
@@ -125,7 +125,7 @@ func TestHandleRequest_DefaultStoreAndTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleRequest(read after write, default): %v", err)
 	}
-	if got, _ := mdio.DecodeResponse(resp.Body); got != 0x4242 {
+	if got, _ := mdio.DecodeResponse(r, resp.Body); got != 0x4242 {
 		t.Errorf("HandleRequest(read after write) = %#x, want 0x4242", got)
 	}
 
@@ -147,10 +147,33 @@ func TestHandleRequest_DefaultStoreAndTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleRequest(read, transport): %v", err)
 	}
-	if got, _ := mdio.DecodeResponse(resp.Body); got != 0x0101 { // transport reads back written+1
+	if got, _ := mdio.DecodeResponse(r, resp.Body); got != 0x0101 { // transport reads back written+1
 		t.Errorf("HandleRequest(read, transport) = %#x, want 0x0101", got)
 	}
 	if tr.reads != 1 {
 		t.Errorf("Transport.ReadRegister calls = %d, want 1", tr.reads)
+	}
+}
+
+// TestHandleRequest_MMSWideWidth checks a write/read round trip against an
+// MMS0 (32-bit) register carries the full 32-bit value through
+// Endpoint.HandleRequest — the old fixed-16-bit-everywhere encoding could
+// not represent this at all (REQ-MDIO-007).
+func TestHandleRequest_MMSWideWidth(t *testing.T) {
+	ep, root := newDeclaredEndpoint(t)
+	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, PhyAddr: 1, DevAddr: 0, RegAddr: 0x10}
+
+	if _, werr := ep.HandleRequest(root, writeReq(r, 0xFEEDFACE)); werr != nil {
+		t.Fatalf("HandleRequest(write, MMS0): %v", werr)
+	}
+	resp, err := ep.HandleRequest(root, readReq(r))
+	if err != nil {
+		t.Fatalf("HandleRequest(read, MMS0): %v", err)
+	}
+	if got, err := mdio.DecodeResponse(r, resp.Body); err != nil || got != 0xFEEDFACE {
+		t.Errorf("HandleRequest(read, MMS0) = %#x, %v, want 0xFEEDFACE, nil", got, err)
 	}
 }
