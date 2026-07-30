@@ -142,7 +142,7 @@ func TestMessage_PadIsComputedNotTrusted(t *testing.T) {
 			if got.Pad != tc.wantPad {
 				t.Errorf("decoded Pad = %d, want %d (caller-supplied Pad %d must be ignored on encode)", got.Pad, tc.wantPad, tc.callerPad)
 			}
-			if !reflect.DeepEqual(got.Body, tc.body) && !(len(got.Body) == 0 && len(tc.body) == 0) {
+			if !reflect.DeepEqual(got.Body, tc.body) && (len(got.Body) != 0 || len(tc.body) != 0) {
 				t.Errorf("decoded Body = % X, want % X", got.Body, tc.body)
 			}
 		})
