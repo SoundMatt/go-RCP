@@ -73,7 +73,7 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	seq.Set(1, 10) // matches goldenCompound's Operand
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
-	req := acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite | acf.FlagExtended, Body: goldenCompound}
+	req := acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: goldenCompound}
 	resp, err := d.Dispatch(root, req, 0)
 	if err != nil {
 		t.Fatalf("Dispatch(golden compound): %v", err)

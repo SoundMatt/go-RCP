@@ -7,72 +7,107 @@ import "github.com/SoundMatt/go-RCP/regmap"
 // an MDIO endpoint's type with server.Server.AddEndpoint.
 const EndpointType = regmap.EndpointTypeMDIO
 
-// AddressMode selects which IEEE 802.3 MDIO addressing shape a Request
-// uses. See doc.go's Scope section.
-type AddressMode uint8
+// Mode selects which of the specification's four MDIO addressing/access
+// shapes a Request uses — the wire format's 2-bit mdio_mode field. See
+// doc.go's Scope section.
+type Mode uint8
 
 const (
-	// ModeClause22 is the original, simpler frame shape: a 5-bit PHY
-	// address plus a 5-bit register address. Request.DevAddr is unused
-	// (and must be zero — see Request.Validate).
-	ModeClause22 AddressMode = iota
+	// ModeMMDSingleWord accesses a single word of a Clause 45-style MMD
+	// (MDIO Manageable Device) register. Request.DevAddr selects which MMD.
+	ModeMMDSingleWord Mode = iota
 
-	// ModeClause45 is the extended frame shape: a 5-bit PHY address, a
-	// 5-bit device (MMD) address, and a 16-bit register address.
-	ModeClause45
+	// ModeMMDMultiByte accesses a Clause 45-style MMD register using the
+	// specification's multiple-byte access shape rather than a single
+	// fixed word. Request.DevAddr selects which MMD.
+	ModeMMDMultiByte
 
-	addressModeCount // sentinel; keep last
+	// ModeMMSSingleWord accesses a single word of an MMS (memory-mapped
+	// space) register. Request.DevAddr selects which MMS; see
+	// Request.DataWidth for how the selected MMS index determines this
+	// access's payload width.
+	ModeMMSSingleWord
+
+	// ModeMMSMultiWord accesses an MMS register using the specification's
+	// multiple (double-word) access shape. Request.DevAddr selects which
+	// MMS; see Request.DataWidth for how the selected MMS index determines
+	// this access's payload width.
+	ModeMMSMultiWord
+
+	modeCount // sentinel; keep last
 )
 
-// Valid reports whether m is one of this package's two recognized address
-// modes.
-func (m AddressMode) Valid() bool {
-	return m < addressModeCount
+// Valid reports whether m is one of this package's four recognized
+// mdio_mode values.
+func (m Mode) Valid() bool {
+	return m < modeCount
 }
 
-// phyAddrMax and devAddrMax bound the 5-bit PHY and device address fields
-// both address modes share (Clause 22 leaves DevAddr unused, but the width
-// is the same either way per the IEEE 802.3 frame format).
+// phyAddrMax and devAddrMax bound the 5-bit PHY address and the 5-bit
+// device/MMS-select address fields every mode shares.
 const (
-	phyAddrMax    = 0x1F
-	devAddrMax    = 0x1F
-	regAddrMaxC22 = 0x1F
+	phyAddrMax = 0x1F
+	devAddrMax = 0x1F
 )
 
-// Request is one addressed MDIO register access. Mode selects Clause 22 vs
-// Clause 45 addressing (see AddressMode); DevAddr and the usable width of
-// RegAddr depend on which mode is selected — see Validate.
+// mmsWideIndexMax is the highest MMS index that uses a 32-bit register
+// width — the two indices conventionally called "MMS0" and "MMS1" (0 and
+// 1). Every other MMS index uses a 16-bit register width. See
+// Request.DataWidth.
+//
+// This package reuses Request.DevAddr — the field that already carries an
+// MMD's device address in the two MMD modes — to also carry the MMS index
+// in the two MMS modes, rather than introducing a second, separate
+// selector field. That reuse is this implementation's own judgment call:
+// an MMS index plays the same "which register space does RegAddr index
+// into" role an MMD device address plays, both are 5-bit selector fields
+// occupying the same position between PhyAddr and RegAddr, and the two are
+// never both meaningful for the same Request (Mode picks exactly one
+// interpretation). See doc.go's "A note on spec fidelity" section.
+const mmsWideIndexMax = 1
+
+// Request is one addressed MDIO register access. Mode selects one of this
+// package's four mdio_mode access shapes (see Mode); DevAddr selects the
+// target MMD (ModeMMDSingleWord, ModeMMDMultiByte) or the target MMS
+// (ModeMMSSingleWord, ModeMMSMultiWord); RegAddr addresses a register
+// within whichever space DevAddr selected. See DataWidth for how Mode and
+// DevAddr together determine this access's payload width.
 type Request struct {
-	Mode    AddressMode
+	Mode    Mode
 	PhyAddr uint8
 	DevAddr uint8
 	RegAddr uint16
 }
 
+// DataWidth reports the width, in bytes, of the register-value payload
+// this Request's Mode — and, for the two MMS modes, DevAddr — selects:
+// MMD accesses (ModeMMDSingleWord, ModeMMDMultiByte) are always 16 bits (2
+// bytes) wide. MMS accesses (ModeMMSSingleWord, ModeMMSMultiWord) are 32
+// bits (4 bytes) wide when DevAddr selects MMS index 0 or 1
+// ("MMS0"/"MMS1" — see mmsWideIndexMax) and 16 bits (2 bytes) wide for
+// every other MMS index. An invalid Mode (see Valid) is treated as 16
+// bits wide; callers should call Validate first.
+func (r Request) DataWidth() int {
+	switch r.Mode {
+	case ModeMMSSingleWord, ModeMMSMultiWord:
+		if r.DevAddr <= mmsWideIndexMax {
+			return 4
+		}
+	}
+	return 2
+}
+
 // Validate reports whether r is a plausible, encodable Request: Mode must
-// be recognized, PhyAddr must fit its 5-bit width, and — mode-dependently —
-// either DevAddr is zero and RegAddr fits 5 bits (ModeClause22), or DevAddr
-// fits 5 bits with RegAddr free to use its full 16-bit width
-// (ModeClause45).
+// be recognized, and PhyAddr and DevAddr must each fit their 5-bit width.
 func (r Request) Validate() error {
 	if !r.Mode.Valid() {
-		return ErrInvalidAddressMode
+		return ErrInvalidMode
 	}
 	if r.PhyAddr > phyAddrMax {
 		return ErrPhyAddrOutOfRange
 	}
-	switch r.Mode {
-	case ModeClause22:
-		if r.DevAddr != 0 {
-			return ErrDevAddrNotSupported
-		}
-		if r.RegAddr > regAddrMaxC22 {
-			return ErrRegAddrOutOfRange
-		}
-	case ModeClause45:
-		if r.DevAddr > devAddrMax {
-			return ErrDevAddrOutOfRange
-		}
+	if r.DevAddr > devAddrMax {
+		return ErrDevAddrOutOfRange
 	}
 	return nil
 }

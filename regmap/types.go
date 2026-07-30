@@ -1,6 +1,10 @@
 package regmap
 
-import "github.com/SoundMatt/go-RCP/avtp"
+import (
+	"fmt"
+
+	"github.com/SoundMatt/go-RCP/avtp"
+)
 
 // EP0 is the reserved byte_bus_id that addresses the RC Server itself as a
 // pseudo-endpoint, rather than any real hardware endpoint. See doc.go for
@@ -35,30 +39,38 @@ const (
 	endpointTypeCount // sentinel; keep last
 )
 
-// signalNames is this package's own named-signal-index scheme: for each
-// endpoint type, the ordered list of named signals a pin-mapping entry may
-// point its SignalIndex field at. A HW pin feeds exactly one named signal of
-// exactly one endpoint.
+// indexedSignalNames returns count names of the form prefix+index (e.g.
+// "IO0" .. "IO31" for indexedSignalNames("IO", 32)), for an endpoint type
+// whose named signals are one-per-pin rather than individually named.
+func indexedSignalNames(prefix string, count int) []string {
+	names := make([]string, count)
+	for i := 0; i < count; i++ {
+		names[i] = fmt.Sprintf("%s%d", prefix, i)
+	}
+	return names
+}
+
+// signalNames is, for each endpoint type, the ordered list of named signals
+// a pin-mapping entry may point its SignalIndex field at. A HW pin feeds
+// exactly one named signal of exactly one endpoint.
 //
-// These names and orderings are this implementation's own reasoned,
-// self-consistent scheme rather than a verified transcription of the TC18
-// specification's own named-signal tables — the same open-item posture the
-// avtp package documents for its subtype tags (see avtp/doc.go and its
-// "note on spec fidelity"). Confirming these against a public
-// interoperability reference is tracked as a follow-on, consistent with
-// this repo's established practice of flagging spec ambiguity rather than
-// silently guessing (see also the I²C bus-speed-enum note referenced at
-// Milestone 48).
+// These names and orderings are a verified transcription of the governing
+// OPEN Alliance TC18 Remote Control Protocol Specification's per-endpoint-
+// type named-signal tables (PICO/POCI are that specification's own
+// replacement terms for the older MOSI/MISO names). GPIO's 32 entries are
+// generated (indexedSignalNames("IO", 32): "IO0".."IO31"), one per
+// addressable pin, since the specification defines that table by index
+// range rather than individual names the way the other endpoint types are.
 var signalNames = map[EndpointType][]string{
-	EndpointTypeGPIO:   {"IO"},
-	EndpointTypeSPI:    {"SCLK", "MOSI", "MISO", "CS0", "CS1", "CS2", "CS3"},
-	EndpointTypeI2C:    {"SDA", "SCL"},
+	EndpointTypeGPIO:   indexedSignalNames("IO", 32),
+	EndpointTypeSPI:    {"CLK", "PICO", "POCI", "CS0", "CS1", "CS2", "CS3", "CS4", "CS5"},
+	EndpointTypeI2C:    {"SCL", "SDA"},
 	EndpointTypeUART:   {"TX", "RX", "RTS", "CTS"},
-	EndpointTypeADC:    {"AIN0", "AIN1", "AIN2", "AIN3", "AIN4", "AIN5", "AIN6", "AIN7"},
-	EndpointTypePWM:    {"OUT"},
-	EndpointTypeLIN:    {"TX", "RX"},
-	EndpointTypeCAN:    {"TX", "RX"},
-	EndpointTypeISELED: {"DATA"},
+	EndpointTypeADC:    {"ADC_IN"},
+	EndpointTypePWM:    {"PWM_OUT", "PWM_OUTN"},
+	EndpointTypeLIN:    {"TXD", "RXD", "NSLP"},
+	EndpointTypeCAN:    {"RXD", "TXD"},
+	EndpointTypeISELED: {"ISP_P", "ISP_N"},
 	EndpointTypeMDIO:   {"MDC", "MDIO"},
 	EndpointTypeWakeup: {"WAKE"},
 	EndpointTypeDAC:    {"OUT"},

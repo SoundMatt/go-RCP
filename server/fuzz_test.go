@@ -12,7 +12,7 @@ import (
 
 func FuzzDecodeGeneralBlock(f *testing.F) {
 	f.Add([]byte{})
-	f.Add(goldenMinimalMap[:21]) // the fixed-length GeneralBlock prefix, see registermap.go's generalBlockLen
+	f.Add(goldenMinimalMap[:48]) // the fixed-length GeneralBlock prefix, see registermap.go's generalBlockLen
 	f.Fuzz(func(t *testing.T, b []byte) {
 		_, _, _ = regmap.DecodeGeneralBlock(b) // must not panic
 	})
@@ -26,7 +26,7 @@ func FuzzDecodeRegisterMap(f *testing.F) {
 	// buffer — the classic out-of-bounds trigger the pointer-ordering
 	// check in DecodeRegisterMap must guard against.
 	tampered := append([]byte(nil), goldenMinimalMap...)
-	tampered[19], tampered[20] = 0xFF, 0xFF // EndpointTablePointer, made huge
+	tampered[36], tampered[37] = 0xFF, 0xFF // EndpointConfigPointer, made huge
 	f.Add(tampered)
 
 	f.Fuzz(func(t *testing.T, b []byte) {

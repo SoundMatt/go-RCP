@@ -21,49 +21,41 @@
 //
 // # Message model
 //
-// Both message encodings — the short form (ACF_ABB, MessageKind
-// KindShort) with no timestamp field, and the long form (ACF_GBB,
-// KindLong) carrying an additional 64-bit timestamp slot — share one
-// request-descriptor header: message-kind tag, length, pad-byte count,
-// byte_bus_id addressing, transaction_num correlation, the Ack/Read/Write/
-// Response/Error/MoreSegments control bits, and a dual-purpose field that
-// is a requested read size for a plain read and a segment number once
-// MoreSegments is set. transaction_num correlates a request with its
-// eventual response and is scoped to the enclosing AVTPDU's stream_id; this
-// package carries that correlation field but does not itself track it —
-// that belongs to the RC Server/client lifecycle layered on top in later
-// milestones.
+// Both message encodings — the short form (ACF_ABB, MessageKind KindShort)
+// with no message_timestamp field, and the long form (ACF_GBB, KindLong)
+// carrying an additional 8-byte message_timestamp slot inserted between the
+// descriptor's two 32-bit words — share one request-descriptor header:
+// acf_msg_type, acf_msg_length (in quadlets), pad, mtv, byte_bus_id, evt,
+// hs, cs, transaction_num, the op/rsp/err/ms control bits (surfaced as
+// ControlFlags — see its doc comment for how the exported flag names map
+// onto those bits), and a dual-purpose field that is a requested read size
+// for a plain read and a segment number once FlagMoreSegments is set.
+// transaction_num correlates a request with its eventual response and is
+// scoped to the enclosing AVTPDU's stream_id; this package carries that
+// correlation field but does not itself track it — that belongs to the RC
+// Server/client lifecycle layered on top in later milestones.
 //
 // Frame composes one avtp.Header with one Message into the single
 // contiguous AVTPDU buffer EncodeFrame/DecodeFrame produce and consume.
 //
-// # Milestone 49 addendum: FlagExtended
+// # v2.0 wire-format correction
 //
-// ROADMAP.md Milestone 49 (v0.62.0, the `request` package) claims one of
-// this package's two originally-reserved control bits as FlagExtended: a
-// marker that a Message's Body begins with the request package's own
-// conditional-request envelope rather than being a bare, endpoint-specific
-// payload. This was a small, additive, backward-compatible change — every
-// message this package's own tests, and every Phase 14 endpoint type, ever
-// constructed left both reserved bits at zero, so nothing that decoded
-// successfully before decodes differently now. One control bit remains
-// reserved (required zero) after this addendum; see FlagExtended's own doc
-// comment for the reasoning and request/doc.go for how it's used.
-//
-// # A note on spec fidelity (Guiding Principle 10)
-//
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of the wire format, not
-// from the primary spec text, and its internal bit-field widths for the
-// pad, control, and dual-purpose fields are this implementation's own
-// reasoned, self-consistent encoding rather than a verified transcription
-// of the published byte assignments. Structural behaviour — which fields
-// exist, what they mean, and the validation/fallback rules around them — is
-// what this milestone targets and tests; the precise numeric values are
-// flagged here as an open item to confirm once a public interoperability
-// reference becomes available, per this repo's established practice of
-// surfacing spec ambiguity rather than silently guessing (see the I²C
-// bus-speed-enum note at Milestone 48 for precedent).
+// Earlier versions of this package (through v1.0.0) used a wholly bespoke
+// 10-byte descriptor with no evt/hs/cs/mtv fields and control bits that did
+// not correspond to any OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC field. This version replaces that layout with the
+// specification's actual two-word descriptor (see EncodeMessage/
+// DecodeMessage), adds the previously entirely-missing EVT/HS/CS/MTV
+// fields, corrects acf_msg_length to be measured in quadlets rather than
+// octets, and moves the message_timestamp slot to its documented position
+// between the two descriptor words rather than after both. This is a
+// breaking wire-format change; go-RCP v2.0.0 cannot interoperate with
+// go-RCP v1.x on the wire. Routing EVT's endpoint-specific bits (SPI
+// channel select, GPIO/PWM write-arithmetic semantics, config-access mode,
+// the compound-wait comparison selector) into each endpoint package's own
+// request handling is not part of this change — EVT is carried at its
+// correct wire position and is readable/settable by callers, but no
+// endpoint package interprets it yet.
 package acf
 
 //fusa:req REQ-AVTP-011

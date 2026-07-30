@@ -22,31 +22,46 @@ import (
 
 // goldenUntimedShortRead is an untimed (NTSCF) AVTPDU carrying a short-form
 // (ACF_ABB) read request: sequence 1, stream suffix 0x0001, targeting
-// byte_bus_id 0x10, transaction 1, Ack+Read set, a 4-byte read size, no body.
+// byte_bus_id 0x10, transaction 1, Read set with the acknowledge bit of EVT
+// set, a 4-byte read size, no body.
+//
+// The 8-byte RCP message breaks down as: byte0 acf_msg_type=0x0E<<1|len-top-
+// bit=0x1C, byte1 acf_msg_length(quadlets)=0x02 (8 bytes = 2 quadlets),
+// byte2 pad=0/mtv=0/rsv=0/byte_bus_id-top3=0, byte3 byte_bus_id-low8=0x10,
+// byte4 evt=0x8(ack)<<4|hs=0|cs=0=0x80, byte5 transaction_num=0x01, byte6
+// op=0(read)/rsp=0/err=0/ms=0/read_size-top4=0, byte7 read_size-low8=0x04.
 var goldenUntimedShortRead = []byte{
 	// AVTPDU header (13 bytes): subtype=NTSCF, flags(sv=1), seq=1,
-	// data_length=10, stream_id=02:11:22:33:44:55/0001
-	0x82, 0x80, 0x01, 0x00, 0x0A, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x01,
-	// RCP message (10 bytes, no body): kind=ACF_ABB, pad=0, length=10,
-	// byte_bus_id=0x10, transaction_num=1, control=Ack|Read, read_size=4
-	0x01, 0x00, 0x00, 0x0A, 0x10, 0x00, 0x01, 0xC0, 0x00, 0x04,
+	// data_length=8, stream_id=02:11:22:33:44:55/0001
+	0x82, 0x80, 0x01, 0x00, 0x08, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x01,
+	// RCP message (8 bytes, no body) — see breakdown above.
+	0x1C, 0x02, 0x00, 0x10, 0x80, 0x01, 0x00, 0x04,
 }
 
 // goldenTimedLongWrite is a presentation-timestamped (TSCF) AVTPDU carrying
 // a long-form (ACF_GBB) write request: sequence 9, stream suffix 0x0002,
 // AVTPDU timestamp 0x00112233 marked valid, targeting byte_bus_id 0x20,
-// transaction 7, Write set, a 64-bit message timestamp, and a 4-byte body.
+// transaction 7, Write set, a 64-bit message_timestamp slot (MTV unset —
+// this vector exercises the raw Timestamp passthrough, not the
+// conditional-request encoding), and a 4-byte body.
+//
+// The 20-byte RCP message breaks down as: byte0 acf_msg_type=0x0D<<1|
+// len-top-bit=0x1A, byte1 acf_msg_length(quadlets)=0x05 (20 bytes = 5
+// quadlets), byte2 pad=0/mtv=0/rsv=0/byte_bus_id-top3=0, byte3
+// byte_bus_id-low8=0x20, bytes4-11 message_timestamp=0x0102030405060708,
+// byte12 evt=0/hs=0/cs=0=0x00, byte13 transaction_num=0x07, byte14
+// op=1(write)/rsp=0/err=0/ms=0/read_size-top4=0=0x80, byte15
+// read_size-low8=0x00, bytes16-19 body=DE AD BE EF.
 var goldenTimedLongWrite = []byte{
 	// AVTPDU header (17 bytes): subtype=TSCF, flags(sv=1, ts_status=Valid),
-	// seq=9, data_length=22, stream_id=02:11:22:33:44:55/0002,
+	// seq=9, data_length=20, stream_id=02:11:22:33:44:55/0002,
 	// timestamp=0x00112233
-	0x83, 0x84, 0x09, 0x00, 0x16, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x02,
+	0x83, 0x84, 0x09, 0x00, 0x14, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x02,
 	0x00, 0x11, 0x22, 0x33,
-	// RCP message (22 bytes): kind=ACF_GBB, pad=0, length=22,
-	// byte_bus_id=0x20, transaction_num=7, control=Write, read/segment=0,
-	// message timestamp=0x0102030405060708, body=DE AD BE EF
-	0x02, 0x00, 0x00, 0x16, 0x20, 0x00, 0x07, 0x20, 0x00, 0x00,
+	// RCP message (20 bytes) — see breakdown above.
+	0x1A, 0x05, 0x00, 0x20,
 	0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+	0x00, 0x07, 0x80, 0x00,
 	0xDE, 0xAD, 0xBE, 0xEF,
 }
 
@@ -61,7 +76,8 @@ func TestGolden_UntimedShortRead(t *testing.T) {
 		Kind:              acf.KindShort,
 		ByteBusID:         avtp.ByteBusID(0x10),
 		TransactionNum:    avtp.TransactionNum(1),
-		Control:           acf.FlagRead | acf.FlagAck,
+		Control:           acf.FlagRead,
+		EVT:               0x08, // evt[3] request-acknowledge bit
 		ReadSizeOrSegment: 4,
 	}
 

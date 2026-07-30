@@ -68,9 +68,14 @@ var (
 	ErrUnknownEndpointType = errors.New("rcp/regmap: unrecognized endpoint type")
 
 	// ErrUnsupportedRegisterMapVersion is returned when a decoded
-	// GeneralBlock's RegisterMapVersion is not the version this package
+	// GeneralBlock's ProtocolVersion is not the version this package
 	// implements.
 	ErrUnsupportedRegisterMapVersion = errors.New("rcp/regmap: unsupported register-map version")
+
+	// ErrBadMagic is returned when a decoded GeneralBlock's Magic field
+	// does not equal GeneralBlockMagic — the buffer is not the front of a
+	// genuine RC Server general register block.
+	ErrBadMagic = errors.New("rcp/regmap: general register block has an unrecognized magic value")
 
 	// ErrTrailingBytes is returned when a decoder is handed more bytes than
 	// its register block declares — the same "don't silently ignore extra

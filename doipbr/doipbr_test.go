@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"testing"
 
@@ -78,6 +79,43 @@ func startServer(t *testing.T) (*doipbr.Server, func()) {
 		_ = upstream.Close()
 		_ = rcpSrv.Close()
 		uds.Close()
+	}
+}
+
+// startServerWithFailingUDS wires the same stack as startServer, except the
+// embedded udsbr.Server is closed before doipbr.Server ever sees it. Every
+// subsequent Handle call therefore returns udsbr.ErrClosed (and a nonempty
+// UDS-level negative-response PDU alongside it) — a real, deterministic way
+// to exercise handleConn's "the UDS handler itself errored" path without a
+// fake/mock udsbr.Server, since doipbr.Server embeds the concrete type.
+func startServerWithFailingUDS(t *testing.T) (*doipbr.Server, func()) {
+	t.Helper()
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), false)
+	if err := router.Register(testAddr, echoHandler{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	rcpSrv, err := udp.NewServer(serverStream(), "127.0.0.1:0", router)
+	if err != nil {
+		t.Fatalf("udp.NewServer: %v", err)
+	}
+	upstream, err := udp.NewController(clientStream(), rcpSrv.Addr())
+	if err != nil {
+		t.Fatalf("udp.NewController: %v", err)
+	}
+	uds := udsbr.NewServer(upstream)
+	uds.Close() // every Handle call from here on returns udsbr.ErrClosed
+
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	srv := doipbr.NewServer(uds, ln)
+	srv.ServeBackground()
+
+	return srv, func() {
+		_ = srv.Close()
+		_ = upstream.Close()
+		_ = rcpSrv.Close()
 	}
 }
 
@@ -225,5 +263,46 @@ func TestServeBackground_TracksWaitGroup(t *testing.T) {
 	// evidence that didn't happen.
 	if err := srv.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
+	}
+}
+
+// TestServer_Serve_UDSHandlerError checks that when the embedded
+// udsbr.Server.Handle call itself returns an error for a DiagMessage
+// payload, handleConn sends the DoIP diagnostic-message NACK
+// (PayloadTypeDiagMessageNack) carrying NackCodeHandlerFailed — not a
+// positive ACK built from whatever (possibly stale) response bytes Handle
+// also returned alongside its error (go-RCP-N2-03).
+func TestServer_Serve_UDSHandlerError(t *testing.T) {
+	srv, cleanup := startServerWithFailingUDS(t)
+	defer cleanup()
+
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "tcp", srv.Addr().String())
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	pdu := udsbr.BuildRequest(udsbr.SIDWriteDataByIdentifier, udsbr.DataIdentifier(testAddr), []byte{0xAA})
+	msg := append(doipbr.BuildHeader(doipbr.PayloadTypeDiagMessage, uint32(len(pdu))), pdu...)
+	if _, err = conn.Write(msg); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	respType, respLen, err := doipbr.ParseHeader(conn)
+	if err != nil {
+		t.Fatalf("ParseHeader resp: %v", err)
+	}
+	if respType != doipbr.PayloadTypeDiagMessageNack {
+		t.Fatalf("respType = 0x%04X, want NACK 0x%04X (not a positive ACK)", respType, doipbr.PayloadTypeDiagMessageNack)
+	}
+	if respLen != 1 {
+		t.Fatalf("respLen = %d, want 1 (a nonempty NACK code payload)", respLen)
+	}
+	respBody := make([]byte, respLen)
+	if _, err = io.ReadFull(conn, respBody); err != nil {
+		t.Fatalf("read NACK payload: %v", err)
+	}
+	if respBody[0] != doipbr.NackCodeHandlerFailed {
+		t.Errorf("NACK code = 0x%02X, want 0x%02X", respBody[0], doipbr.NackCodeHandlerFailed)
 	}
 }

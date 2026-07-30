@@ -16,16 +16,32 @@
 // Endpoint.HandleRequest method through the Handler interface rather than
 // editing any of those six packages.
 //
-// # Wire layer: FlagExtended
+// # Wire layer: routing signal and known non-conformance
 //
-// A conditional request is an acf.Message with acf.FlagExtended set on
-// Control; Body then begins with this package's own envelope — a Kind byte
-// followed by kind-specific fields (see Kind and the EncodeXxx/DecodeXxx
-// functions in envelope.go and chained.go). A Message without FlagExtended
-// set is the Phase 14 plain shape, synthesized here as KindPlain and handled
-// identically to before. See avtp/doc.go's own "Milestone 49 addendum"
-// section for why this milestone claims that control bit rather than
-// prefixing every request (plain included) with an extra body byte.
+// A conditional or cancel request is an acf.Message with Kind KindLong and
+// MTV false — the specification's own signal that the message_timestamp
+// slot does not hold a valid timestamp and instead carries request-type-
+// specific metadata (§11.2.2/§11.2.3); a plain (Phase 14) request is
+// KindShort, or KindLong with MTV true. Dispatcher.Submit's
+// isConditionalEnvelope makes this routing decision.
+//
+// Through v1.0.0 this package instead claimed a Control bit
+// (acf.FlagExtended) that had no counterpart in the specification at all;
+// acf v2.0 removed it as part of correcting the descriptor's control-bit
+// layout (see acf/doc.go). Switching the routing signal to KindLong+MTV is
+// a real, wire-verifiable improvement, but it only fixes how a
+// conditional/cancel envelope is recognized — Body then still begins with
+// this package's own Kind byte followed by kind-specific fields (see Kind
+// and the EncodeXxx/DecodeXxx functions in envelope.go and chained.go),
+// which is **not** a transcription of the specification's actual
+// conditional/cancel-request field layout (cmp_start_state/cmp_next_state/
+// cmp_sequencer for compound requests, trigger_source_ep/trigger_signal_nr/
+// trigger_threshold for triggered requests, and so on — see §11.2.2/
+// §11.2.3). Re-deriving that layout requires rebuilding this package's
+// Sequencer as the specification's state machine rather than the
+// free-running counter it is today (see Sequencer's doc comment), which is
+// a larger change than this pass makes; it is tracked as still-open
+// non-conformance rather than silently left unlabelled.
 //
 // # The five conditional-request kinds
 //
@@ -53,11 +69,12 @@
 //
 // Sequencer is the persistent per-register state store Compound/
 // CompoundWait requests read and (conditionally) advance. It has no
-// declared bit width or active-pin-style mask the way gpio.Config does —
-// every register is a free-running uint32 counter that wraps rather than
-// saturates; see Sequencer.Advance's doc comment for why that is this
-// implementation's own reasoned choice given no declared bound exists to
-// clamp against.
+// declared bit width or active-pin-style mask the way gpio.Config does, but
+// every register still saturates rather than wraps at the uint32 boundary —
+// advancing past math.MaxUint32 clamps at math.MaxUint32 and advancing
+// below zero clamps at 0, the same saturating-arithmetic convention gpio's
+// SemanticSaturatingAdd/SemanticSaturatingSubtract write semantics use; see
+// Sequencer.Advance's doc comment for the exact clamping behavior.
 //
 // # Cancellation requests
 //
@@ -121,20 +138,21 @@
 // (ROADMAP.md Milestone 52); a KindChained envelope's segments are still
 // delivered within one AVTPDU, same as every Phase 14 request today.
 //
-// # A note on spec fidelity (Guiding Principle 10)
+// # A note on spec fidelity
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of the conditional-
-// request model, not from the primary spec text. Every wire-level choice
-// this package makes — the envelope byte layout in envelope.go/chained.go,
-// claiming acf.FlagExtended for the envelope marker, the sequencer-
-// wraparound arithmetic, the exact split between the mandatory and two
-// optional cancellation variants, and the fixed cross-type priority
-// ordering in Kind.Priority — is this implementation's own reasoned,
-// self-consistent encoding rather than a verified transcription of the
-// published wire format or the source specification's own priority table,
-// the same open-item posture avtp/doc.go, server/doc.go, and every Phase 14
-// endpoint package's doc.go already document for their own packages.
+// The governing specification (the "OPEN Alliance TC18 Remote Control
+// Protocol Specification v0.5.1_RC") is available and normative for this
+// package's wire format; it is not being treated as an unreachable
+// reference. The conditional/cancel-request routing signal (KindLong with
+// MTV false — see "Wire layer" above) and Sequencer's saturating-rather-
+// than-wrapping arithmetic (see Sequencer's doc comment) are both verified
+// against the specification. The following remain known, tracked open
+// items rather than unavoidable ambiguity: the envelope byte layout in
+// envelope.go/chained.go does not match the specification's actual
+// per-request-type field layout (cmp_start_state/cmp_next_state/
+// cmp_sequencer and friends — see "Wire layer" above); and Kind.Priority's
+// cross-type ordering has a known, separately-tracked divergence from the
+// specification's own priority table (see Kind.Priority's doc comment).
 package request
 
 //fusa:req REQ-REQ-001

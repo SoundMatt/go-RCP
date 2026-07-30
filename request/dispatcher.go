@@ -139,7 +139,7 @@ func (d *Dispatcher) Submit(requester avtp.StreamID, req acf.Message) (TicketID,
 
 	t := &ticket{id: d.nextID, requester: requester, original: req, state: StateQueued}
 
-	if !req.Control.Has(acf.FlagExtended) {
+	if !isConditionalEnvelope(req) {
 		t.kind = KindPlain
 		t.innerControl = req.Control
 		t.innerBody = req.Body
@@ -155,6 +155,29 @@ func (d *Dispatcher) Submit(requester avtp.StreamID, req acf.Message) (TicketID,
 	d.tickets[t.id] = t
 	d.order = append(d.order, t.id)
 	return t.id, nil
+}
+
+// isConditionalEnvelope reports whether req's Body should be treated as
+// this package's own conditional/cancel-request envelope (decodeInto)
+// rather than as a bare, endpoint-specific payload (KindPlain).
+//
+// Through v1.0.0 this was signalled by a Control bit (acf.FlagExtended)
+// this package claimed for itself. acf v2.0 removed that bit — it never
+// corresponded to any field the OPEN Alliance TC18 Remote Control Protocol
+// Specification v0.5.1_RC actually defines, and keeping an invented bit set
+// in a reserved position would have defeated the point of correcting the
+// descriptor's control-bit layout (see acf/doc.go's "v2.0 wire-format
+// correction"). The specification's own signal for "this ACF_GBB carries
+// conditional/cancel-request metadata instead of a valid timestamp" is
+// KindLong with MTV false (§11.2.2/§11.2.3): every standard (non-
+// conditional) request is sent as KindShort, so a KindLong request with
+// MTV unset has no other defined meaning today. This package's envelope
+// byte layout inside that slot (see envelope.go/chained.go) is still this
+// implementation's own encoding, not the specification's cmp_start_state/
+// cmp_next_state/cmp_sequencer/trigger_*/chain_exec_delay model — that
+// deeper rework is tracked separately and out of scope for this change.
+func isConditionalEnvelope(req acf.Message) bool {
+	return req.Kind == acf.KindLong && !req.MTV
 }
 
 // decodeInto decodes req's extended-request envelope into t's kind-specific
@@ -425,13 +448,14 @@ func innerMessage(t *ticket, control acf.ControlFlags, body []byte) acf.Message 
 }
 
 // responseFor builds t's outer response Message: same Kind/ByteBusID/
-// TransactionNum as the original request for correlation, FlagResponse
-// always set, acf.FlagExtended set for every kind whose response body is
-// this package's own envelope shape (everything except KindPlain,
-// KindTriggered, and KindTimed, whose responses are the wrapped Handler
-// call's own response verbatim — see execute).
+// TransactionNum as the original request for correlation (Kind is KindLong
+// with MTV false for every ticket kind whose response body is this
+// package's own envelope shape — everything except KindPlain, KindTriggered
+// and KindTimed, whose responses are the wrapped Handler call's own
+// response verbatim, see execute — matching isConditionalEnvelope's
+// routing signal), FlagResponse always set.
 func responseFor(t *ticket, body []byte) acf.Message {
-	control := acf.FlagResponse | acf.FlagExtended | (t.innerControl & (acf.FlagRead | acf.FlagWrite))
+	control := acf.FlagResponse | (t.innerControl & (acf.FlagRead | acf.FlagWrite))
 	return acf.Message{
 		Kind:           t.original.Kind,
 		ByteBusID:      t.original.ByteBusID,

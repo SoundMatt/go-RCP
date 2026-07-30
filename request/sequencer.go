@@ -1,6 +1,9 @@
 package request
 
-import "sync"
+import (
+	"math"
+	"sync"
+)
 
 // SequencerID addresses one persistent state register within a Sequencer
 // bank. It is scoped to the Dispatcher (and therefore the endpoint) that
@@ -42,18 +45,37 @@ func (s *Sequencer) Set(id SequencerID, v uint32) {
 }
 
 // Advance adds delta (which may be negative) to id's current value and
-// returns the result. The addition wraps modulo 2^32 rather than
-// saturating — unlike gpio's saturating-arithmetic write semantics, a
-// sequencer register is a free-running counter with no declared active-bit
-// mask to clamp against, so wraparound is this package's own reasoned,
-// documented choice (see doc.go's spec-fidelity note) for what "advance by a
-// (possibly negative) count" means with no declared bound.
+// returns the result, clamped to the uint32 range [0, math.MaxUint32]
+// rather than wrapping. This matches gpio's saturating-arithmetic write
+// semantics (SemanticSaturatingAdd/SemanticSaturatingSubtract): advancing
+// past the representable maximum saturates at math.MaxUint32 instead of
+// wrapping to a small value, and advancing below zero saturates at 0
+// instead of wrapping to a large value near math.MaxUint32. See doc.go's
+// Sequencer section for why saturation, not wraparound, is this package's
+// convention.
 func (s *Sequencer) Advance(id SequencerID, delta int32) uint32 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	next := s.values[id] + uint32(delta)
+	next := saturatingAdd(s.values[id], delta)
 	s.values[id] = next
 	return next
+}
+
+// saturatingAdd adds delta to current, clamping the result to
+// [0, math.MaxUint32] instead of wrapping on overflow or underflow.
+func saturatingAdd(current uint32, delta int32) uint32 {
+	// Widen to int64 so the intermediate sum can never itself overflow:
+	// current is at most MaxUint32 and delta is at most MaxInt32/-MinInt32
+	// in magnitude, all comfortably within int64's range.
+	sum := int64(current) + int64(delta)
+	switch {
+	case sum > int64(math.MaxUint32):
+		return math.MaxUint32
+	case sum < 0:
+		return 0
+	default:
+		return uint32(sum)
+	}
 }
 
 // Conditional is the shared sequencer-gating shape KindCompound and

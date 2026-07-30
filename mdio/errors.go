@@ -15,26 +15,19 @@ var (
 
 // Request validation errors.
 var (
-	// ErrInvalidAddressMode is returned when a Request's Mode is not one of
-	// this package's two recognized address modes.
-	ErrInvalidAddressMode = errors.New("rcp/mdio: unrecognized address mode")
+	// ErrInvalidMode is returned when a Request's Mode is not one of this
+	// package's four recognized mdio_mode values.
+	ErrInvalidMode = errors.New("rcp/mdio: unrecognized mdio_mode")
 
 	// ErrPhyAddrOutOfRange is returned when a Request's PhyAddr exceeds its
 	// 5-bit width.
 	ErrPhyAddrOutOfRange = errors.New("rcp/mdio: PHY address out of range for its 5-bit width")
 
-	// ErrDevAddrNotSupported is returned when a ModeClause22 Request sets a
-	// nonzero DevAddr, which Clause 22 addressing has no field for.
-	ErrDevAddrNotSupported = errors.New("rcp/mdio: device address is only defined for ModeClause45")
-
-	// ErrDevAddrOutOfRange is returned when a ModeClause45 Request's
-	// DevAddr exceeds its 5-bit width.
-	ErrDevAddrOutOfRange = errors.New("rcp/mdio: device address out of range for its 5-bit width")
-
-	// ErrRegAddrOutOfRange is returned when a ModeClause22 Request's
-	// RegAddr exceeds its 5-bit width (ModeClause45's 16-bit register
-	// address has no narrower cap to enforce).
-	ErrRegAddrOutOfRange = errors.New("rcp/mdio: register address out of range for ModeClause22's 5-bit width")
+	// ErrDevAddrOutOfRange is returned when a Request's DevAddr — the MMD
+	// device address (ModeMMDSingleWord, ModeMMDMultiByte) or the MMS
+	// index (ModeMMSSingleWord, ModeMMSMultiWord) it selects, depending on
+	// Mode — exceeds its 5-bit width.
+	ErrDevAddrOutOfRange = errors.New("rcp/mdio: device/MMS address out of range for its 5-bit width")
 )
 
 // Request-handling errors.

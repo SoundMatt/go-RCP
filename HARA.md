@@ -4,8 +4,8 @@
 **Standard:** ISO 26262:2018
 **ASIL target:** ASIL-B (SEOOC — Safety Element Out Of Context)
 **Document ID:** HARA-001
-**Version:** 3.0
-**Date:** 2026-07-29
+**Version:** 3.1
+**Date:** 2026-07-30
 
 Source of truth: `.fusa-hara.json`
 
@@ -38,7 +38,7 @@ milestone references below have moved.
 
 | ID     | Description | Situations | S | E | C | ASIL | Safety Goal |
 |--------|-------------|------------|---|---|---|------|-------------|
-| H-001 | Loss of request delivery to a safety-critical endpoint | OS-001, OS-002, OS-003 | S3 | E4 | C2 | **ASIL-B** | SG-001 |
+| H-001 | Loss of request delivery to a safety-critical endpoint | OS-001, OS-002, OS-003 | S3 | E4 | C2 | **ASIL-C** | SG-001 |
 | H-002 | Spurious request delivered to the wrong endpoint | OS-001 | S2 | E3 | C2 | **ASIL-B** | SG-002 |
 | H-003 | RC Server watchdog liveness kick not delivered | OS-001, OS-003 | S2 | E3 | C3 | **ASIL-B** | SG-003 |
 | H-004 | Delayed request delivery — too slow for real-time control | OS-003, OS-005 | S2 | E3 | C3 | **ASIL-B** | SG-004 |
@@ -56,11 +56,13 @@ ASIL derived per ISO 26262:2018 Part 3 Table 4.
 
 ## ASIL Decomposition Rationale
 
-### H-001 — Loss of request delivery (S3/E4/C2 → ASIL-B)
+### H-001 — Loss of request delivery (S3/E4/C2 → ASIL-C)
 
-A write request that is never delivered to a safety-critical endpoint can result in severe injury (S3). RC Server endpoints are reachable for the majority of driving time (E4). The driver retains partial control via mechanical/hydraulic backup (C2). ISO 26262 Table 4: S3 × E4 × C2 = ASIL-B.
+A write request that is never delivered to a safety-critical endpoint can result in severe injury (S3). RC Server endpoints are reachable for the majority of driving time (E4). The driver retains partial control via mechanical/hydraulic backup (C2). ISO 26262-3:2018 Table 4 is a lookup table indexed by S/E/C, not a product of the three factors; looking up S3/E4/C2 in that table gives **ASIL-C**.
 
-**SG-001** is addressed by the watchdog/deadline mechanisms rebuilt against the TC18 request/response model at ROADMAP.md Milestone 53 (v0.66.0) and the `ErrTimeout` sentinel `Adapt`/`Controller.Request` return on expiry.
+> **Open item — project ASIL target:** This document's stated SEOOC target (see header, line 5) is ASIL-B, but SG-001 — the safety goal fed by H-001 — now derives ASIL-C. Neither an ASIL-C-to-ASIL-B decomposition argument for SG-001 nor a project-wide retarget to ASIL-C exists yet. Until one of those is produced, SG-001 MUST be treated as requiring ASIL-C evidence; the project-wide ASIL-B claim elsewhere in this repository (README.md, ROADMAP.md, SAFETY_PLAN.md) has not been revisited as a consequence of this reclassification and remains open for a follow-up decision.
+
+**SG-001** is addressed by the watchdog/deadline mechanisms rebuilt against the TC18 request/response model at ROADMAP.md Milestone 53 (v0.66.0) and the `ErrTimeout` sentinel `Adapt`/`Controller.Request` return on expiry. Treat this evidence as ASIL-C-level pending resolution of the open item above.
 
 ### H-002 — Endpoint mismatch (S2/E3/C2 → ASIL-B)
 
@@ -122,7 +124,7 @@ An attacker who captures a valid request and replays it in a later context (diff
 
 | Safety Goal | Description | Addressed By |
 |-------------|-------------|--------------|
-| SG-001 | Detect request delivery failures | Milestone 53 (v0.66.0) Watchdog/Deadline rebuild |
+| SG-001 | Detect request delivery failures | Milestone 53 (v0.66.0) Watchdog/Deadline rebuild — **ASIL-C** per H-001 reclassification (open item: exceeds stated project ASIL-B target, see rationale above) |
 | SG-002 | Reject requests addressed to the wrong endpoint | Milestone 47+ (v0.60.0+) endpoint-type `HandleRequest` addressing guard |
 | SG-003 | Watchdog liveness kick guaranteed | Milestone 53 (v0.66.0) `e2e.Supervisor` |
 | SG-004 | Latency bounded and monitored | Milestone 58 (v0.71.0) REQ-SAFETY-001 ✅ (measured), Milestone 53 (v0.66.0) `deadline` (runtime enforcement) |
