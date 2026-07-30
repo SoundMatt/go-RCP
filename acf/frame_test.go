@@ -32,10 +32,13 @@ func TestFrame_RoundTrip(t *testing.T) {
 				Kind:              kind,
 				ByteBusID:         avtp.ByteBusID(2),
 				TransactionNum:    avtp.TransactionNum(55),
-				Control:           acf.FlagWrite | acf.FlagAck,
+				Control:           acf.FlagWrite,
+				EVT:               0x08, // evt[3] request-acknowledge bit
+				HS:                true,
+				CS:                true,
 				ReadSizeOrSegment: 0,
 				Timestamp:         0xFEEDFACECAFEBEEF,
-				Body:              []byte("payload"),
+				Body:              []byte("payload!"), // already quadlet-aligned with either header length
 			}
 			b, err := acf.EncodeFrame(hdr, msg)
 			if err != nil {

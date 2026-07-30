@@ -52,13 +52,13 @@ func TestDispatcher_PriorityOrdering(t *testing.T) {
 	compoundOperand := uint32(0x02)
 	matched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 0}
 	compoundBody := request.EncodeCompound(matched, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, compoundOperand))
-	if _, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagWrite | acf.FlagExtended, Body: compoundBody}); err != nil {
+	if _, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagWrite, Body: compoundBody}); err != nil {
 		t.Fatalf("Submit(compound): %v", err)
 	}
 
 	timedOperand := uint32(0x04)
 	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, timedOperand))
-	if _, err := d.Submit(root, acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: 3, Control: acf.FlagWrite | acf.FlagExtended, Body: timedBody}); err != nil {
+	if _, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 3, Control: acf.FlagWrite, Body: timedBody}); err != nil {
 		t.Fatalf("Submit(timed): %v", err)
 	}
 
