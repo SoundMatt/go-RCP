@@ -15,7 +15,7 @@ import (
 // (REQ-MDIO-004).
 func TestReadWriteRequestRoundTrip(t *testing.T) {
 	t.Run("16-bit (MMD)", func(t *testing.T) {
-		r := mdio.Request{Mode: mdio.ModeMMDMultiByte, PhyAddr: 5, DevAddr: 3, RegAddr: 0x1234}
+		r := mdio.Request{Mode: mdio.ModeMMDMultiByte, DevAddr: 3, RegAddr: 0x1234}
 		if got := r.DataWidth(); got != 2 {
 			t.Fatalf("DataWidth() = %d, want 2", got)
 		}
@@ -23,7 +23,7 @@ func TestReadWriteRequestRoundTrip(t *testing.T) {
 	})
 
 	t.Run("32-bit (MMS0)", func(t *testing.T) {
-		r := mdio.Request{Mode: mdio.ModeMMSSingleWord, PhyAddr: 2, DevAddr: 0, RegAddr: 0x0010}
+		r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0, RegAddr: 0x0010}
 		if got := r.DataWidth(); got != 4 {
 			t.Fatalf("DataWidth() = %d, want 4", got)
 		}
@@ -31,7 +31,7 @@ func TestReadWriteRequestRoundTrip(t *testing.T) {
 	})
 
 	t.Run("16-bit (MMS, non-MMS0/1)", func(t *testing.T) {
-		r := mdio.Request{Mode: mdio.ModeMMSMultiWord, PhyAddr: 4, DevAddr: 5, RegAddr: 0x0008}
+		r := mdio.Request{Mode: mdio.ModeMMSMultiWord, DevAddr: 5, RegAddr: 0x0008}
 		if got := r.DataWidth(); got != 2 {
 			t.Fatalf("DataWidth() = %d, want 2", got)
 		}

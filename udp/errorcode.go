@@ -13,6 +13,12 @@ import (
 // error's own free-text message. See errorResponse and errorCodeFor.
 type ErrorCode uint8
 
+// This package implements only the subset of the specification's full
+// error-code enumeration its own errorCodeFor mapping currently selects
+// (eight of the specification's defined codes); the numeric value of each
+// is its exact assignment in that enumeration, not a locally invented
+// sequence, so the values below are intentionally non-contiguous and not
+// in declaration order.
 const (
 	// ErrorCodeUnsupportedCommand means the addressed endpoint (or this
 	// server's routing for it) does not support the request it was asked
@@ -22,29 +28,18 @@ const (
 	// Dispatcher with no SafeStateCheck configured (see
 	// request.ErrSafeStateNotConfigured), or a byte_bus_id with no
 	// registered Handler at all (see ErrUnknownEndpoint).
-	ErrorCodeUnsupportedCommand ErrorCode = iota
-
-	// ErrorCodeChainError means a KindChained request had no valid
-	// predecessor segment to build on — e.g. it declared zero segments
-	// (see request.ErrInvalidSegmentCount).
-	ErrorCodeChainError
-
-	// ErrorCodeChainAborted means a KindChained request's predecessor
-	// segment failed and the chain's abort-on-error option was set, so
-	// the remaining segments were not executed (see
-	// request.ErrChainedSegmentFailed).
-	ErrorCodeChainAborted
-
-	// ErrorCodeRequestNotFound means a cancellation request targeted a
-	// transaction this server has no record of (see
-	// request.ErrUnknownTicket).
-	ErrorCodeRequestNotFound
+	ErrorCodeUnsupportedCommand ErrorCode = 1
 
 	// ErrorCodeRequestCancelled means the request this response answers
 	// was itself cancelled while pending — either by an explicit
 	// cancellation request (see request.ErrTicketCancelled) or by the
 	// watchdog-driven safe-state purge (see request.ErrPurgedByWatchdog).
-	ErrorCodeRequestCancelled
+	ErrorCodeRequestCancelled ErrorCode = 5
+
+	// ErrorCodeRequestNotFound means a cancellation request targeted a
+	// transaction this server has no record of (see
+	// request.ErrUnknownTicket).
+	ErrorCodeRequestNotFound ErrorCode = 6
 
 	// ErrorCodePresentationTimeTooFarInFuture means a KindTimed request's
 	// target presentation time was rejected as unreasonably distant. No
@@ -52,7 +47,7 @@ const (
 	// check (see doc.go's "Explicit non-goals"), so this code is defined
 	// for forward compatibility but errorCodeFor never currently selects
 	// it.
-	ErrorCodePresentationTimeTooFarInFuture
+	ErrorCodePresentationTimeTooFarInFuture ErrorCode = 13
 
 	// ErrorCodeGPTPFailure means a timed request arrived before this
 	// server established time synchronization. Router.Route currently
@@ -60,23 +55,45 @@ const (
 	// sending any reply at all (see avtp.DispositionDrop and Route's own
 	// doc comment), so this code is defined for forward compatibility but
 	// errorCodeFor never currently selects it.
-	ErrorCodeGPTPFailure
+	ErrorCodeGPTPFailure ErrorCode = 14
 
 	// ErrorCodeInvalidParameter means the request body was malformed, the
 	// wrong size, or otherwise failed structural validation for the kind
 	// it declared. errorCodeFor falls back to this code for any error it
 	// does not recognize as one of the more specific codes above.
-	ErrorCodeInvalidParameter
+	ErrorCodeInvalidParameter ErrorCode = 15
 
-	// errorCodeCount is a sentinel marking the end of this package's
-	// recognized ErrorCode values; keep it last.
-	errorCodeCount
+	// ErrorCodeChainAborted means a KindChained request's predecessor
+	// segment failed and the chain's abort-on-error option was set, so
+	// the remaining segments were not executed (see
+	// request.ErrChainedSegmentFailed).
+	ErrorCodeChainAborted ErrorCode = 16
+
+	// ErrorCodeChainError means a KindChained request had no valid
+	// predecessor segment to build on — e.g. it declared zero segments
+	// (see request.ErrInvalidSegmentCount).
+	ErrorCodeChainError ErrorCode = 17
 )
 
 // Valid reports whether c is one of this package's recognized
-// error-response codes.
+// error-response codes. This package implements only a subset of the
+// specification's full error-code enumeration (see the const block above),
+// so this deliberately checks membership in that subset rather than a
+// contiguous range.
 func (c ErrorCode) Valid() bool {
-	return c < errorCodeCount
+	switch c {
+	case ErrorCodeUnsupportedCommand,
+		ErrorCodeRequestCancelled,
+		ErrorCodeRequestNotFound,
+		ErrorCodePresentationTimeTooFarInFuture,
+		ErrorCodeGPTPFailure,
+		ErrorCodeInvalidParameter,
+		ErrorCodeChainAborted,
+		ErrorCodeChainError:
+		return true
+	default:
+		return false
+	}
 }
 
 // String renders c for logs and test failure messages.

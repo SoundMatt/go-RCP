@@ -19,10 +19,6 @@ var (
 	// package's four recognized mdio_mode values.
 	ErrInvalidMode = errors.New("rcp/mdio: unrecognized mdio_mode")
 
-	// ErrPhyAddrOutOfRange is returned when a Request's PhyAddr exceeds its
-	// 5-bit width.
-	ErrPhyAddrOutOfRange = errors.New("rcp/mdio: PHY address out of range for its 5-bit width")
-
 	// ErrDevAddrOutOfRange is returned when a Request's DevAddr — the MMD
 	// device address (ModeMMDSingleWord, ModeMMDMultiByte) or the MMS
 	// index (ModeMMSSingleWord, ModeMMSMultiWord) it selects, depending on

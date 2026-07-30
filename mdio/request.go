@@ -1,9 +1,25 @@
 package mdio
 
-import "encoding/binary"
+import (
+	"encoding/binary"
 
-// requestHeaderLen is Mode(1) + PhyAddr(1) + DevAddr(1) + RegAddr(2).
-const requestHeaderLen = 1 + 1 + 1 + 2
+	"github.com/SoundMatt/go-RCP/avtp"
+)
+
+// requestHeaderLen is the packed 4-byte request header: an 8-bit reserved
+// byte (must be 0 — see decodeRequest), a second byte packing the 2-bit
+// mdio_mode field in its top two bits and the 6-bit mdio_address field
+// (this package's DevAddr) in its low six bits, and a 16-bit big-endian
+// RegAddr.
+const requestHeaderLen = 1 + 1 + 2
+
+// modeShift and addrMask position Mode and DevAddr within the packed
+// second header byte: Mode occupies bits 7:6 (the more significant two
+// bits), DevAddr occupies bits 5:0.
+const (
+	modeShift = 6
+	addrMask  = 0x3F
+)
 
 // EncodeReadRequest serializes a read Request into its wire representation.
 func EncodeReadRequest(r Request) []byte {
@@ -77,13 +93,14 @@ func DecodeResponse(r Request, b []byte) (uint32, error) {
 }
 
 // encodeRequest is the shared Request header encoding EncodeReadRequest and
-// EncodeWriteRequest both use.
+// EncodeWriteRequest both use: byte 0 is the reserved byte (always 0), byte
+// 1 packs Mode into its top two bits and DevAddr into its low six, and
+// bytes 2:4 are RegAddr, big-endian.
 func encodeRequest(r Request) []byte {
 	buf := make([]byte, requestHeaderLen)
-	buf[0] = byte(r.Mode)
-	buf[1] = r.PhyAddr
-	buf[2] = r.DevAddr
-	binary.BigEndian.PutUint16(buf[3:5], r.RegAddr)
+	buf[0] = 0
+	buf[1] = byte(r.Mode)<<modeShift | r.DevAddr&addrMask
+	binary.BigEndian.PutUint16(buf[2:4], r.RegAddr)
 	return buf
 }
 
@@ -92,7 +109,10 @@ func encodeRequest(r Request) []byte {
 // so this rejects any trailing bytes on its own; DecodeWriteRequest instead
 // passes an exact requestHeaderLen slice and performs its own length check
 // against the full write-request length, since only it knows the trailing
-// data field's width (it depends on the decoded Request's DataWidth).
+// data field's width (it depends on the decoded Request's DataWidth). A
+// nonzero reserved byte (byte 0) is rejected with avtp.ErrReservedBitsSet,
+// the same convention this repo's other wire decoders use for a field
+// documented as reserved.
 func decodeRequest(b []byte) (Request, error) {
 	if len(b) < requestHeaderLen {
 		return Request{}, ErrShortBuffer
@@ -100,11 +120,13 @@ func decodeRequest(b []byte) (Request, error) {
 	if len(b) > requestHeaderLen {
 		return Request{}, ErrTrailingBytes
 	}
+	if b[0] != 0 {
+		return Request{}, avtp.ErrReservedBitsSet
+	}
 	return Request{
-		Mode:    Mode(b[0]),
-		PhyAddr: b[1],
-		DevAddr: b[2],
-		RegAddr: binary.BigEndian.Uint16(b[3:5]),
+		Mode:    Mode(b[1] >> modeShift),
+		DevAddr: b[1] & addrMask,
+		RegAddr: binary.BigEndian.Uint16(b[2:4]),
 	}, nil
 }
 

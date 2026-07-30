@@ -107,7 +107,7 @@ func TestHandleRequest_DefaultStoreAndTransport(t *testing.T) {
 	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
-	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, PhyAddr: 1, DevAddr: 2, RegAddr: 0x10}
+	r := mdio.Request{Mode: mdio.ModeMMDSingleWord, DevAddr: 2, RegAddr: 0x10}
 
 	// Default store: reads as zero until written.
 	resp, err := ep.HandleRequest(root, readReq(r))
@@ -164,7 +164,7 @@ func TestHandleRequest_MMSWideWidth(t *testing.T) {
 	if err := ep.Configure(root, mdio.Config{Enabled: true}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
-	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, PhyAddr: 1, DevAddr: 0, RegAddr: 0x10}
+	r := mdio.Request{Mode: mdio.ModeMMSSingleWord, DevAddr: 0, RegAddr: 0x10}
 
 	if _, werr := ep.HandleRequest(root, writeReq(r, 0xFEEDFACE)); werr != nil {
 		t.Fatalf("HandleRequest(write, MMS0): %v", werr)
