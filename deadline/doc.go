@@ -40,11 +40,11 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package's three-state liveness model, and its choice to treat a queue
-// heartbeat and an endpoint trigger as distinct signal classes rather than
-// collapsing them, are this implementation's own reasoned, self-consistent
-// design — the roadmap text this package implements says only that the old
+// This package's three-state liveness model, and its choice to treat a
+// queue heartbeat and an endpoint trigger as distinct signal classes
+// rather than collapsing them, are this implementation's own reasoned,
+// self-consistent design — the roadmap text this package implements says
+// only that the old
 // broadcast-liveness model has no direct equivalent and that the nearest
 // substitutes "have different failure semantics and need to be modeled from
 // scratch", without prescribing the exact state machine — the same

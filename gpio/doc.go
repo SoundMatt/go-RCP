@@ -35,13 +35,11 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of a GPIO endpoint, not
-// from the primary spec text, and two design choices are flagged here as
-// this implementation's own reasoned encoding rather than a verified
-// transcription of the published register/request byte layouts, the same
-// open-item posture avtp/doc.go and server/doc.go document for their own
-// packages:
+// This package's register/request byte layout for two specific design
+// choices below has not yet been independently re-verified against the
+// governing OPEN Alliance TC18 Remote Control Protocol Specification; see
+// the ecosystem audit tracking issues for known gaps, the same open-item
+// posture avtp/doc.go and server/doc.go document for their own packages:
 //
 //   - ROADMAP.md's own milestone text names seven combining rules (replace,
 //     Or, And, Xor, saturating add, saturating subtract, and the

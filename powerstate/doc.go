@@ -36,10 +36,9 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package adds no wire format or state-machine claim of its own beyond
-// wakeup's — it is pacing/retry glue over an already-built endpoint type
-// (see wakeup/doc.go's own spec-fidelity note for that package's open
+// This package adds no wire format or state-machine claim of its own
+// beyond wakeup's — it is pacing/retry glue over an already-built endpoint
+// type (see wakeup/doc.go's own spec-fidelity note for that package's open
 // items).
 package powerstate
 

@@ -46,11 +46,9 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package is pure orchestration glue over e2e.Supervisor and
-// request.Dispatcher, both already built from a behavioral description of
-// the specification's safety mechanisms (see e2e/doc.go's own
-// spec-fidelity note) — it makes no independent claim about wire format or
+// This package is pure orchestration glue over e2e.Supervisor and
+// request.Dispatcher (see e2e/doc.go's own spec-fidelity note for their
+// open items) — it makes no independent claim about wire format or
 // spec-mandated behavior of its own.
 package watchdog
 

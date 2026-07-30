@@ -27,10 +27,10 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package adds no priority-ordering claim of its own beyond request.Kind's
-// already-documented one (see request/kind.go's own spec-fidelity note on
-// priorityRank) — it purely reuses that ordering client-side.
+// This package adds no priority-ordering claim of its own beyond
+// request.Kind's already-documented one (see request/kind.go's own
+// spec-fidelity note on priorityRank) — it purely reuses that ordering
+// client-side.
 package prioqueue
 
 //fusa:req REQ-PQ-001

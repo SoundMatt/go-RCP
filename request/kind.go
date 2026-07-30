@@ -175,10 +175,10 @@ func (k Kind) String() string {
 // applies when more than one ticket on the same endpoint becomes eligible to
 // advance from Started to Executing within a single Pump call. Lower ranks
 // run first. This ordering is this implementation's own reasoned, documented
-// default (see doc.go's spec-fidelity note) rather than a verified
-// transcription of the source specification's own table, consistent with
-// this repo's established posture on spec ambiguity (see e.g. gpio/doc.go's
-// eight-write-semantics note):
+// default (see doc.go's spec-fidelity note); it has not yet been
+// independently re-verified against the governing specification's own
+// table, consistent with this repo's established posture on spec ambiguity
+// (see e.g. gpio/doc.go's eight-write-semantics note):
 //
 //  1. Cancellation (all three variants, ranked equally) always runs first —
 //     a pending cancellation must retire the requests it targets before any

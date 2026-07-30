@@ -45,13 +45,13 @@
 // Every other Phase 14/16 endpoint type in this repo exposes a
 // DrainTriggers method queuing endpoint-specific TriggerEvent values, for
 // request.KindTriggered to gate on (see request/doc.go). This package
-// deliberately does not: the behavioral description ROADMAP.md Milestone 51
-// was built from names no trigger-signal table for CAN in the source
-// specification at all — unlike, say, gpio's edge-trigger table or i2c's
-// transaction-complete signal, there is no defined named event a CAN
-// endpoint reports as a request-layer trigger source. Per Guiding Principle
-// 10, this package documents that as an open gap rather than inventing a
-// trigger scheme with no specification basis to anchor it to. A future
+// deliberately does not: the governing OPEN Alliance TC18 Remote Control
+// Protocol Specification names no trigger-signal table for CAN at all —
+// unlike, say, gpio's edge-trigger table or i2c's transaction-complete
+// signal, there is no defined named event a CAN endpoint reports as a
+// request-layer trigger source. Per Guiding Principle 10, this package
+// documents that as an open gap rather than inventing a trigger scheme
+// with no specification basis to anchor it to. A future
 // endpoint-external convenience (e.g. "trigger on any received frame") could
 // still be layered on top of Endpoint.SetReceivedFrame by a caller, but that
 // is explicitly not the same thing as a specification-defined trigger-table
@@ -59,15 +59,13 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// The TC18 specification PDF is confidential to OPEN Alliance members. This
-// package was built from a behavioral description of a CAN controller
-// endpoint, not from the primary spec text. Its exact register/request byte
-// layouts (Config's field order/widths, Frame's field order, and XLHeader's
-// SDT/VCID/AF field shapes) are this implementation's own reasoned,
-// self-consistent encoding rather than a verified transcription of the
-// published byte assignments — the same open-item posture avtp/doc.go,
-// server/doc.go, and i2c/doc.go document for their own packages, pending
-// confirmation against a public interoperability reference. XLHeader's
+// This package's exact register/request byte layouts (Config's field
+// order/widths, Frame's field order, and XLHeader's SDT/VCID/AF field
+// shapes) have not yet been independently re-verified against the
+// governing OPEN Alliance TC18 Remote Control Protocol Specification —
+// the same open-item posture avtp/doc.go, server/doc.go, and i2c/doc.go
+// document for their own packages; see the ecosystem audit tracking
+// issues for known gaps. XLHeader's
 // three named fields (SDT, VCID, AF) reflect the publicly documented CAN XL
 // frame format (ISO 11898-1), not any TC18-specific text; how the TC18
 // register map actually surfaces them (if at all beyond "CAN XL's extra

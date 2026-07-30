@@ -82,7 +82,7 @@ func concatBodies(bodies [][]byte) []byte {
 //
 // # This package's own reasoned reassembly policy (Guiding Principle 10)
 //
-// Neither ROADMAP.md nor the confidential TC18 specification text spells
+// Neither ROADMAP.md nor the governing TC18 specification text spells
 // out how a receiver should treat out-of-order segments, duplicate
 // segments, or a stalled sequence that never completes — this package's own
 // documented, reversible choices, flagged here per Guiding Principle 10:
