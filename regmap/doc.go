@@ -51,10 +51,13 @@
 //
 // The TC18 specification PDF is confidential to OPEN Alliance members. This
 // package was built from a behavioral description of the RC Server
-// register map, not from the primary spec text. Its register byte layouts
-// (GeneralBlock's field order and widths, the pin-mapping entry format,
-// the named-signal-index scheme) are this implementation's own reasoned,
-// self-consistent encoding rather than a verified transcription of the
-// published register addresses — the same open-item posture avtp/doc.go
-// documents for its subtype tags.
+// register map, not from the primary spec text. GeneralBlock's field
+// order, widths, and offsets (issue go-RCP-N2-02) have since been
+// independently verified directly against the specification's own
+// register-map table and are now authoritative — see GeneralBlock's doc
+// comment. The pin-mapping entry format and the named-signal-index scheme
+// remain this implementation's own reasoned, self-consistent encoding
+// rather than a verified transcription of the published register
+// addresses — the same open-item posture avtp/doc.go documents for its
+// subtype tags.
 package regmap

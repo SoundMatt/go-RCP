@@ -65,6 +65,20 @@ const (
 	headerLen = 8
 )
 
+// NackCodeHandlerFailed is the one-byte NACK code this bridge sends in a
+// PayloadTypeDiagMessageNack payload when the embedded udsbr.Server itself
+// returns an error for a diagnostic message it received (see handleConn).
+// This package's DoIP framing is already a simplification of ISO
+// 13400-2's full payload layout (it carries no source/target address
+// fields on either the ACK or NACK path — see BuildHeader), so rather than
+// try to line this value up with one specific entry of ISO 13400-2's
+// diagnostic-message NACK code table, it is this implementation's own
+// reasoned choice for "the diagnostic handler could not process this
+// message," the same open-item posture the rest of this repo uses for a
+// judgment call that has no single obviously-correct existing constant to
+// reuse.
+const NackCodeHandlerFailed = uint8(0x02)
+
 // ErrInvalidHeader is returned when a DoIP header is malformed.
 var ErrInvalidHeader = errors.New("rcp/doipbr: invalid DoIP header")
 
@@ -171,7 +185,14 @@ func (s *Server) handleConn(conn net.Conn) {
 		}
 		switch payloadType {
 		case PayloadTypeDiagMessage:
-			resp, _ := s.uds.Handle(ctx, payload) //nolint:errcheck
+			resp, handleErr := s.uds.Handle(ctx, payload)
+			if handleErr != nil {
+				nack := append(BuildHeader(PayloadTypeDiagMessageNack, 1), NackCodeHandlerFailed)
+				if _, err = conn.Write(nack); err != nil {
+					return
+				}
+				continue
+			}
 			ack := append(BuildHeader(PayloadTypeDiagMessageAck, uint32(len(resp))), resp...)
 			if _, err = conn.Write(ack); err != nil {
 				return
