@@ -255,19 +255,26 @@ func TestReleaseConfigurationClaim_HolderAndNonHolder(t *testing.T) {
 }
 
 // TestIsConformantServer checks recognition of a discovery response's
-// identification/version/vendor/product fields (REQ-RCS-029).
+// identification/version/vendor/device fields (REQ-RCS-029).
 func TestIsConformantServer(t *testing.T) {
 	good := regmap.GeneralBlock{
-		VendorID:           0x1234,
-		ProductID:          0x5678,
-		RegisterMapVersion: regmap.RegisterMapVersion,
+		Magic:           regmap.GeneralBlockMagic,
+		VendorID:        0x1234,
+		DeviceID:        0x5678,
+		ProtocolVersion: regmap.RegisterMapVersion,
 	}
 	if !discovery.IsConformantServer(good) {
 		t.Errorf("IsConformantServer(good) = false, want true")
 	}
 
+	badMagic := good
+	badMagic.Magic++
+	if discovery.IsConformantServer(badMagic) {
+		t.Errorf("IsConformantServer(badMagic) = true, want false")
+	}
+
 	badVersion := good
-	badVersion.RegisterMapVersion = regmap.RegisterMapVersion + 1
+	badVersion.ProtocolVersion = regmap.RegisterMapVersion + 1
 	if discovery.IsConformantServer(badVersion) {
 		t.Errorf("IsConformantServer(badVersion) = true, want false")
 	}
@@ -278,10 +285,10 @@ func TestIsConformantServer(t *testing.T) {
 		t.Errorf("IsConformantServer(zeroVendor) = true, want false")
 	}
 
-	zeroProduct := good
-	zeroProduct.ProductID = 0
-	if discovery.IsConformantServer(zeroProduct) {
-		t.Errorf("IsConformantServer(zeroProduct) = true, want false")
+	zeroDevice := good
+	zeroDevice.DeviceID = 0
+	if discovery.IsConformantServer(zeroDevice) {
+		t.Errorf("IsConformantServer(zeroDevice) = true, want false")
 	}
 }
 
@@ -324,8 +331,8 @@ func TestTopology_RoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadTopology: %v", err)
 	}
-	if reloaded.VendorID != topo.VendorID || reloaded.ProductID != topo.ProductID ||
-		reloaded.RegisterMapVersion != topo.RegisterMapVersion || len(reloaded.Endpoints) != len(topo.Endpoints) {
+	if reloaded.VendorID != topo.VendorID || reloaded.DeviceID != topo.DeviceID ||
+		reloaded.ProtocolVersion != topo.ProtocolVersion || len(reloaded.Endpoints) != len(topo.Endpoints) {
 		t.Errorf("ReadTopology() = %+v, want %+v", reloaded, topo)
 	}
 }

@@ -18,15 +18,20 @@ import (
 // IsConformantServer reports whether a discovery response's general block
 // looks like a genuine RCP server, rather than noise from an unrelated
 // device answering (or misinterpreted) on the same untimed AVTPDU stream:
-// its RegisterMapVersion must match the version the regmap package
-// implements, and it must carry a nonzero vendor and product
+// its Magic must match GeneralBlockMagic (DecodeGeneralBlock already
+// enforces this before a caller ever reaches a GeneralBlock value, so this
+// check is belt-and-suspenders for a value built by hand rather than
+// decoded), its ProtocolVersion must match the version the regmap package
+// implements, and it must carry a nonzero vendor and device
 // identification. This is this implementation's own reasoned recognition
 // heuristic — built from the fields regmap.GeneralBlock already carries —
 // rather than a verified transcription of a published conformance test, the
 // same open-item posture the rest of this package's spec-fidelity notes
 // document.
 func IsConformantServer(g regmap.GeneralBlock) bool {
-	return g.RegisterMapVersion == regmap.RegisterMapVersion && g.VendorID != 0 && g.ProductID != 0
+	return g.Magic == regmap.GeneralBlockMagic &&
+		g.ProtocolVersion == regmap.RegisterMapVersion &&
+		g.VendorID != 0 && g.DeviceID != 0
 }
 
 // TopologyEndpoint is one declared endpoint's identity as persisted by
@@ -46,10 +51,10 @@ type TopologyEndpoint struct {
 // backup; a client that needs the whole map again still has
 // EncodeRegisterMap/DecodeRegisterMap for that.
 type Topology struct {
-	VendorID           uint32             `json:"vendor_id"`
-	ProductID          uint32             `json:"product_id"`
-	RegisterMapVersion uint8              `json:"register_map_version"`
-	Endpoints          []TopologyEndpoint `json:"endpoints"`
+	VendorID        uint16             `json:"vendor_id"`
+	DeviceID        uint16             `json:"device_id"`
+	ProtocolVersion uint32             `json:"protocol_version"`
+	Endpoints       []TopologyEndpoint `json:"endpoints"`
 }
 
 // EndpointCount returns the number of endpoints t records — the "endpoint
@@ -71,10 +76,10 @@ func DiscoverTopology(m *regmap.RegisterMap) Topology {
 		endpoints = append(endpoints, TopologyEndpoint{Address: addr, Type: ep.Generic.Type})
 	}
 	return Topology{
-		VendorID:           m.General.VendorID,
-		ProductID:          m.General.ProductID,
-		RegisterMapVersion: m.General.RegisterMapVersion,
-		Endpoints:          endpoints,
+		VendorID:        m.General.VendorID,
+		DeviceID:        m.General.DeviceID,
+		ProtocolVersion: m.General.ProtocolVersion,
+		Endpoints:       endpoints,
 	}
 }
 
