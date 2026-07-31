@@ -37,7 +37,13 @@
 // CCITT-FALSE scheme with a different, explicit per-endpoint opt-in mode —
 // "different" in the three ways ROADMAP.md Milestone 50 calls out by name:
 //
-//   - a different polynomial: CRC32 (crc32.IEEE), not CRC-16/CCITT-FALSE;
+//   - a different polynomial: CRC32P4 (TC18 §13.6 Table 31: polynomial
+//     0xF4ACFB13, initial value 0xFFFFFFFF, input/output reflected, final
+//     XOR 0xFFFFFFFF — independently verified against a from-scratch
+//     bit-level reference implementation and the CRC-32/AUTOSAR published
+//     check value, which coincides with this exact parameter set; see
+//     crc32p4_test.go), not the standard library's own IEEE 802.3 CRC-32
+//     (crc32.IEEE) and not the legacy `e2e` package's CRC-16/CCITT-FALSE;
 //   - different coverage: the enclosing AVTPDU's stream addressing plus
 //     every field of the RCP Message itself (addressing, timestamp, and
 //     body combined), not just the old scheme's bespoke Command.Payload;
@@ -119,17 +125,34 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// Every concrete choice this package makes — the CRC32 polynomial
-// (crc32.IEEE), the exact covered-field byte layout and ordering in
-// writeCovered, appending the CRC as a trailing field rather than a
-// leading one, the KindSafetyFlag bit position (0x80) and which three base
+// Two of this package's choices were independently re-verified against the
+// governing OPEN Alliance TC18 Remote Control Protocol Specification's own
+// text after initially shipping wrong: the CRC32 polynomial (now CRC32P4,
+// TC18 §13.6 Table 31 — Compute previously used the standard library's
+// unrelated crc32.IEEE outright, which silently broke interop with any
+// real TC18-conformant peer) and Protect/Verify's pad placement (now
+// payload, then 0-3 zero pad bytes, then the trailing CRC32 — matching
+// TC18 §13.6 Figures 19/20's own worked examples byte-for-byte; Protect
+// previously appended the CRC directly onto Body and left
+// acf.EncodeMessage's own padding to run afterward, producing
+// payload-then-CRC-then-pad instead). See crc.go and crc_test.go
+// (TestProtect_Figure19ByteOrder/TestProtect_Figure20ByteOrder) for the
+// verification.
+//
+// Every other concrete choice this package makes — the exact covered-field
+// byte layout and ordering in writeCovered (stream, then Kind, ByteBusID,
+// TransactionNum, Control, ReadSizeOrSegment, Timestamp, and Body — TC18's
+// own coverage span, confirmed independently in sibling implementations,
+// additionally includes the enclosing AVTPDU's avtp_timestamp field and
+// covers the already-encoded wire bytes rather than these Go struct
+// fields directly; this package's coverage has not been reconciled with
+// that yet), the KindSafetyFlag bit position (0x80) and which three base
 // Kinds get a safety counterpart, the StreamConfig field set, and
 // Supervisor's "never observed = already timed out" default — has not yet
-// been independently re-verified against the governing OPEN Alliance TC18
-// Remote Control Protocol Specification's own wire format and rules; see
-// the ecosystem audit tracking issues for known gaps, the same open-item
-// posture avtp/doc.go, server/doc.go, and request/doc.go already document
-// for their own packages.
+// been independently re-verified against the specification's own wire
+// format and rules; see the ecosystem audit tracking issues for known
+// gaps, the same open-item posture avtp/doc.go, server/doc.go, and
+// request/doc.go already document for their own packages.
 package e2e
 
 //fusa:req REQ-CRC-001

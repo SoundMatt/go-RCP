@@ -66,7 +66,7 @@ func BuildTARA() *TARA {
 			},
 			{
 				ID:             "T-RCP-003",
-				Description:    "An attacker with write access to the wire (see T-RCP-001) recomputes e2e.Compute's CRC32 (crc32.IEEE, a non-cryptographic integrity checksum with a publicly known polynomial and fully documented covered-field layout) over a forged message and appends it, producing a safe point that e2e.Verify accepts as valid.",
+				Description:    "An attacker with write access to the wire (see T-RCP-001) recomputes e2e.Compute's CRC32 (TC18 §13.6's CRC32P4, a non-cryptographic integrity checksum with a publicly known polynomial and fully documented covered-field layout) over a forged message and appends it, producing a safe point that e2e.Verify accepts as valid.",
 				DamageScenario: "A forged safety-request (KindCompoundSafety/KindCompoundWaitSafety/KindTriggeredSafety) or forged plain request passes e2e.Guard's integrity check and reaches the wrapped endpoint, defeating the safe-point mechanism's role as a corruption/injection guard.",
 				Impact:         ImpactSevere,
 				Feasibility:    FeasibilityHigh,
