@@ -2250,3 +2250,98 @@ follow-on work rather than attempted under time pressure:
     without those fields would just be a different locally-invented
     layout wearing the specification's pointer names. Left open with the
     Table 18/23/28 field layouts identified above as the starting point.
+
+## E2E CRC safe-point correctness fix: wrong polynomial, wrong pad placement (2026-07-31)
+
+While independently re-verifying the TC18 conformance fix pass above
+bit-by-bit against the specification text, a further bit-by-bit comparison
+of `e2e/crc.go` (Milestone 50, v0.63.0) against sibling implementations
+cpp-RCP, c-RCP, and rust-RCP found two more pre-existing, independent bugs
+in this repo's E2E CRC safe-point mechanism — not introduced by the pass
+above, but newly discovered alongside it. Both are safety-relevant: the
+CRC32 safe point is this protocol's own designated corruption/injection
+guard for safety-tagged requests (ROADMAP.md Milestone 50), so a wrong
+implementation of it is worse than an obviously-missing one.
+
+- **Wrong CRC polynomial entirely.** `e2e.Compute` called
+  `crc32.NewIEEE()` — the standard library's IEEE 802.3 CRC-32
+  (`0x04C11DB7` normal / `0xEDB88320` reflected) — where TC18 §13.6 Table
+  31 defines a distinct custom variant for this exact purpose, "CRC32P4":
+  polynomial `0xF4ACFB13` (normal form), initial value `0xFFFFFFFF`, both
+  input and output reflected, final XOR `0xFFFFFFFF`. Any CRC-protected
+  message this repository computed did not match what a real
+  TC18-conformant peer computes, and vice versa — silently breaking safe
+  command mode for interop with any other implementation, including this
+  ecosystem's own cpp-RCP/c-RCP/rust-RCP, all three of which already
+  implement CRC32P4 correctly (cpp-RCP's `e2e.hpp` `kCrc32PolyNormal`/
+  `reflect32`; c-RCP's `e2e.c` `RCP_E2E_CRC32_RPOLY`, the bit-reversed
+  `0xC8DF352F`). Fixed by building a `crc32.Table` from CRC32P4's
+  bit-reversed polynomial (`hash/crc32.MakeTable`'s documented input
+  convention) and driving it via `crc32.New` (whose digest already starts
+  from `0xFFFFFFFF` and XORs the final sum by `0xFFFFFFFF`, matching Table
+  31's init/xorout with no extra handling needed) rather than the
+  stateless `crc32.Checksum` helper, which starts from 0 and applies no
+  final XOR and would have silently implemented a different, wrong
+  checksum despite using the same table. Independently verified two ways
+  (`e2e/crc32p4_test.go`): against a from-scratch, non-table bit-level
+  implementation of the same algorithm over several inputs (empty, a
+  single byte, a multi-byte buffer), and against a publicly cataloged,
+  third-party check value — this exact parameter set is also known as
+  "CRC-32/AUTOSAR" in the standard CRC parameter catalog, whose published
+  check value for the standard `"123456789"` check string, `0x1697D06A`,
+  this implementation now reproduces exactly (also cross-referenced
+  against c-RCP's own independent `test_e2e.c::test_crc32_known_answer_vector`,
+  which asserts the identical value for the identical algorithm).
+
+- **Padding placed after the CRC trailer instead of before it.** TC18's
+  own worked examples (§13.6 Figures 19/20: ACF_ABB and ACF_GBB,
+  respectively) show the wire byte order as header, payload, zero pad
+  bytes (rounding the payload up to a whole quadlet), then the trailing
+  CRC32 — pad *before* the CRC. `e2e.Protect` instead appended the CRC
+  directly onto `Body` and returned that combined blob for
+  `acf.EncodeMessage` to pad afterward, producing
+  payload-then-CRC-then-pad on the wire — backwards relative to the
+  specification. This was silent because this repository's own `Verify`
+  always stripped the CRC from the last 4 bytes of a message's `Body`
+  after `acf.DecodeMessage` had already stripped its own trailing pad
+  bytes first, so `Protect`/`Verify` correctly round-tripped against
+  *themselves* while silently misparsing a real conformant sender's
+  message (whose pad precedes its CRC) — treating part of that sender's
+  CRC as padding and corrupting the recovered value. Fixed by having
+  `Protect` build `Body` as `realPayload` + 0-3 zero pad bytes (the same
+  `(4 - len%4) % 4` rule `acf.EncodeMessage`'s own pad computation already
+  applies) + the CRC32 trailer, in that order: because that combined
+  length is always already a whole number of quadlets,
+  `acf.EncodeMessage`'s own padding logic runs unmodified and simply has
+  nothing left to add (pad=0), so the wire order comes out
+  payload-then-pad-then-CRC as required.  The matching decode-side fix
+  (`e2e.Verify`, and the new `e2e.VerifyFragmented` fragment.Reassembler.
+  FinishProtected now uses in place of its own duplicated CRC-strip logic)
+  cannot simply "un-pad" the recovered bytes, because 0-3 zero pad bytes
+  are indistinguishable, by value alone, from real trailing payload bytes
+  that happen to be zero: it instead tries every pad length a conformant
+  `Protect` could have produced (0-3, shortest first), accepting the first
+  whose recomputed CRC matches the received trailer — the same
+  disambiguation a CRC safe point exists to make possible, with a
+  wrong-candidate false-accept probability on the order of 2^-32.
+  Verified byte-for-byte against both of TC18's own worked examples
+  (`e2e/crc_test.go`'s `TestProtect_Figure19ByteOrder`/
+  `TestProtect_Figure20ByteOrder`): Figure 19 (ACF_ABB, 6-byte payload + 2
+  pad + 4-byte CRC32 = 20 bytes = 5 quadlets, `acf_msg_length` `0x05`) and
+  Figure 20 (ACF_GBB, 7-byte payload + 1 pad + 4-byte CRC32 = 28 bytes = 7
+  quadlets, `acf_msg_length` `0x07`) both match exactly, including the
+  wire's own pad field decoding to 0 (the real pad bytes live inside
+  `Body`, ahead of the CRC, not in `acf.Message.Pad`).
+
+Neither fix changes `e2e.Protect`/`e2e.Verify`/`e2e.Guard`'s exported
+signatures; both change their computed/encoded output, which is the point.
+`e2e/doc.go`'s "A note on spec fidelity" section is updated accordingly —
+CRC32P4 and the pad/CRC wire ordering are now independently verified, while
+this package's actual CRC coverage (Go struct fields, not the real encoded
+wire bytes with an `avtp_timestamp` component) remains a known,
+not-yet-reconciled gap flagged there for follow-on work, since closing it
+is a materially larger change than either fix here (this package's own
+`Compute` would need to hash real, already-encoded frame bytes plus the
+enclosing AVTPDU's own timestamp field, not a bespoke Go-struct-field
+layout, the way cpp-RCP's `coverage_buffer`/c-RCP's `rcp_e2e_compute_crc`
+already do).

@@ -2,8 +2,6 @@ package fragment
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
 	"sync"
 	"time"
 
@@ -279,18 +277,19 @@ func (r *Reassembler) Finish(key Key) (acf.Message, error) {
 
 // FinishProtected is Finish's CRC-aware counterpart (ROADMAP.md Milestone
 // 52's third named integration point): it treats key's terminal segment's
-// trailing e2e.Len bytes as a CRC32 safe point covering the whole
-// combined message, verified via e2e.ComputeFragmented over this
-// sequence's own per-segment Body slices — the exact function
-// e2e/crc.go's own doc comment names as the one a fragmentation-aware
-// reassembly path is meant to call. On success it returns the reassembled
-// Message with that trailing field stripped, exactly as e2e.Verify
-// does for an already-whole (unfragmented) message. It returns
+// trailing bytes as a CRC32 safe point (0-3 zero pad bytes immediately
+// followed by a Len-byte CRC32 trailer, per e2e.Protect) covering the whole
+// combined message, verified via e2e.VerifyFragmented over this sequence's
+// own per-segment Body slices — the exact function e2e/crc.go's own doc
+// comment names as the one a fragmentation-aware reassembly path is meant
+// to call. On success it returns the reassembled Message with that trailing
+// field (and any pad bytes) stripped, exactly as e2e.Verify does for an
+// already-whole (unfragmented) message. It returns
 // ErrUnknownSequence/ErrIncomplete under the same conditions Finish does,
-// e2e.ErrShortSafePoint when the terminal segment's Body is too short
-// to contain a safe point, and (wrapping) e2e.ErrCRCMismatch when the
-// recomputed CRC does not match — either way removing key's sequence from
-// this Reassembler, the same fail-closed posture e2e.Guard takes.
+// e2e.ErrShortSafePoint when the terminal segment's Body is too short to
+// contain a safe point, and (wrapping) e2e.ErrCRCMismatch when no candidate
+// pad length's recomputed CRC matches — either way removing key's sequence
+// from this Reassembler, the same fail-closed posture e2e.Guard takes.
 func (r *Reassembler) FinishProtected(stream avtp.StreamID, key Key) (acf.Message, error) {
 	r.mu.Lock()
 	seq, ok := r.seqs[key]
@@ -309,22 +308,7 @@ func (r *Reassembler) FinishProtected(stream avtp.StreamID, key Key) (acf.Messag
 	delete(r.seqs, key)
 	r.mu.Unlock()
 
-	last := bodies[len(bodies)-1]
-	if len(last) < e2e.Len {
-		return acf.Message{}, e2e.ErrShortSafePoint
-	}
-	n := len(last) - e2e.Len
-	got := binary.BigEndian.Uint32(last[n:])
-	bodies[len(bodies)-1] = last[:n]
-
-	want := e2e.ComputeFragmented(stream, header, bodies)
-	if got != want {
-		return acf.Message{}, fmt.Errorf("%w: got 0x%08x, want 0x%08x", e2e.ErrCRCMismatch, got, want)
-	}
-
-	out := header
-	out.Body = concatBodies(bodies)
-	return out, nil
+	return e2e.VerifyFragmented(stream, header, bodies)
 }
 
 // Sweep purges every sequence that is still incomplete (has not yet
