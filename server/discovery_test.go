@@ -125,12 +125,28 @@ func TestHandleDiscoveryRequest_RejectsTimedHeader(t *testing.T) {
 	s := server.NewServer()
 	hdr := avtp.Header{Timed: true, TimestampStatus: avtp.TimestampValid}
 
-	buf, err := s.HandleDiscoveryRequest(hdr)
+	buf, err := s.HandleDiscoveryRequest(hdr, false)
 	if !errors.Is(err, discovery.ErrDiscoveryRequiresUntimedHeader) {
 		t.Fatalf("HandleDiscoveryRequest(timed) err = %v, want ErrDiscoveryRequiresUntimedHeader", err)
 	}
 	if buf != nil {
 		t.Errorf("HandleDiscoveryRequest(timed) buf = % X, want nil", buf)
+	}
+}
+
+// TestHandleDiscoveryRequest_RejectsACFGBB checks a discovery read framed as
+// ACF_GBB is dropped rather than answered, per TC18 §12.6.1 Table 16 ("as
+// well as requests in ACF_GBB format").
+func TestHandleDiscoveryRequest_RejectsACFGBB(t *testing.T) {
+	s := server.NewServer()
+	hdr := avtp.Header{Timed: false}
+
+	buf, err := s.HandleDiscoveryRequest(hdr, true)
+	if !errors.Is(err, discovery.ErrDiscoveryRequestIsACFGBB) {
+		t.Fatalf("HandleDiscoveryRequest(ACF_GBB) err = %v, want ErrDiscoveryRequestIsACFGBB", err)
+	}
+	if buf != nil {
+		t.Errorf("HandleDiscoveryRequest(ACF_GBB) buf = % X, want nil", buf)
 	}
 }
 
@@ -141,7 +157,7 @@ func TestHandleDiscoveryRequest_AnswersUntimedHeader(t *testing.T) {
 	s := server.NewServer()
 	hdr := avtp.Header{Timed: false}
 
-	buf, err := s.HandleDiscoveryRequest(hdr)
+	buf, err := s.HandleDiscoveryRequest(hdr, false)
 	if err != nil {
 		t.Fatalf("HandleDiscoveryRequest(untimed): %v", err)
 	}

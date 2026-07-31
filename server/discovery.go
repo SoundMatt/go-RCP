@@ -45,9 +45,22 @@ func (s *Server) ReadDiscovery() []byte {
 // ordinary request — discovery has no scheduled-execution concept for a
 // timestamp to usefully express in the first place, so a timed discovery
 // request is dropped rather than silently accepted.
-func (s *Server) HandleDiscoveryRequest(hdr avtp.Header) ([]byte, error) {
+//
+// isACFGBB reports whether the originating acf.Message used the ACF_GBB
+// encoding (acf.KindLong) rather than ACF_ABB. Per TC18 §12.6.1 Table 16,
+// an ACF_GBB-framed discovery request gets the same disposition as a timed
+// header: dropped without further response — HandleDiscoveryRequest returns
+// discovery.ErrDiscoveryRequestIsACFGBB for that case, which a caller
+// (udp.Router.Route) must treat identically to the timed-header rejection,
+// i.e. as a silent drop, not a wire-level error response. This method takes
+// a plain bool rather than an acf.MessageKind so this package does not need
+// to depend on the acf package for one call site.
+func (s *Server) HandleDiscoveryRequest(hdr avtp.Header, isACFGBB bool) ([]byte, error) {
 	if hdr.Timed {
 		return nil, discovery.ErrDiscoveryRequiresUntimedHeader
+	}
+	if isACFGBB {
+		return nil, discovery.ErrDiscoveryRequestIsACFGBB
 	}
 	return s.ReadDiscovery(), nil
 }

@@ -2063,3 +2063,190 @@ packages, plus every downstream consumer's import — a repo-wide change with
 a much larger blast radius than this RELAY-dependency bump, and out of this
 change's scope. Flagged here rather than silently left for the next
 release to rediscover.
+
+## TC18 conformance fix pass: multi-message frames, byte_bus_id range, error codes, EP0 discovery, strict message length (v6.0.0, 2026-07-31)
+
+A 2026-07-31 ecosystem gap-audit pass (worklist IDs go-RCP-F2 through
+go-RCP-F5, go-RCP-01) found five independent conformance gaps against the
+governing "OPEN Alliance TC18 Remote Control Protocol Specification
+v0.5.1_RC"; all five are fixed here. `acf/message.go`'s byte-level
+`byte_message_info` codec itself (row1/row2 bit-packing) was independently
+re-confirmed conformant against the specification's Figure 7/Table 4 and
+was **not** changed — only the surrounding buffer-length and address-range
+handling described below.
+
+- **Multiple ACF messages per AVTPDU (go-RCP-F2, mandatory).** §12.9.1.1
+  ("Handling multiple requests in incoming messages") requires an RC Server
+  to "support to handle multiple requests in one frame and check each of
+  them individually if to be processed or not" — "An RCP frame may include
+  multiple ACF-types (requests)." `acf.Frame` previously held exactly one
+  `Message`; `acf.DecodeFrame` decoded exactly one and rejected any
+  leftover bytes as a length mismatch. `acf.Frame.Message` is now
+  `acf.Frame.Messages []Message`: `DecodeFrame` walks an AVTPDU's payload
+  as a sequence of zero-or-more independently-addressed ACF messages, each
+  self-describing its own length via `acf_msg_length` (new exported
+  `acf.DecodeMessagePrefix`, which `DecodeMessage` itself is now built on:
+  decode one message off the front of a buffer, report how many bytes it
+  consumed, and let the caller repeat on the remainder).
+  `acf.EncodeFrame(hdr, msg)` becomes `acf.EncodeFrame(hdr, msgs...)`
+  (variadic, so single-message call sites are source-compatible).
+  `udp.Server.serve` and `udp.Controller.readLoop` are updated to route/
+  dispatch every message a frame decoded to, individually, rather than
+  assuming there is exactly one — a server now replies with one response
+  per request in the inbound frame, batched into one reply frame. This is
+  a **breaking change** to `acf.Frame`'s exported shape (`Message` field
+  removed).
+
+- **`avtp.ByteBusID` widened to the full 11-bit wire range (go-RCP-F3,
+  mandatory).** The wire field is 11 bits (0-2047, TC18 §11.2.1 Table
+  4/Figure 7), and the bit-packing/unpacking was already correct, but
+  `avtp.ByteBusID` was `uint8` — so `acf.DecodeMessage` actively rejected
+  any legal request or response addressing byte_bus_id 256-2047 (three-
+  quarters of the address space) with `ErrByteBusIDOverflow`, even though
+  that is ordinary, spec-legal wire content from a conformant peer.
+  `ByteBusID` is now `uint16`; the decode-side overflow check is removed
+  entirely; it was structurally unreachable once the type was widened,
+  since the 11-bit field extraction is already bounded to `[0, 0x7FF]` by
+  construction. `ErrByteBusIDOverflow` is still returned by `EncodeMessage`
+  for a caller-supplied out-of-range value.
+
+- **Table 27's full 17-entry error-code enumeration (go-RCP-F4,
+  mandatory).** `udp.errorcode.go` previously implemented 8 of Table 27's
+  17 codes; every other internally-detected error condition — including a
+  CRC mismatch (`e2e.ErrCRCMismatch`), which has its own dedicated
+  `POCI_FAILURE` code a conformant client may treat very differently (e.g.
+  as a safety event) than a malformed request — fell back to the generic
+  `INVALID_PARAMETER`. All 17 codes are now defined
+  (`ErrorCodeSequencerNotKnown`, `ErrorCodeUnauthorizedAccess`,
+  `ErrorCodeLockedMemAccess`, `ErrorCodeEPError`, `ErrorCodeEPNotFound`,
+  `ErrorCodePWMInNoSignal`, `ErrorCodeRequestStorageOverflow`,
+  `ErrorCodeRequestRejected`, `ErrorCodePOCIFailure` join the previous
+  eight), and every sentinel error this repo can actually produce that has
+  a matching Table 27 code is mapped to it: CRC mismatch → `POCI_FAILURE`;
+  `regmap.ErrAccessDenied`/`ErrNotRootClient`/`ErrRootAlreadyClaimed` →
+  `UNAUTHORIZED_ACCESS`; `regmap.ErrRegisterLocked`/`ErrGeneralBlockReadOnly`
+  → `LOCKED_MEM_ACCESS`; `regmap.ErrUnknownEndpoint` → `EP_NOT_FOUND`;
+  `pwm.ErrSignalLost` → `PWM_IN_NO_SIGNAL`. (`authz.ErrDenied` is
+  deliberately not mapped: `authz` is a client-side policy layer that
+  rejects a request before it is ever sent, so it never reaches this
+  server-side error-response path — and `udp` cannot import `authz`
+  without an import cycle, since `authz` itself wraps `*udp.Controller`.)
+  Codes with no corresponding sentinel error in this repo today
+  (`SEQUENCER_NOT_KNOWN`, `EP_ERROR`, `REQ_storage_OVFL`,
+  `REQUEST_REJECTED`) are defined for forward compatibility but
+  `errorCodeFor` never selects them yet.
+
+- **EP0 discovery drops ACF_GBB requests instead of answering them
+  (go-RCP-F5, mandatory).** TC18 §12.6.1 Table 16: "AVTPDUs having a TSCF
+  header are dropped without further response, as well as requests in
+  ACF_GBB format." `server.Server.HandleDiscoveryRequest` already rejected
+  a TSCF-headed discovery request, but that rejection itself was answered
+  with a wire-level error response by `udp.Router.Route`, not silently
+  dropped — a separate, closely-related gap fixed in the same pass, since
+  fixing only the missing ACF_GBB check while leaving the TSCF case
+  answered-not-dropped would have left two inconsistent dispositions for
+  the same table's two "dropped without further response" cases.
+  `HandleDiscoveryRequest` now takes an `isACFGBB bool` and returns the new
+  `discovery.ErrDiscoveryRequestIsACFGBB` for that case; `udp.Router.Route`
+  now recognizes both `discovery.ErrDiscoveryRequiresUntimedHeader` and
+  `discovery.ErrDiscoveryRequestIsACFGBB` and reports "no reply" (the same
+  disposition as a dropped TSCF AVTPDU) instead of building an error
+  response. This is a **breaking change** to
+  `server.Server.HandleDiscoveryRequest`'s signature.
+
+- **`acf.DecodeMessage` rejects a buffer longer than its declared
+  `acf_msg_length` (go-RCP-01).** Previously a buffer longer than the
+  message's own declared quadlet length was silently accepted with the
+  trailing bytes dropped; it is now rejected with the new
+  `acf.ErrTrailingBytes`, matching `DecodeMessage`'s own doc comment that
+  the buffer "must contain exactly the encoded message," and matching
+  `acf.DecodeFrame`'s already-strict posture on length mismatches at the
+  AVTPDU layer.
+
+**Verification.** Hand-verified against the specification's own two worked
+examples (Figure 19: ACF_ABB, 6-byte payload + 2 pad + 4-byte CRC32 = 20
+bytes = 5 quadlets; Figure 20: ACF_GBB, 7-byte payload + 1 pad + 4-byte
+CRC32 = 28 bytes = 7 quadlets) via a scratch program exercising
+`EncodeMessage`/`DecodeMessage` directly: both produced `acf_msg_length` =
+`0x05` and `0x07` respectively, with every other header byte matching the
+canonical field layout, and round-tripped through `DecodeMessage` losslessly
+(confirming the length/pad-handling changes above did not disturb the
+already-conformant header codec). `go build`/`go vet`/`go test`/
+`go test -race`/`golangci-lint run` all pass across the full module;
+`gofusa check` reports 0 errors, `gofusa qualify` 46/46, `gofusa trace`
+570/570 requirements traced and tested — the pre-existing `.fusa-reqs.json`
+requirement set (none of which cover the `request` package's own conditional/
+cancellation-request wire format, since that gap — see below — is
+untouched by this pass) needed no changes.
+
+**Version**: `v6.0.0`. `acf.Frame.Message` → `Messages []Message` and
+`server.Server.HandleDiscoveryRequest`'s new parameter are both real,
+source-breaking changes to exported APIs; no compatibility shim is
+provided, the same posture this repo's own fix-pass history (mdio,
+priority ordering, RELAY v2.0) already established.
+
+**Deliberately not attempted in this pass — go-RCP-F1 (conditional/
+cancellation request envelope, critical, mandatory) and go-RCP-A2a
+(register-map endpoint sections, medium, mandatory).** Both were scoped
+during this pass; both turned out to require materially more than their
+worklist descriptions suggested, and are left as open, well-specified
+follow-on work rather than attempted under time pressure:
+
+  - **go-RCP-F1**: the `request` package's Compound/CompoundWait/Triggered/
+    Chained/cancellation envelopes are currently this implementation's own
+    invented layout carried in `acf.Message.Body`, not the specification's
+    `cmp_start_state`/`cmp_next_state`/`cmp_sequencer`/`cmp_exec_delay`/
+    `cmp_repetitions` (compound), `trigger_source_ep`/`trigger_signal_nr`/
+    `trigger_threshold`/`trigger_exec_delay`/`trigger_repetitions`
+    (triggered), `chain_exec_delay` (chained), 48-bit `presentation_time`
+    (timed), or the three fixed cancellation `request_type` codes (0x05
+    clear-all, 0x06 clear-non-safestate, 0x07 clear-specific-by-
+    transaction_num) packed into the 8-byte `message_timestamp` field
+    (TC18 §11.2.2/§11.2.3, Table 5, Figures 8-15). This pass independently
+    re-derived the exact byte layout for every one of those five request
+    types plus all three cancellation variants directly from the
+    specification text (byte-by-byte field positions and widths for each
+    of Figures 8 through 15) — available in this repo's PR history/commit
+    message for whoever picks this up next. What blocks a same-session fix
+    is that a wire-conformant rewrite is not a codec swap: `request.
+    Conditional`'s comparison-based model (`Sequencer`/`Op`/`Operand`/
+    `AdvanceOnMatch`, evaluated via `CompareOp`) has no counterpart in the
+    specification's state-transition model at all (a sequencer holds a
+    `uint8` state; a compound request matches when that state equals
+    `cmp_start_state`, or unconditionally when `cmp_start_state == 0`, and
+    sets it to `cmp_next_state` on completion — no comparison operator, no
+    delta, no `math.MaxUint32` saturation), `request.Sequencer`'s advance-
+    by-delta arithmetic would need to become a state-register bank, and
+    `KindChained`'s current in-`Body` segment-list model would need to
+    become genuine cross-message chaining within one AVTPDU (now buildable
+    on top of this pass's `acf.Frame.Messages`, but not itself built here).
+    Every one of the 25 REQ-REQ-* requirements in `.fusa-reqs.json`
+    describes the *current* (non-conformant) model in normative, testable
+    detail (e.g. REQ-REQ-004's "Sequencer registers wrap on Advance...",
+    REQ-REQ-017's `KindCancelSequencer` scope, which has no TC18 wire
+    representation at all). A conformant rewrite would need to replace
+    essentially all 25 of them — a functional-safety requirements-
+    engineering change with its own review/independence expectations (see
+    this repo's `SAFETY_PLAN.md` and the "V&V independence" gate the
+    go-FuSa v0.48.0 upgrade above added), not a change to bundle,
+    unreviewed, alongside five unrelated wire-format fixes in the same
+    pass. Tracked as still-open, now with a concrete design to build
+    against rather than open-ended non-conformance.
+  - **go-RCP-A2a**: Table 18's `svr_ep_generic_cfg_ptr`/
+    `svr_ep_bytebus_id_map_ptr`/`svr_ep_functional_cfg_ptr` are three
+    separate register-map sections; `regmap.EncodeRegisterMap` still
+    encodes one combined per-endpoint table and leaves the endpoint-map/
+    functional-config pointer fields at zero (as `GeneralBlock`'s own doc
+    comment already discloses). Re-deriving the exact per-section layouts
+    this pass (Table 23's 4-byte `Request_Stream_Index`/`EP_Nr`/`BBID`
+    entries for the byte_bus_id map, terminated by a zero index; Table 28's
+    fixed 12-byte-per-endpoint generic block — `ep_type`, packed
+    `ep_used`/`ep_delay_time` bits, `ep_req_storage_size`,
+    `ep_description`, tx/rx buffer sizes) found the real gap is larger than
+    "re-point three pointer fields at the existing combined table": Table
+    28's generic block has several fields (`ep_delay_time`,
+    `ep_req_storage_size`, `ep_description`, buffer sizes) `regmap.
+    GenericEndpointBlock` does not model at all today. Splitting the table
+    without those fields would just be a different locally-invented
+    layout wearing the specification's pointer names. Left open with the
+    Table 18/23/28 field layouts identified above as the starting point.

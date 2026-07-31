@@ -53,7 +53,7 @@ func (h *EP0Handler) HandleRequest(hdr avtp.Header, req acf.Message) (acf.Messag
 		}
 		return responseFor(req, nil), nil
 	case req.Control.Has(acf.FlagRead):
-		body, err := h.srv.HandleDiscoveryRequest(hdr)
+		body, err := h.srv.HandleDiscoveryRequest(hdr, req.Kind == acf.KindLong)
 		if err != nil {
 			return acf.Message{}, err
 		}

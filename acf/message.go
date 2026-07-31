@@ -100,10 +100,7 @@ const (
 	// maxQuadlets bounds the 9-bit acf_msg_length field (in quadlets).
 	maxQuadlets = 0x1FF
 
-	// maxByteBusID bounds the 11-bit byte_bus_id field. avtp.ByteBusID is
-	// only 8 bits wide today, so this package can only ever address the
-	// low 256 of the 2048 values the wire field allows; see
-	// ErrByteBusIDOverflow's doc comment.
+	// maxByteBusID bounds the 11-bit byte_bus_id field (0-2047).
 	maxByteBusID = 0x7FF
 
 	// maxTransactionNum bounds the 8-bit transaction_num field.
@@ -319,10 +316,34 @@ func EncodeMessage(m Message) ([]byte, error) {
 // DecodeMessage parses a Message from b. b must contain exactly the encoded
 // message (including its trailing pad bytes) — callers that receive a
 // larger buffer (e.g. the AVTPDU frame layer) must slice it down to the
-// message's declared length first. It never panics on malformed input.
+// message's declared length first, or use DecodeMessagePrefix to decode one
+// message off the front of a buffer that may hold more (see TC18 §12.9.1.1
+// and acf.DecodeFrame, which walks a frame's payload as a sequence of
+// zero-or-more independently-addressed ACF messages). It never panics on
+// malformed input.
 func DecodeMessage(b []byte) (Message, error) {
+	m, n, err := DecodeMessagePrefix(b)
+	if err != nil {
+		return Message{}, err
+	}
+	if n != len(b) {
+		return Message{}, ErrTrailingBytes
+	}
+	return m, nil
+}
+
+// DecodeMessagePrefix parses the single leading Message off the front of b,
+// which may contain further bytes belonging to a subsequent message (per
+// TC18 §12.9.1.1, "An RCP frame may include multiple ACF-types
+// (requests)"). It returns the decoded Message and n, the number of bytes
+// it consumed from b (always a whole number of quadlets, per
+// acf_msg_length) — a caller decoding a multi-message frame slices those n
+// bytes off and repeats on the remainder. DecodeMessage is DecodeMessagePrefix
+// plus a check that b held exactly one message and nothing more. It never
+// panics on malformed input.
+func DecodeMessagePrefix(b []byte) (m Message, n int, err error) {
 	if len(b) < row1Len {
-		return Message{}, ErrShortMessage
+		return Message{}, 0, ErrShortMessage
 	}
 
 	msgType := b[0] >> 1
@@ -333,7 +354,7 @@ func DecodeMessage(b []byte) (Message, error) {
 	case wireMsgTypeLong:
 		kind = KindLong
 	default:
-		return Message{}, ErrUnknownMessageKind
+		return Message{}, 0, ErrUnknownMessageKind
 	}
 
 	quadlets := (uint16(b[0]&0x01) << 8) | uint16(b[1])
@@ -342,7 +363,7 @@ func DecodeMessage(b []byte) (Message, error) {
 	pad := (b2 >> 6) & padMask
 	mtv := b2&(1<<5) != 0
 	if b2&(0x03<<3) != 0 { // rsv bits 4:3
-		return Message{}, avtp.ErrReservedBitsSet
+		return Message{}, 0, avtp.ErrReservedBitsSet
 	}
 	busIDTop := uint16(b2 & 0x07)
 
@@ -351,14 +372,14 @@ func DecodeMessage(b []byte) (Message, error) {
 		headerLen += timestampFieldLen
 	}
 	if len(b) < headerLen {
-		return Message{}, ErrShortMessage
+		return Message{}, 0, ErrShortMessage
 	}
 
+	// busIDTop is at most 3 bits (masked by 0x07 above) and b[3] is a full
+	// byte, so busID is always in [0, 0x7FF] — the entire legal 11-bit
+	// range is representable by avtp.ByteBusID (uint16); no overflow check
+	// is needed or possible here.
 	busID := (busIDTop << 8) | uint16(b[3])
-	if busID > 0xFF {
-		// avtp.ByteBusID is only 8 bits wide; see ErrByteBusIDOverflow.
-		return Message{}, ErrByteBusIDOverflow
-	}
 
 	off := row1Len
 	var timestamp uint64
@@ -370,7 +391,7 @@ func DecodeMessage(b []byte) (Message, error) {
 	r0 := b[off]
 	evt := r0 >> 4
 	if r0&(0x03<<2) != 0 { // rsv bits 3:2
-		return Message{}, avtp.ErrReservedBitsSet
+		return Message{}, 0, avtp.ErrReservedBitsSet
 	}
 	hs := r0&(1<<1) != 0
 	cs := r0&1 != 0
@@ -399,7 +420,7 @@ func DecodeMessage(b []byte) (Message, error) {
 		control |= FlagMoreSegments
 	}
 
-	m := Message{
+	m = Message{
 		Kind:              kind,
 		Pad:               pad,
 		ByteBusID:         avtp.ByteBusID(busID),
@@ -419,16 +440,16 @@ func DecodeMessage(b []byte) (Message, error) {
 	// check — quadlets is only 9 bits today so overflow isn't reachable
 	// yet, but the pattern is kept consistent across the repo's decoders.
 	if uint64(len(b)) < uint64(total) {
-		return Message{}, ErrShortMessage
+		return Message{}, 0, ErrShortMessage
 	}
 
 	bodyEnd := total - int(pad)
 	if bodyEnd < off || bodyEnd > total {
-		return Message{}, ErrShortMessage
+		return Message{}, 0, ErrShortMessage
 	}
 	if bodyEnd > off {
 		m.Body = make([]byte, bodyEnd-off)
 		copy(m.Body, b[off:bodyEnd])
 	}
-	return m, nil
+	return m, total, nil
 }

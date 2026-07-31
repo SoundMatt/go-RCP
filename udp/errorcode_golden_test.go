@@ -33,8 +33,17 @@ var goldenErrorCodeValues = []struct {
 	want uint8
 }{
 	{"ErrorCodeUnsupportedCommand", udp.ErrorCodeUnsupportedCommand, 1},
+	{"ErrorCodeSequencerNotKnown", udp.ErrorCodeSequencerNotKnown, 2},
+	{"ErrorCodeUnauthorizedAccess", udp.ErrorCodeUnauthorizedAccess, 3},
+	{"ErrorCodeLockedMemAccess", udp.ErrorCodeLockedMemAccess, 4},
 	{"ErrorCodeRequestCancelled", udp.ErrorCodeRequestCancelled, 5},
 	{"ErrorCodeRequestNotFound", udp.ErrorCodeRequestNotFound, 6},
+	{"ErrorCodeEPError", udp.ErrorCodeEPError, 7},
+	{"ErrorCodeEPNotFound", udp.ErrorCodeEPNotFound, 8},
+	{"ErrorCodePWMInNoSignal", udp.ErrorCodePWMInNoSignal, 9},
+	{"ErrorCodeRequestStorageOverflow", udp.ErrorCodeRequestStorageOverflow, 10},
+	{"ErrorCodeRequestRejected", udp.ErrorCodeRequestRejected, 11},
+	{"ErrorCodePOCIFailure", udp.ErrorCodePOCIFailure, 12},
 	{"ErrorCodePresentationTimeTooFarInFuture", udp.ErrorCodePresentationTimeTooFarInFuture, 13},
 	{"ErrorCodeGPTPFailure", udp.ErrorCodeGPTPFailure, 14},
 	{"ErrorCodeInvalidParameter", udp.ErrorCodeInvalidParameter, 15},
@@ -55,12 +64,12 @@ func TestGolden_ErrorCodeValues(t *testing.T) {
 	}
 }
 
-// TestGolden_ErrorCode_Invalid checks a code this package does not define
-// (0, and one from the specification's enumeration this package hasn't
-// implemented, such as SEQUENCER_NOT_KNOWN=2) is reported invalid rather
-// than silently accepted.
+// TestGolden_ErrorCode_Invalid checks a code outside the specification's
+// 17-entry enumeration (0, 6+11=nonexistent gaps don't exist here since the
+// table is contiguous 1-17, so this checks just below and above the range)
+// is reported invalid rather than silently accepted.
 func TestGolden_ErrorCode_Invalid(t *testing.T) {
-	for _, c := range []udp.ErrorCode{0, 2, 3, 4, 7, 8, 9, 10, 11, 12, 255} {
+	for _, c := range []udp.ErrorCode{0, 18, 19, 100, 255} {
 		if udp.ErrorCode(c).Valid() {
 			t.Errorf("ErrorCode(%d).Valid() = true, want false", c)
 		}
