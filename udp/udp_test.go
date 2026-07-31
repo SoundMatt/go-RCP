@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -200,5 +201,88 @@ func TestController_Request_AfterClose(t *testing.T) {
 	_, err := ctrl.Read(ctx, 1)
 	if !errors.Is(err, udp.ErrClosed) {
 		t.Errorf("error = %v, want ErrClosed", err)
+	}
+}
+
+// TestServer_Route_MultipleMessagesPerFrame verifies a single inbound AVTPDU
+// carrying more than one ACF message is answered with a reply frame
+// carrying one response per request, each individually routed to its own
+// endpoint's Handler, per TC18 §12.9.1.1 ("An RCP frame may include
+// multiple ACF-types (requests)."). This bypasses Controller (which only
+// ever sends one request per frame) and builds the multi-message frame by
+// hand, since exercising this server-side behavior requires a client that
+// batches requests.
+func TestServer_Route_MultipleMessagesPerFrame(t *testing.T) {
+	us, _, router := newTestServer(t)
+	h1 := &stubHandler{body: []byte{0x01}}
+	h2 := &stubHandler{body: []byte{0x02}}
+	if err := router.Register(1, h1); err != nil {
+		t.Fatalf("Register(1): %v", err)
+	}
+	if err := router.Register(2, h2); err != nil {
+		t.Fatalf("Register(2): %v", err)
+	}
+
+	client := clientStream()
+	conn, err := net.DialUDP("udp", nil, us.Addr())
+	if err != nil {
+		t.Fatalf("DialUDP: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	hdr := avtp.Header{StreamIDValid: true, StreamID: client}
+	req1 := acf.Message{Kind: acf.KindShort, ByteBusID: 1, TransactionNum: 21, Control: acf.FlagRead}
+	req2 := acf.Message{Kind: acf.KindShort, ByteBusID: 2, TransactionNum: 22, Control: acf.FlagRead}
+	frameBytes, err := acf.EncodeFrame(hdr, req1, req2)
+	if err != nil {
+		t.Fatalf("EncodeFrame: %v", err)
+	}
+
+	if _, err = conn.Write(frameBytes); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, udp.MaxFrameLen)
+	n, err := conn.Read(buf)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	respFrame, err := acf.DecodeFrame(buf[:n])
+	if err != nil {
+		t.Fatalf("DecodeFrame(response): %v", err)
+	}
+	if len(respFrame.Messages) != 2 {
+		t.Fatalf("len(Messages) = %d, want 2", len(respFrame.Messages))
+	}
+
+	byTxn := map[avtp.TransactionNum]acf.Message{}
+	for _, m := range respFrame.Messages {
+		byTxn[m.TransactionNum] = m
+	}
+	resp1, ok := byTxn[21]
+	if !ok {
+		t.Fatalf("no response for transaction 21")
+	}
+	if !bytes.Equal(resp1.Body, []byte{0x01}) {
+		t.Errorf("response[21].Body = % X, want 01", resp1.Body)
+	}
+	resp2, ok := byTxn[22]
+	if !ok {
+		t.Fatalf("no response for transaction 22")
+	}
+	if !bytes.Equal(resp2.Body, []byte{0x02}) {
+		t.Errorf("response[22].Body = % X, want 02", resp2.Body)
+	}
+
+	h1.mu.Lock()
+	count1 := h1.callCount
+	h1.mu.Unlock()
+	h2.mu.Lock()
+	count2 := h2.callCount
+	h2.mu.Unlock()
+	if count1 != 1 || count2 != 1 {
+		t.Errorf("callCounts = (%d, %d), want (1, 1) — each handler routed to individually", count1, count2)
 	}
 }

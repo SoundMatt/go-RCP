@@ -93,7 +93,10 @@ func TestGolden_UntimedShortRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeFrame(golden): %v", err)
 	}
-	if frame.Header.SequenceNum != 1 || frame.Message.ByteBusID != 0x10 {
+	if len(frame.Messages) != 1 {
+		t.Fatalf("len(Messages) = %d, want 1", len(frame.Messages))
+	}
+	if frame.Header.SequenceNum != 1 || frame.Messages[0].ByteBusID != 0x10 {
 		t.Errorf("decoded golden vector mismatch: %+v", frame)
 	}
 }
@@ -134,7 +137,10 @@ func TestGolden_TimedLongWrite(t *testing.T) {
 	if frame.Header.Disposition(false) != avtp.DispositionDrop {
 		t.Errorf("Disposition(no time-sync) = %v, want DispositionDrop", frame.Header.Disposition(false))
 	}
-	if !bytes.Equal(frame.Message.Body, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
-		t.Errorf("decoded golden vector body = % X, want DE AD BE EF", frame.Message.Body)
+	if len(frame.Messages) != 1 {
+		t.Fatalf("len(Messages) = %d, want 1", len(frame.Messages))
+	}
+	if !bytes.Equal(frame.Messages[0].Body, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
+		t.Errorf("decoded golden vector body = % X, want DE AD BE EF", frame.Messages[0].Body)
 	}
 }

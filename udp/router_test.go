@@ -11,6 +11,8 @@ import (
 
 	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/e2e"
+	"github.com/SoundMatt/go-RCP/pwm"
 	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/request"
 	"github.com/SoundMatt/go-RCP/server"
@@ -57,6 +59,38 @@ func TestRouter_Route_DropsTimedWithoutTimeSync(t *testing.T) {
 	}
 	if h.callCount != 0 {
 		t.Errorf("handler was called %d times, want 0 (dropped before dispatch)", h.callCount)
+	}
+}
+
+// TestRouter_Route_DropsDiscoveryACFGBB verifies an EP0 discovery read
+// framed as ACF_GBB is dropped outright (no reply), per TC18 §12.6.1 Table
+// 16 ("as well as requests in ACF_GBB format").
+func TestRouter_Route_DropsDiscoveryACFGBB(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+
+	hdr := avtp.Header{Timed: false}
+	req := acf.Message{Kind: acf.KindLong, ByteBusID: regmap.EP0, Control: acf.FlagRead}
+	resp, shouldReply := router.Route(hdr, req)
+	if shouldReply {
+		t.Errorf("shouldReply = true, want false (dropped); resp = %+v", resp)
+	}
+}
+
+// TestRouter_Route_AnswersDiscoveryACFABB verifies an EP0 discovery read
+// framed as ACF_ABB (the conformant shape) is still answered normally,
+// confirming TestRouter_Route_DropsDiscoveryACFGBB isn't dropping every
+// discovery read.
+func TestRouter_Route_AnswersDiscoveryACFABB(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+
+	hdr := avtp.Header{Timed: false}
+	req := acf.Message{Kind: acf.KindShort, ByteBusID: regmap.EP0, Control: acf.FlagRead}
+	resp, shouldReply := router.Route(hdr, req)
+	if !shouldReply {
+		t.Fatalf("shouldReply = false, want true (ACF_ABB discovery read must be answered)")
+	}
+	if resp.Control.Has(acf.FlagError) {
+		t.Errorf("response has FlagError set, want a successful discovery response")
 	}
 }
 
@@ -181,5 +215,47 @@ func TestErrorCode_UnrecognizedErrorFallsBackToInvalidParameter(t *testing.T) {
 	}
 	if code != udp.ErrorCodeInvalidParameter {
 		t.Errorf("code = %v, want ErrorCodeInvalidParameter", code)
+	}
+}
+
+// TestErrorCode_Table27Mappings verifies every internally-detected error
+// condition that has its own dedicated TC18 Table 27 code (§12.9.6) maps to
+// that exact code rather than falling back to ErrorCodeInvalidParameter —
+// most notably ErrorCodePOCIFailure for a CRC mismatch, which a conformant
+// client may treat very differently (e.g. as a safety event) than a
+// generic malformed-request error.
+func TestErrorCode_Table27Mappings(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want udp.ErrorCode
+	}{
+		{"CRC mismatch", e2e.ErrCRCMismatch, udp.ErrorCodePOCIFailure},
+		{"access denied", regmap.ErrAccessDenied, udp.ErrorCodeUnauthorizedAccess},
+		{"not root client", regmap.ErrNotRootClient, udp.ErrorCodeUnauthorizedAccess},
+		{"register locked", regmap.ErrRegisterLocked, udp.ErrorCodeLockedMemAccess},
+		{"unknown endpoint (regmap)", regmap.ErrUnknownEndpoint, udp.ErrorCodeEPNotFound},
+		{"pwm signal lost", pwm.ErrSignalLost, udp.ErrorCodePWMInNoSignal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+			h := &stubHandler{err: tt.err}
+			if err := router.Register(1, h); err != nil {
+				t.Fatalf("Register: %v", err)
+			}
+
+			hdr := avtp.Header{}
+			req := acf.Message{ByteBusID: 1, Control: acf.FlagRead}
+			resp, _ := router.Route(hdr, req)
+
+			code, _, err := udp.DecodeErrorBody(resp.Body)
+			if err != nil {
+				t.Fatalf("DecodeErrorBody: %v", err)
+			}
+			if code != tt.want {
+				t.Errorf("code = %v, want %v", code, tt.want)
+			}
+		})
 	}
 }

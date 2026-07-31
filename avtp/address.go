@@ -40,8 +40,12 @@ func (s StreamID) String() string {
 
 // ByteBusID addresses a single endpoint on an RC Server. It is unique only
 // within the stream_id of the AVTPDU that carries it — the same ByteBusID
-// value on two different streams may refer to two different endpoints.
-type ByteBusID uint8
+// value on two different streams may refer to two different endpoints. The
+// wire field (TC18 §11.2.1 Table 4/Figure 7) is 11 bits wide (0-2047); this
+// type is uint16 so the full range is representable — do not narrow it back
+// to uint8, which would silently reject three-quarters of the legal address
+// space on decode (see acf.ErrByteBusIDOverflow's history).
+type ByteBusID uint16
 
 // TransactionNum correlates an RCP request with its eventual response. Like
 // ByteBusID, it is scoped to the enclosing stream: two different streams may

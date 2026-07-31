@@ -28,17 +28,25 @@ var (
 	// TransactionNum outside the representable 8-bit wire range (0-255).
 	ErrTransactionNumOverflow = errors.New("rcp/acf: TransactionNum out of range for the 8-bit wire field (0-255)")
 
-	// ErrByteBusIDOverflow is returned when a ByteBusID does not fit the
-	// wire field. On encode this cannot happen today since
-	// avtp.ByteBusID is only 8 bits wide against an 11-bit wire field; on
-	// decode it is returned if a peer addresses an endpoint above 255,
-	// which this package's current avtp.ByteBusID type cannot represent.
+	// ErrByteBusIDOverflow is returned when a caller supplies a ByteBusID
+	// above 2047 to EncodeMessage. avtp.ByteBusID is uint16, so this is
+	// reachable (a caller can set any uint16 value), but decode can never
+	// produce one: the wire field's 11-bit extraction is bounded to
+	// 0-2047 by construction.
 	ErrByteBusIDOverflow = errors.New("rcp/acf: ByteBusID out of range for the 11-bit wire field (0-2047)")
 
 	// ErrReadSizeOverflow is returned when a caller supplies a
 	// ReadSizeOrSegment value outside the representable 12-bit range
 	// (0-4095).
 	ErrReadSizeOverflow = errors.New("rcp/acf: ReadSizeOrSegment out of range for the 12-bit wire field (0-4095)")
+
+	// ErrTrailingBytes is returned when a buffer is longer than the
+	// message's own declared acf_msg_length (in quadlets): a message that
+	// undershoots the buffer it was handed is exactly the kind of malformed
+	// input a receiver must not paper over by silently dropping the excess,
+	// the same strict-length posture DecodeFrame already takes at the
+	// AVTPDU layer.
+	ErrTrailingBytes = errors.New("rcp/acf: buffer longer than declared acf_msg_length")
 )
 
 // Frame-layer errors.

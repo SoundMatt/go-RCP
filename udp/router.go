@@ -1,10 +1,12 @@
 package udp
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/discovery"
 	"github.com/SoundMatt/go-RCP/regmap"
 	"github.com/SoundMatt/go-RCP/request"
 )
@@ -79,13 +81,18 @@ func (r *Router) Deregister(addr avtp.ByteBusID) {
 }
 
 // Route answers one decoded request. The bool return reports whether a
-// reply should be sent at all: it is false only when hdr.Disposition
-// resolves to avtp.DispositionDrop (a timestamped AVTPDU this Router's
-// configured time-sync capability cannot honor), matching this package's
-// documented drop-silently posture (see doc.go) rather than sending an
-// error response a sender with no trusted clock may not even be able to
-// correlate. Any other failure (unknown endpoint, a Handler's own error) is
-// reported as a wire-level error response, not a dropped reply.
+// reply should be sent at all: it is false when hdr.Disposition resolves to
+// avtp.DispositionDrop (a timestamped AVTPDU this Router's configured
+// time-sync capability cannot honor), matching this package's documented
+// drop-silently posture (see doc.go) rather than sending an error response a
+// sender with no trusted clock may not even be able to correlate — and it is
+// also false for an EP0 discovery read this Router's own EP0 handler rejects
+// with discovery.ErrDiscoveryRequiresUntimedHeader or
+// discovery.ErrDiscoveryRequestIsACFGBB, since TC18 §12.6.1 Table 16
+// requires both a TSCF-headed and an ACF_GBB-framed discovery request to be
+// "dropped without further response", not answered with an error. Any other
+// failure (unknown endpoint, a Handler's own error) is reported as a
+// wire-level error response, not a dropped reply.
 func (r *Router) Route(hdr avtp.Header, req acf.Message) (acf.Message, bool) {
 	if hdr.Disposition(r.timeSyncSupported) == avtp.DispositionDrop {
 		return acf.Message{}, false
@@ -107,6 +114,9 @@ func (r *Router) Route(hdr avtp.Header, req acf.Message) (acf.Message, bool) {
 	}
 
 	if err != nil {
+		if errors.Is(err, discovery.ErrDiscoveryRequiresUntimedHeader) || errors.Is(err, discovery.ErrDiscoveryRequestIsACFGBB) {
+			return acf.Message{}, false
+		}
 		return errorResponse(req, err), true
 	}
 	return resp, true

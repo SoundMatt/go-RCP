@@ -52,14 +52,66 @@ func TestFrame_RoundTrip(t *testing.T) {
 			if kind == acf.KindShort {
 				wantMsg.Timestamp = 0 // short encoding carries no timestamp field
 			}
-			if !reflect.DeepEqual(frame.Message, wantMsg) {
+			if len(frame.Messages) != 1 {
+				t.Fatalf("timed=%v kind=%v: len(Messages) = %d, want 1", timed, kind, len(frame.Messages))
+			}
+			if !reflect.DeepEqual(frame.Messages[0], wantMsg) {
 				t.Errorf("timed=%v kind=%v: message mismatch:\n got  %+v\n want %+v",
-					timed, kind, frame.Message, wantMsg)
+					timed, kind, frame.Messages[0], wantMsg)
 			}
 			if frame.Header.StreamID != hdr.StreamID || frame.Header.Timed != hdr.Timed {
 				t.Errorf("timed=%v kind=%v: header mismatch: %+v", timed, kind, frame.Header)
 			}
 		}
+	}
+}
+
+// TestFrame_MultipleMessagesPerFrame verifies EncodeFrame/DecodeFrame walk
+// an AVTPDU payload as a sequence of independently-addressed ACF messages,
+// per TC18 §12.9.1.1 ("An RCP frame may include multiple ACF-types
+// (requests)."), rather than assuming exactly one.
+func TestFrame_MultipleMessagesPerFrame(t *testing.T) {
+	hdr := avtp.Header{StreamIDValid: true, StreamID: testStreamID()}
+	msgs := []acf.Message{
+		{Kind: acf.KindShort, ByteBusID: 1, TransactionNum: 10, Control: acf.FlagRead, Body: []byte("aa")},
+		{Kind: acf.KindLong, ByteBusID: 2, TransactionNum: 11, Control: acf.FlagWrite, MTV: true, Timestamp: 0x1122334455667788, Body: []byte("bbbbbbb")},
+		{Kind: acf.KindShort, ByteBusID: 3, TransactionNum: 12, Control: acf.FlagRead},
+	}
+
+	b, err := acf.EncodeFrame(hdr, msgs...)
+	if err != nil {
+		t.Fatalf("EncodeFrame: %v", err)
+	}
+	frame, err := acf.DecodeFrame(b)
+	if err != nil {
+		t.Fatalf("DecodeFrame: %v", err)
+	}
+	if len(frame.Messages) != len(msgs) {
+		t.Fatalf("len(Messages) = %d, want %d", len(frame.Messages), len(msgs))
+	}
+	for i, want := range msgs {
+		got := frame.Messages[i]
+		if got.ByteBusID != want.ByteBusID || got.TransactionNum != want.TransactionNum ||
+			got.Kind != want.Kind || !reflect.DeepEqual(got.Body, want.Body) {
+			t.Errorf("message %d = %+v, want %+v", i, got, want)
+		}
+	}
+}
+
+// TestDecodeFrame_EmptyPayload verifies a zero-length AVTPDU payload decodes
+// to a Frame with zero Messages rather than erroring — TC18 §12.9.1.1 frames
+// a multi-message payload as "zero or more" ACF messages.
+func TestDecodeFrame_EmptyPayload(t *testing.T) {
+	hdrBytes, err := avtp.EncodeHeader(avtp.Header{StreamIDValid: true, StreamID: testStreamID()})
+	if err != nil {
+		t.Fatalf("EncodeHeader: %v", err)
+	}
+	frame, err := acf.DecodeFrame(hdrBytes)
+	if err != nil {
+		t.Fatalf("DecodeFrame(empty payload): %v", err)
+	}
+	if len(frame.Messages) != 0 {
+		t.Errorf("len(Messages) = %d, want 0", len(frame.Messages))
 	}
 }
 

@@ -190,13 +190,20 @@ func (c *Controller) readLoop() {
 		if err != nil {
 			continue
 		}
-		c.mu.Lock()
-		ch, ok := c.pending[frame.Message.TransactionNum]
-		c.mu.Unlock()
-		if ok {
-			select {
-			case ch <- frame.Message:
-			default:
+		// A response frame may itself carry more than one message (see
+		// acf.DecodeFrame/TC18 §12.9.1.1) — e.g. a server answering
+		// multiple requests this Controller batched into one outbound
+		// frame. Dispatch each by its own TransactionNum rather than
+		// assuming there is exactly one.
+		for _, msg := range frame.Messages {
+			c.mu.Lock()
+			ch, ok := c.pending[msg.TransactionNum]
+			c.mu.Unlock()
+			if ok {
+				select {
+				case ch <- msg:
+				default:
+				}
 			}
 		}
 	}

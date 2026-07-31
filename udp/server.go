@@ -80,8 +80,20 @@ func (s *Server) serve() {
 			continue
 		}
 
-		resp, shouldReply := s.router.Route(frame.Header, frame.Message)
-		if !shouldReply {
+		// TC18 §12.9.1.1: a frame may carry multiple independently-
+		// addressed ACF messages, each checked and routed individually —
+		// route every message this frame decoded to, and reply with every
+		// response the Router produced (in the same order), rather than
+		// assuming there was exactly one.
+		var responses []acf.Message
+		for _, msg := range frame.Messages {
+			resp, shouldReply := s.router.Route(frame.Header, msg)
+			if !shouldReply {
+				continue
+			}
+			responses = append(responses, resp)
+		}
+		if len(responses) == 0 {
 			continue
 		}
 
@@ -91,7 +103,7 @@ func (s *Server) serve() {
 			SequenceNum:   uint8(s.seq.Add(1)),
 			StreamID:      s.streamID,
 		}
-		out, err := acf.EncodeFrame(respHdr, resp)
+		out, err := acf.EncodeFrame(respHdr, responses...)
 		if err != nil {
 			continue
 		}
