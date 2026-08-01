@@ -70,6 +70,16 @@
 // endpoint package interpreted it, and gpio/spi invented their own in-band
 // selector bytes instead. See CHANGELOG/ROADMAP for the breaking change
 // that closed it.
+//
+// # Response classification (§11.3 Table 15)
+//
+// The same evt field carries an entirely different meaning on a response
+// Message (Control.Has(FlagResponse)): TC18 §11.3 Table 15's own four-way
+// response-kind split (Acknowledge/Write/Read/Error), not Table 30's
+// request-side write semantics. Message.ResponseKind implements that
+// split; see its own doc comment for why evt[3:0] == 0xF must be checked
+// before err/op. Through go-RCP v9.0.2 this was a genuine gap too — no
+// function classified a decoded response's evt field at all.
 package acf
 
 //fusa:req REQ-AVTP-011
@@ -85,3 +95,4 @@ package acf
 //fusa:req REQ-EVT-005
 //fusa:req REQ-EVT-006
 //fusa:req REQ-EVT-007
+//fusa:req REQ-AVTP-021
