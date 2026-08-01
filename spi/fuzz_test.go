@@ -22,6 +22,6 @@ func FuzzDecodeTransferRequest(f *testing.F) {
 	f.Add([]byte{})
 	f.Add(goldenTransferRequest)
 	f.Fuzz(func(t *testing.T, b []byte) {
-		_, _, _ = spi.DecodeTransferRequest(b) // must not panic
+		_ = spi.DecodeTransferRequest(b) // must not panic
 	})
 }

@@ -87,3 +87,4 @@ package adc
 //fusa:req REQ-ADC-008
 //fusa:req REQ-ADC-009
 //fusa:req REQ-ADC-010
+//fusa:req REQ-ADC-011

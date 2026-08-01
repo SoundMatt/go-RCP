@@ -102,3 +102,4 @@ package mdio
 //fusa:req REQ-MDIO-006
 //fusa:req REQ-MDIO-007
 //fusa:req REQ-MDIO-008
+//fusa:req REQ-MDIO-009

@@ -210,3 +210,4 @@ package server
 //fusa:req REQ-RCS-030
 //fusa:req REQ-RCS-020
 //fusa:req REQ-RCS-031
+//fusa:req REQ-RCS-032

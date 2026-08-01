@@ -19,12 +19,32 @@
 // One GPIO endpoint models up to MaxPins independently configured pins as a
 // single bitmask: Config.Direction says which pins are output vs input,
 // Config.TriggerEnable says which pins report a change/edge trigger signal.
-// A write request combines its operand bitmask with the endpoint's current
-// output state under one of eight WriteSemantic values — Replace, Or, And,
-// AndNot, Xor, SaturatingAdd, SaturatingSubtract, and Reconfigure (an escape
-// hatch that replaces Config.Direction itself rather than the pin value) —
-// and a read request returns the current value of every pin, regardless of
-// direction. See WriteSemantic and applyValue.
+// A read request returns the current value of every pin, regardless of
+// direction. A write request carries a 4-byte operand bitmask (§13.7.4.1
+// Figure 24) and nothing else; what is done with that bitmask is selected by
+// the request's evt[2:0] field, not by anything in the body — see
+// "# The evt field" below.
+//
+// # The evt field (§13.5 Table 30)
+//
+// GPIO shares one Table 30 row with PWM_OUT, and this package declares that
+// row as EVTClass. Every request goes through acf.Message.EVTDisposition,
+// the single shared implementation of Table 30 (acf/evt.go), which resolves
+// evt[2:0] to:
+//
+//	000b  the operand is presented at the pins as is
+//	001b  operand OR  current interface status
+//	010b  operand AND current interface status
+//	011b  operand XOR current interface status
+//	100b  reserved — rejected with error code UNSUPPORTED_CMD
+//	101b  operand plus  current interface status, saturating
+//	110b  operand minus current interface status, saturating
+//	111b  the operand is NOT presented at the pins; it is a §12.7.1
+//	      configuration write into this endpoint's EP_func block
+//
+// Combining always affects output-direction pins only. §12.9.1's general
+// rule — a non-zero evt[2:0] with no byte_msg_payload at all is answered
+// with UNSUPPORTED_CMD — is applied by the same shared path.
 //
 // # Explicit non-goal
 //
@@ -35,28 +55,24 @@
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //
-// This package's register/request byte layout for two specific design
-// choices below has not yet been independently re-verified against the
-// governing OPEN Alliance TC18 Remote Control Protocol Specification; see
-// the ecosystem audit tracking issues for known gaps, the same open-item
-// posture avtp/doc.go and server/doc.go document for their own packages:
+// Two deliberate, documented interpretations remain in this package's
+// arithmetic combining rules, both inherited from acf.ApplyEVTWriteOp:
 //
-//   - ROADMAP.md's own milestone text names seven combining rules (replace,
-//     Or, And, Xor, saturating add, saturating subtract, and the
-//     reconfiguration escape hatch) while stating the endpoint supports
-//     eight write-semantics in total. This package resolves that count by
-//     adding AndNot (a bitwise clear-mask, the natural complement to Or's
-//     set-mask in a set/clear register pair) as the eighth. This is this
-//     implementation's own reasoned choice to fill an ambiguous count, not a
-//     confirmed reading of the source specification, and should be revisited
-//     against a public interoperability reference before this encoding is
-//     treated as final.
-//   - Saturating add/subtract are defined over the endpoint's whole pin-value
-//     word, clamped to the active-pin mask ((1<<PinCount)-1) rather than
-//     wrapping on overflow/underflow — a reasoned interpretation of
-//     "saturating" consistent with how every other repo package treats
-//     saturating arithmetic (see e.g. ratelimit's token-bucket clamp), not a
-//     verified transcription of the spec's own wording.
+//   - Table 30's saturation note fixes the high-side bound at 0xFFFF, the
+//     width of the 16-bit fields PWM_OUT's payload is made of. A GPIO
+//     endpoint's interface word is PinCount bits wide instead, so this
+//     package saturates at its active-pin mask ((1<<PinCount)-1) — the
+//     largest value its interface can represent — rather than at a bound
+//     that would be meaningless for a 24-pin endpoint. See applyValue.
+//   - Table 30's normative sentence for 110b subtracts the current interface
+//     status FROM the payload, while its parenthetical example reads more
+//     naturally as the opposite order. This package implements the
+//     normative sentence. See acf.EVTWriteSubSaturating.
+//
+// Through v7.0.0 this package instead carried a one-byte write-semantic
+// selector in the request body and never read evt[2:0] at all, with an
+// invented eighth "AndNot" semantic occupying what Table 30 actually
+// reserves. Both are gone; see CHANGELOG/ROADMAP for the breaking change.
 package gpio
 
 //fusa:req REQ-GPIO-001

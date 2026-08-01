@@ -50,20 +50,22 @@ func TestGolden_Config(t *testing.T) {
 	}
 }
 
-// goldenTransferRequest is Channel2, tx = {0xDE, 0xAD, 0xBE, 0xEF}.
-var goldenTransferRequest = []byte{0x02, 0xDE, 0xAD, 0xBE, 0xEF}
+// goldenTransferRequest is a SPI transfer request's whole byte_msg_payload:
+// tx = {0xDE, 0xAD, 0xBE, 0xEF}, with no leading channel byte. The channel
+// travels in evt[2:0] instead (TC18 §13.5 Table 30's SPI row) — see
+// goldenTransferEVT.
+var goldenTransferRequest = []byte{0xDE, 0xAD, 0xBE, 0xEF}
+
+// goldenTransferEVT is evt[2:0] = 010b, selecting chip-select channel 2.
+const goldenTransferEVT = uint8(spi.Channel2)
 
 func TestGolden_TransferRequest(t *testing.T) {
-	got := spi.EncodeTransferRequest(spi.Channel2, []byte{0xDE, 0xAD, 0xBE, 0xEF})
+	got := spi.EncodeTransferRequest([]byte{0xDE, 0xAD, 0xBE, 0xEF})
 	if !bytes.Equal(got, goldenTransferRequest) {
 		t.Fatalf("EncodeTransferRequest changed:\n got  % X\n want % X", got, goldenTransferRequest)
 	}
-	ch, tx, err := spi.DecodeTransferRequest(goldenTransferRequest)
-	if err != nil {
-		t.Fatalf("DecodeTransferRequest(golden): %v", err)
-	}
-	if ch != spi.Channel2 || !bytes.Equal(tx, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
-		t.Errorf("DecodeTransferRequest(golden) = (%v, % X), want (Channel2, DE AD BE EF)", ch, tx)
+	if tx := spi.DecodeTransferRequest(goldenTransferRequest); !bytes.Equal(tx, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
+		t.Errorf("DecodeTransferRequest(golden) = % X, want DE AD BE EF", tx)
 	}
 }
 
@@ -76,6 +78,7 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	req := acf.Message{
 		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
+		EVT:       goldenTransferEVT,
 		Control:   acf.FlagWrite,
 		Body:      goldenTransferRequest,
 	}
@@ -83,7 +86,7 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleRequest(golden transfer): %v", err)
 	}
-	// Default loopback: response echoes the same channel and bytes.
+	// Default loopback: the response echoes the transmitted bytes.
 	if !bytes.Equal(resp.Body, goldenTransferRequest) {
 		t.Fatalf("HandleRequest(golden transfer) response body = % X, want % X (loopback)", resp.Body, goldenTransferRequest)
 	}

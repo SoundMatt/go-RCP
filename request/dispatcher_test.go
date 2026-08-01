@@ -51,10 +51,15 @@ func gpioReadMsg(addr avtp.ByteBusID, txn avtp.TransactionNum) acf.Message {
 	return acf.Message{Kind: acf.KindShort, ByteBusID: addr, TransactionNum: txn, Control: acf.FlagRead}
 }
 
-func gpioWriteMsg(addr avtp.ByteBusID, txn avtp.TransactionNum, sem gpio.WriteSemantic, operand uint32) acf.Message {
+// gpioWriteMsg builds a plain GPIO write. The combining rule travels in
+// evt[2:0] (TC18 §13.5 Table 30's GPIO/PWM_OUT row), so these tests exercise
+// this package's carrying of that field through its envelopes as well as the
+// bodies — see innerMessage in dispatcher.go.
+func gpioWriteMsg(addr avtp.ByteBusID, txn avtp.TransactionNum, sel acf.EVTSelector, operand uint32) acf.Message {
 	return acf.Message{
-		Kind: acf.KindShort, ByteBusID: addr, TransactionNum: txn, Control: acf.FlagWrite,
-		Body: gpio.EncodeWriteRequest(sem, operand),
+		Kind: acf.KindShort, ByteBusID: addr, TransactionNum: txn,
+		EVT: uint8(sel), Control: acf.FlagWrite,
+		Body: gpio.EncodeWriteRequest(operand),
 	}
 }
 
@@ -68,7 +73,7 @@ func TestDispatcher_PlainRetrofit(t *testing.T) {
 	ep, root, addr := newGPIOEndpoint(t, gpio.Config{PinCount: 4, Direction: 0b1111})
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
-	resp, err := d.Dispatch(root, gpioWriteMsg(addr, 1, gpio.SemanticOr, 0b0101), 0)
+	resp, err := d.Dispatch(root, gpioWriteMsg(addr, 1, acf.EVTSelector1, 0b0101), 0)
 	if err != nil {
 		t.Fatalf("Dispatch(write): %v", err)
 	}
@@ -101,7 +106,7 @@ func TestDispatcher_CompoundMatchAndAdvance(t *testing.T) {
 	// Condition false (10 != 20): the write must not reach the endpoint,
 	// and the sequencer must stay at 10.
 	unmatched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 20, AdvanceOnMatch: 5}
-	body := request.EncodeCompound(unmatched, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	body := request.EncodeCompound(unmatched, acf.FlagWrite, gpio.EncodeWriteRequest(0b0001))
 	req := acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: body}
 
 	resp, err := d.Dispatch(root, req, 0)
@@ -129,7 +134,7 @@ func TestDispatcher_CompoundMatchAndAdvance(t *testing.T) {
 	// Condition true (10 == 10): the write must reach the endpoint, and the
 	// sequencer must advance by AdvanceOnMatch.
 	matched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 10, AdvanceOnMatch: 5}
-	body = request.EncodeCompound(matched, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	body = request.EncodeCompound(matched, acf.FlagWrite, gpio.EncodeWriteRequest(0b0001))
 	req = acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 3, Control: acf.FlagWrite, Body: body}
 
 	resp, err = d.Dispatch(root, req, 0)
@@ -205,7 +210,7 @@ func TestDispatcher_Triggered(t *testing.T) {
 		return n
 	})
 
-	body := request.EncodeTriggered(source, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	body := request.EncodeTriggered(source, acf.FlagWrite, gpio.EncodeWriteRequest(0b0001))
 	req := acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: body}
 
 	id, err := d.Submit(root, req)
@@ -237,7 +242,7 @@ func TestDispatcher_Timed(t *testing.T) {
 	ep, root, addr := newGPIOEndpoint(t, gpio.Config{PinCount: 4, Direction: 0b1111})
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
-	body := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0010))
+	body := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(0b0010))
 	req := acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: body}
 
 	id, err := d.Submit(root, req)
@@ -267,16 +272,23 @@ func TestDispatcher_ChainedSequentialAndAbort(t *testing.T) {
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
 	segs := []request.ChainedSegment{
-		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001)},
-		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0010)},
+		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(0b0001)},
+		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(0b0010)},
 		{Control: 0, Body: nil}, // neither Read nor Write: gpio rejects this
-		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(gpio.SemanticOr, 0b1000)},
+		{Control: acf.FlagWrite, Body: gpio.EncodeWriteRequest(0b1000)},
 	}
 	body, err := request.EncodeChained(segs)
 	if err != nil {
 		t.Fatalf("EncodeChained: %v", err)
 	}
-	req := acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: 0, Body: body}
+	// evt[2:0] = 001b (Table 30's bitwise-OR rule) applies to every segment
+	// of the chain: the selector lives in the enclosing request-descriptor
+	// header, not per segment, so the segments accumulate rather than
+	// overwrite one another.
+	req := acf.Message{
+		Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1,
+		EVT: uint8(acf.EVTSelector1), Control: 0, Body: body,
+	}
 
 	_, err = d.Dispatch(root, req, 0)
 	if !errors.Is(err, request.ErrChainedSegmentFailed) {
@@ -303,7 +315,7 @@ func TestDispatcher_CancelAll(t *testing.T) {
 	d := request.NewDispatcher(ep, addr, request.NewSequencer(), nil)
 
 	// Two Timed tickets, both not yet due, sit in StateStarted.
-	body := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	body := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(0b0001))
 	id1, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: body})
 	if err != nil {
 		t.Fatalf("Submit(timed 1): %v", err)
@@ -356,7 +368,7 @@ func TestDispatcher_CancelTransactionAndSequencer(t *testing.T) {
 	seq := request.NewSequencer()
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
-	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(0b0001))
 	targetTxn := avtp.TransactionNum(42)
 	target, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: targetTxn, Control: acf.FlagWrite, Body: timedBody})
 	if err != nil {

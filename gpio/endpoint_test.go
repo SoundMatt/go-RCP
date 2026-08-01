@@ -22,7 +22,7 @@ import (
 func TestHandleRequest_ReadReturnsCurrentValue(t *testing.T) {
 	cfg := gpio.Config{PinCount: 4, Direction: 0b0011}
 	ep, root := newConfiguredEndpoint(t, cfg)
-	writeAndGetValue(t, ep, root, gpio.SemanticReplace, 0b0001)
+	writeAndGetValue(t, ep, root, acf.EVTSelector0, 0b0001)
 
 	req := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Control: acf.FlagRead}
 	resp, err := ep.HandleRequest(root, req)
@@ -73,12 +73,12 @@ func TestTriggers_OnlyEnabledPinsQueue(t *testing.T) {
 	cfg := gpio.Config{PinCount: 2, Direction: 0b11, TriggerEnable: 0b01}
 	ep, root := newConfiguredEndpoint(t, cfg)
 
-	writeAndGetValue(t, ep, root, gpio.SemanticOr, 0b10) // pin 1 only: no trigger
+	writeAndGetValue(t, ep, root, acf.EVTSelector1, 0b10) // pin 1 only: no trigger
 	if got := ep.DrainTriggers(); got != nil {
 		t.Errorf("DrainTriggers() after non-trigger pin change = %+v, want nil", got)
 	}
 
-	writeAndGetValue(t, ep, root, gpio.SemanticOr, 0b01) // pin 0: triggers
+	writeAndGetValue(t, ep, root, acf.EVTSelector1, 0b01) // pin 0: triggers
 	got := ep.DrainTriggers()
 	if len(got) != 1 {
 		t.Fatalf("DrainTriggers() = %+v, want 1 event", got)
@@ -96,8 +96,8 @@ func TestSetInputs_OnlyAffectsInputPins(t *testing.T) {
 	// pin 1 input (trigger-enabled).
 	cfg := gpio.Config{PinCount: 2, Direction: 0b01, TriggerEnable: 0b11}
 	ep, root := newConfiguredEndpoint(t, cfg)
-	writeAndGetValue(t, ep, root, gpio.SemanticOr, 0b01) // drive output pin 0 high
-	ep.DrainTriggers()                                   // clear the write's own trigger
+	writeAndGetValue(t, ep, root, acf.EVTSelector1, 0b01) // drive output pin 0 high
+	ep.DrainTriggers()                                    // clear the write's own trigger
 
 	got := ep.SetInputs(0b11) // attempt to drive both pins high externally
 	if got != 0b11 {
@@ -115,8 +115,8 @@ func TestDrainTriggers_FIFOAndClears(t *testing.T) {
 	cfg := gpio.Config{PinCount: 2, Direction: 0b11, TriggerEnable: 0b11}
 	ep, root := newConfiguredEndpoint(t, cfg)
 
-	writeAndGetValue(t, ep, root, gpio.SemanticOr, 0b01)
-	writeAndGetValue(t, ep, root, gpio.SemanticOr, 0b10)
+	writeAndGetValue(t, ep, root, acf.EVTSelector1, 0b01)
+	writeAndGetValue(t, ep, root, acf.EVTSelector1, 0b10)
 
 	got := ep.DrainTriggers()
 	if len(got) != 2 {

@@ -57,7 +57,7 @@ func submitPlain(t *testing.T, d *request.Dispatcher, requester avtp.StreamID, a
 		ByteBusID:      addr,
 		TransactionNum: txn,
 		Control:        acf.FlagWrite,
-		Body:           gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001),
+		Body:           gpio.EncodeWriteRequest(0b0001),
 	})
 	if err != nil {
 		t.Fatalf("Submit: %v", err)

@@ -2115,6 +2115,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-RCS-032",
+      "title": "ApplyConfigRequest/WriteFunctionalAt implement TC18 \u00a712.7.1 offset-addressed configuration access",
+      "text": "server.Server.ApplyConfigRequest shall patch the caller-supplied EP_func block at the configuration request's relative start address, adopt and persist the patched block only if the endpoint accepts it, and restore the previous block if persisting fails; for a read it shall return the EP_func bytes at that start address, bounded by the request's read_size and clamped to the end of the block. Both it and server.Server.WriteFunctionalAt shall silently ignore, in full, any write whose start address plus data length exceeds the block's length, per TC18 \u00a712.7.1: \"Any byte_msg_payload for which the length plus the start_address results in a value larger than the EP_LEN, is to be ignored\".",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-GPIO-001",
       "title": "Config.Validate enforces pin-count and active-pin-mask bounds",
       "text": "gpio.Config.Validate shall return ErrPinCountOutOfRange when PinCount is zero or exceeds MaxPins, or when Direction or TriggerEnable sets any bit outside the active-pin mask ((1<<PinCount)-1).",
@@ -2124,8 +2132,8 @@
     },
     {
       "id": "REQ-GPIO-002",
-      "title": "WriteSemantic.Valid recognizes exactly the eight defined semantics",
-      "text": "gpio.WriteSemantic.Valid shall return true for exactly the eight defined write-semantic values (SemanticReplace through SemanticReconfigure) and false for any other value.",
+      "title": "evt[2:0] selects the write semantic per TC18 Table 30, and reserved 100b is rejected",
+      "text": "gpio.Endpoint.HandleRequest shall take the write semantic of a write request from the request's evt[2:0] field per TC18 \u00a713.5 Table 30's GPIO/PWM_OUT row \u2014 000b set, 001b bitwise OR, 010b bitwise AND, 011b bitwise XOR, 101b saturating add, 110b saturating subtract, 111b configuration change \u2014 and shall never take it from a byte of the request body. It shall reject evt[2:0] = 100b with acf.ErrEVTReserved (error code UNSUPPORTED_CMD) without altering any pin, reject a request whose evt[2:0] is non-zero and whose byte_msg_payload is absent with acf.ErrEVTMissingPayload per \u00a712.9.1, and reject a write request whose body is not exactly four bytes with ErrShortBuffer or ErrTrailingBytes (error code INVALID_PARAMETER) per \u00a713.7.4.1.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2133,23 +2141,23 @@
     {
       "id": "REQ-GPIO-003",
       "title": "Combining semantics affect only output-direction pins",
-      "text": "gpio.Endpoint.HandleRequest shall apply SemanticReplace/Or/And/AndNot/Xor to only the output-direction pins (Config.Direction bits set), leaving every input-direction pin's value unchanged.",
+      "text": "gpio.Endpoint.HandleRequest shall apply the evt[2:0]-selected set/OR/AND/XOR combining rules to only the output-direction pins (Config.Direction bits set), leaving every input-direction pin's value unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GPIO-004",
-      "title": "Saturating semantics clamp instead of wrapping",
-      "text": "gpio.Endpoint.HandleRequest shall clamp SemanticSaturatingAdd at the endpoint's active-pin mask and SemanticSaturatingSubtract at zero, rather than wrapping on overflow/underflow.",
+      "title": "Saturating semantics clamp instead of wrapping, and subtract in the specified operand order",
+      "text": "gpio.Endpoint.HandleRequest shall clamp the evt[2:0] = 101b saturating add at the endpoint's active-pin mask and the evt[2:0] = 110b saturating subtract at zero, rather than wrapping on overflow/underflow, per TC18 \u00a713.5 Table 30's note that \"neither overflows nor wrap-arounds shall occur\"; the subtraction shall compute byte_msg_payload minus current interface status, in that order, per the same table's normative wording for 110b.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {
       "id": "REQ-GPIO-005",
-      "title": "Reconfigure replaces Direction and persists the change",
-      "text": "gpio.Endpoint.HandleRequest shall, for SemanticReconfigure, replace Config.Direction with the request operand masked to the endpoint's active pins, persist the change through server.Server.WriteFunctional, and leave the pin value unchanged.",
+      "title": "evt[2:0] = 111b changes the endpoint configuration and is not presented at the pins",
+      "text": "gpio.Endpoint.HandleRequest shall, for a request with evt[2:0] = 111b, treat the byte_msg_payload as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block (a relative register start address followed by configuration data) rather than presenting it at the pins, persist an accepted configuration through server.Server.WriteFunctional, adopt it for subsequent requests, and leave the pin value unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2197,7 +2205,7 @@
     {
       "id": "REQ-GPIO-011",
       "title": "GPIO encoders/decoders round-trip and never panic",
-      "text": "gpio.EncodeConfig/DecodeConfig and gpio.EncodeWriteRequest/DecodeWriteRequest/DecodeValue shall round-trip their respective structures and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
+      "text": "gpio.EncodeConfig/DecodeConfig and gpio.EncodeWriteRequest/DecodeWriteRequest/DecodeValue shall round-trip their respective structures and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer. A write request body shall be exactly four bytes \u2014 the operand bitmask alone, with no in-band semantic selector byte.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2205,7 +2213,7 @@
     {
       "id": "REQ-GPIO-012",
       "title": "GPIO golden vectors pin the frozen wire byte layout",
-      "text": "gpio.EncodeConfig and gpio.EncodeWriteRequest/EncodeValue shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "text": "gpio.EncodeConfig and gpio.EncodeWriteRequest/EncodeValue shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input, with the four-byte write-request body carrying no semantic selector byte.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2236,8 +2244,8 @@
     },
     {
       "id": "REQ-SPI-004",
-      "title": "HandleRequest dispatches by sub-opcode and rejects an unconfigured channel",
-      "text": "spi.Endpoint.HandleRequest shall dispatch a transfer request to the chip-select channel named by its sub-opcode byte, and shall return ErrChannelNotConfigured when that channel's ChannelConfig.Enabled is false.",
+      "title": "HandleRequest dispatches by the evt[2:0] channel selector and rejects an unconfigured channel",
+      "text": "spi.Endpoint.HandleRequest shall dispatch a transfer request to the chip-select channel named by the request's evt[2:0] field per TC18 \u00a713.5 Table 30's SPI row (\"selects channel 0 \u2026 5\"), and shall never take the channel from a byte of the request body; it shall return ErrChannelNotConfigured when that channel's ChannelConfig.Enabled is false.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2285,7 +2293,7 @@
     {
       "id": "REQ-SPI-010",
       "title": "SPI decoders never panic on malformed input",
-      "text": "spi.DecodeConfig and spi.DecodeTransferRequest shall return ErrShortBuffer, ErrTrailingBytes, or ErrInvalidChannel rather than panicking on a malformed buffer.",
+      "text": "spi.DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer, and spi.DecodeTransferRequest/DecodeTransferResponse shall never panic on arbitrary input \u2014 every byte sequence, including the empty one, is a structurally valid SPI payload.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2293,7 +2301,15 @@
     {
       "id": "REQ-SPI-011",
       "title": "SPI golden vectors pin the frozen wire byte layout",
-      "text": "spi.EncodeConfig and spi.EncodeTransferRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "text": "spi.EncodeConfig and spi.EncodeTransferRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input, with the transfer-request body carrying the SPI payload alone and no leading channel sub-opcode byte.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-SPI-012",
+      "title": "SPI applies TC18 Table 30's SPI row and \u00a712.9.1 to every request",
+      "text": "spi.EVTClass shall be acf.EVTClassChannelSelect, and spi.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reach each of the six channels via evt[2:0] = 000b..101b, reject evt[2:0] = 110b with acf.ErrEVTReserved without performing any bus transfer, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access that is not presented on any SPI bus.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2366,6 +2382,14 @@
       "id": "REQ-I2C-009",
       "title": "I2C golden vectors pin the frozen wire byte layout",
       "text": "i2c.EncodeConfig and i2c.EncodeTransferRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-I2C-010",
+      "title": "I\u00b2C applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "i2c.EVTClass shall be acf.EVTClassConfigOnly, and i2c.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2451,6 +2475,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-UART-011",
+      "title": "UART applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "uart.EVTClass shall be acf.EVTClassConfigOnly, and uart.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-ADC-001",
       "title": "Config.Validate enforces resolution, sample count, and enum bounds when enabled",
       "text": "adc.Config.Validate shall return nil for a disabled channel regardless of its other fields, and for an enabled channel shall return ErrInvalidResolution, ErrInvalidSampleCount, ErrInvalidCombineMode, or ErrInvalidTriggerMode as appropriate for an implausible field.",
@@ -2531,6 +2563,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-ADC-011",
+      "title": "ADC applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "adc.EVTClass shall be acf.EVTClassConfigOnly, and adc.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-PWM-001",
       "title": "Config.Validate enforces role and the default output waveform's active/period invariant",
       "text": "pwm.Config.Validate shall return nil for a disabled endpoint regardless of its other fields, ErrInvalidRole for an enabled endpoint whose Role is not recognized, and ErrActiveExceedsPeriod for an enabled RoleOutput endpoint whose DefaultActiveMicros exceeds DefaultPeriodMicros.",
@@ -2606,6 +2646,14 @@
       "id": "REQ-PWM-010",
       "title": "PWM golden vectors pin the frozen wire byte layout",
       "text": "pwm.EncodeConfig and pwm.EncodeWaveform shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-PWM-011",
+      "title": "PWM applies TC18 Table 30 per role, and PWM_OUT combines per 16-bit field",
+      "text": "pwm.EVTClassFor shall return acf.EVTClassArithmetic for RoleOutput and acf.EVTClassConfigOnly for RoleInput or any unrecognized role, matching TC18 \u00a713.5 Table 30's placement of PWM_OUT and PWM_IN in different rows. pwm.Endpoint.HandleRequest shall apply the evt[2:0]-selected combining rule to a PWM_OUT write independently for each of the payload's two 16-bit fields, saturating at 0x0000 and 0xFFFF per Table 30's note; reject evt[2:0] = 100b (RoleOutput) or 001b-110b (RoleInput) with acf.ErrEVTReserved without altering the applied waveform; reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload; and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access that is not presented at the waveform generator.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -2947,6 +2995,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-LINEP-009",
+      "title": "LIN applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "lin.EVTClass shall be acf.EVTClassConfigOnly, and lin.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-CANEP-001",
       "title": "Config.Validate enforces a nonzero nominal bitrate when enabled",
       "text": "can.Config.Validate shall return nil for a disabled bus regardless of its bitrate fields, and shall return ErrInvalidBitrate for an enabled bus whose NominalBitrateKbps is zero.",
@@ -3027,6 +3083,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-CANEP-011",
+      "title": "CAN applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "can.EVTClass shall be acf.EVTClassConfigOnly, and can.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-ISELED-001",
       "title": "Config.Validate enforces a nonzero device count when enabled",
       "text": "iseled.Config.Validate shall return nil for a disabled chain regardless of DeviceCount, and shall return ErrInvalidDeviceCount for an enabled chain whose DeviceCount is zero.",
@@ -3099,6 +3163,14 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-ISELED-010",
+      "title": "ISELED applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "iseled.EVTClass shall be acf.EVTClassConfigOnly, and iseled.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-MDIO-001",
       "title": "MDIO Config encoder/decoder round-trips and never panics",
       "text": "mdio.EncodeConfig/DecodeConfig shall round-trip a Config, and DecodeConfig shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer.",
@@ -3158,6 +3230,14 @@
       "id": "REQ-MDIO-008",
       "title": "MDIO golden vectors pin the frozen wire byte layout",
       "text": "mdio.EncodeConfig and mdio.EncodeReadRequest shall produce the exact frozen byte sequences pinned by this package's golden-vector tests for a fixed representative input.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-MDIO-009",
+      "title": "MDIO applies TC18 Table 30\u2019s config-only row and \u00a712.9.1 to every request",
+      "text": "mdio.EVTClass shall be acf.EVTClassConfigOnly, and mdio.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -3638,6 +3718,14 @@
       "id": "REQ-UDP-017",
       "title": "AnnexJControlPort is the default UDP port when a caller specifies none",
       "text": "udp.NewServer (via resolveAnnexJAddr) and udp.NewController (via defaultAnnexJPort) shall default to AnnexJControlPort (17221) when the caller-supplied address names no explicit port, while leaving any caller-specified port (including 0 for an OS-assigned ephemeral port) unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-018",
+      "title": "Router applies TC18 \u00a712.9.1 centrally and renders evt errors as UNSUPPORTED_CMD",
+      "text": "udp.Router.Route shall reject any request whose evt[2:0] is non-zero and which carries no byte_msg_payload with a wire-level error response carrying error code UNSUPPORTED_CMD, before dispatching it to EP0 or to any registered Handler, per TC18 \u00a712.9.1; and udp errorCodeFor shall map acf.ErrEVTReserved and acf.ErrEVTMissingPayload to udp.ErrorCodeUnsupportedCommand rather than to the generic INVALID_PARAMETER fallback, per TC18 \u00a713.5 Table 30 and \u00a712.9.1.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4550,6 +4638,62 @@
       "id": "REQ-FW-008",
       "title": "ChunkPayload Marshal/UnmarshalChunkPayload round-trips every field",
       "text": "firmware.UnmarshalChunkPayload applied to firmware.ChunkPayload.Marshal's output shall reproduce TotalSize, Offset, CRC32, and Data unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-001",
+      "title": "evt[3] and evt[2:0] are read as the two independent fields TC18 \u00a713.5 defines",
+      "text": "acf.Message.EVTSelector shall return the request's evt[2:0] value with the evt[3] request-acknowledge bit masked off, and acf.Message.EVTAckRequested shall report evt[3]. acf.ClassifyEVT shall produce the same result for a given evt[2:0] whether or not evt[3] is set.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-002",
+      "title": "ClassifyEVT implements Table 30's SPI row",
+      "text": "acf.ClassifyEVT for acf.EVTClassChannelSelect shall map evt[2:0] = 000b..101b to EVTActionInterface on channels 0..5 respectively, return acf.ErrEVTReserved for 110b, and map 111b to EVTActionConfigure, per TC18 \u00a713.5 Table 30's SPI row. It shall return acf.ErrEVTUnknownClass for a class value outside Table 30's three rows.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-003",
+      "title": "ClassifyEVT implements Table 30's ADC/PWM_IN/I2C/LIN/CAN/UART/ISELED/MDIO row",
+      "text": "acf.ClassifyEVT for acf.EVTClassConfigOnly shall map evt[2:0] = 000b to EVTActionInterface, return acf.ErrEVTReserved for 001b through 110b, and map 111b to EVTActionConfigure. The 000b mapping is a documented departure from TC18 \u00a713.5 Table 30's literal \"000b to 110b reserved\" text, adopted because \u00a713.7.9 Figure 33 shows a conformant request with evt = 0000b and \u00a713.7.7.3 requires an ordinary payload to reach the interface; the departure shall remain documented at acf.ClassifyEVT.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-004",
+      "title": "ClassifyEVT implements Table 30's GPIO/PWM_OUT row",
+      "text": "acf.ClassifyEVT for acf.EVTClassArithmetic shall map evt[2:0] = 000b/001b/010b/011b/101b/110b to the set/OR/AND/XOR/saturating-add/saturating-subtract combining rules respectively, return acf.ErrEVTReserved for 100b, and map 111b to EVTActionConfigure, per TC18 \u00a713.5 Table 30's GPIO/PWM_OUT row.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-005",
+      "title": "CheckEVTPayloadPresence implements TC18 \u00a712.9.1's general payload rule",
+      "text": "acf.CheckEVTPayloadPresence shall return acf.ErrEVTMissingPayload when evt[2:0] is non-zero and the request carries no byte_msg_payload, and nil otherwise, per TC18 \u00a712.9.1: \"If evt[2:0] \u2260 0 and no byte_msg_payload is present, then an error response shall be sent with the error code = UNSUPPORTED_CMD\". acf.Message.EVTDisposition shall apply this rule before Table 30's per-type interpretation.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-006",
+      "title": "ApplyEVTWriteOp implements Table 30's combining rules and saturation",
+      "text": "acf.ApplyEVTWriteOp shall compute payload, payload|current, payload&current, payload^current, a saturating payload+current and a saturating payload-current for the six combining rules of TC18 \u00a713.5 Table 30's GPIO/PWM_OUT row; the arithmetic rules shall saturate at zero on the low side and at the caller-supplied bound on the high side rather than wrapping; and the subtraction shall use the operand order the table states normatively (byte_msg_payload minus current interface status).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-EVT-007",
+      "title": "Configuration-request body codec round-trips TC18 \u00a712.7.1 Figure 18",
+      "text": "acf.EncodeConfigRequestBody/DecodeConfigRequestBody shall round-trip a configuration request's byte_msg_payload as a big-endian 16-bit relative EP_func register start address followed by the configuration data, and DecodeConfigRequestBody shall return acf.ErrShortConfigRequest rather than panicking for a body too short to hold that address.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"

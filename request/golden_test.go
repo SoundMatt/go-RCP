@@ -20,11 +20,14 @@ import (
 // regression-test against a frozen encoding rather than re-deriving it from
 // current behaviour.
 
-// goldenCompoundInnerBody is a valid gpio write request body (SemanticOr,
-// operand 0x00000005), so TestGolden_EndToEndDispatch below can dispatch
-// goldenCompound against a real gpio.Endpoint, not just round-trip the
-// envelope in isolation.
-var goldenCompoundInnerBody = []byte{0x01, 0x00, 0x00, 0x00, 0x05}
+// goldenCompoundInnerBody is a valid gpio write request body (operand
+// 0x00000005, exactly four bytes per TC18 §13.7.4.1), so
+// TestGolden_EndToEndDispatch below can dispatch goldenCompound against a
+// real gpio.Endpoint, not just round-trip the envelope in isolation. The
+// combining rule is not in the body — it is evt[2:0] on the enclosing
+// request, which this package carries through to the endpoint unchanged
+// (see innerMessage in dispatcher.go).
+var goldenCompoundInnerBody = []byte{0x00, 0x00, 0x00, 0x05}
 
 // goldenCompound is Sequencer=0x0001, Op=CompareEqual(0), Operand=0x0000000A,
 // AdvanceOnMatch=0x00000001, inner Control=FlagWrite, inner body =
@@ -35,8 +38,8 @@ var goldenCompound = []byte{
 	0x00,                   // Op = CompareEqual
 	0x00, 0x00, 0x00, 0x0A, // Operand
 	0x00, 0x00, 0x00, 0x01, // AdvanceOnMatch
-	byte(acf.FlagWrite),          // inner Control
-	0x01, 0x00, 0x00, 0x00, 0x05, // inner Body (goldenCompoundInnerBody)
+	byte(acf.FlagWrite),    // inner Control
+	0x00, 0x00, 0x00, 0x05, // inner Body (goldenCompoundInnerBody)
 }
 
 func TestGolden_Compound(t *testing.T) {
@@ -73,7 +76,11 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	seq.Set(1, 10) // matches goldenCompound's Operand
 	d := request.NewDispatcher(ep, addr, seq, nil)
 
-	req := acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: goldenCompound}
+	req := acf.Message{
+		Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1,
+		EVT:     uint8(acf.EVTSelector1), // Table 30 GPIO/PWM_OUT row: bitwise OR
+		Control: acf.FlagWrite, Body: goldenCompound,
+	}
 	resp, err := d.Dispatch(root, req, 0)
 	if err != nil {
 		t.Fatalf("Dispatch(golden compound): %v", err)

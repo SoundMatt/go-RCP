@@ -56,3 +56,37 @@ var (
 	// actually follows it in the buffer.
 	ErrFrameLengthMismatch = errors.New("rcp/acf: AVTPDU data length does not match enclosed message length")
 )
+
+// evt-field (TC18 §13.5 Table 30 / §12.9.1) errors. Every one of these maps
+// to error code UNSUPPORTED_CMD in a wire-level error response — see
+// udp.errorCodeFor — because that is the code the specification names for
+// each of the conditions they represent.
+var (
+	// ErrEVTReserved is returned when a request's evt[2:0] value is one
+	// Table 30 marks reserved for the addressed endpoint type: 110b for
+	// SPI, 001b-110b for the ADC/PWM_IN/I²C/LIN/CAN/UART/ISELED/MDIO row
+	// (see ClassifyEVT's documented deviation for that row's 000b entry),
+	// and 100b for GPIO/PWM_OUT. Table 30 requires each such request be
+	// "rejected with error code = UNSUPPORTED_CMD".
+	ErrEVTReserved = errors.New("rcp/acf: evt[2:0] value is reserved for this endpoint type (TC18 §13.5 Table 30)")
+
+	// ErrEVTMissingPayload is returned when a request sets evt[2:0] to a
+	// non-zero value but carries no byte_msg_payload at all, which TC18
+	// §12.9.1 requires be answered with error code UNSUPPORTED_CMD: "If
+	// evt[2:0] ≠ 0 and no byte_msg_payload is present, then an error
+	// response shall be sent with the error code = UNSUPPORTED_CMD". This
+	// rule is endpoint-type-independent — it applies before Table 30's
+	// per-type interpretation.
+	ErrEVTMissingPayload = errors.New("rcp/acf: evt[2:0] is non-zero but the request carries no byte_msg_payload (TC18 §12.9.1)")
+
+	// ErrEVTUnknownClass is returned when ClassifyEVT is handed an EVTClass
+	// that is not one of Table 30's three defined endpoint-type rows. It is
+	// a caller programming error rather than a wire condition.
+	ErrEVTUnknownClass = errors.New("rcp/acf: unrecognized evt endpoint-type class")
+
+	// ErrShortConfigRequest is returned when a configuration request's
+	// byte_msg_payload (the evt[2:0] = 111b shape) is too short to hold the
+	// leading relative EP_func register start address (TC18 §12.7.1
+	// Figure 18).
+	ErrShortConfigRequest = errors.New("rcp/acf: configuration request body too short for its EP_func start address")
+)

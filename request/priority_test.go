@@ -23,7 +23,7 @@ type orderRecorder struct {
 func (r orderRecorder) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	resp, err := r.ep.HandleRequest(requester, req)
 	if err == nil && req.Control.Has(acf.FlagWrite) {
-		if sem, operand, decErr := gpio.DecodeWriteRequest(req.Body); decErr == nil && sem == gpio.SemanticOr {
+		if operand, decErr := gpio.DecodeWriteRequest(req.Body); decErr == nil && req.EVTSelector() == acf.EVTSelector1 {
 			*r.order = append(*r.order, operand)
 		}
 	}
@@ -45,20 +45,20 @@ func TestDispatcher_PriorityOrdering(t *testing.T) {
 	// execution-priority rank — so a passing test can only mean priority
 	// ordering, not submission-order coincidence.
 	plainOperand := uint32(0x01)
-	if _, err := d.Submit(root, gpioWriteMsg(addr, 1, gpio.SemanticOr, plainOperand)); err != nil {
+	if _, err := d.Submit(root, gpioWriteMsg(addr, 1, acf.EVTSelector1, plainOperand)); err != nil {
 		t.Fatalf("Submit(plain): %v", err)
 	}
 
 	compoundOperand := uint32(0x02)
 	matched := request.Conditional{Sequencer: 1, Op: request.CompareEqual, Operand: 0, AdvanceOnMatch: 0}
-	compoundBody := request.EncodeCompound(matched, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, compoundOperand))
-	if _, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 2, Control: acf.FlagWrite, Body: compoundBody}); err != nil {
+	compoundBody := request.EncodeCompound(matched, acf.FlagWrite, gpio.EncodeWriteRequest(compoundOperand))
+	if _, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 2, EVT: uint8(acf.EVTSelector1), Control: acf.FlagWrite, Body: compoundBody}); err != nil {
 		t.Fatalf("Submit(compound): %v", err)
 	}
 
 	timedOperand := uint32(0x04)
-	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, timedOperand))
-	if _, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 3, Control: acf.FlagWrite, Body: timedBody}); err != nil {
+	timedBody := request.EncodeTimed(1000, acf.FlagWrite, gpio.EncodeWriteRequest(timedOperand))
+	if _, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 3, EVT: uint8(acf.EVTSelector1), Control: acf.FlagWrite, Body: timedBody}); err != nil {
 		t.Fatalf("Submit(timed): %v", err)
 	}
 

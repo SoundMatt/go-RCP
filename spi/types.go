@@ -1,10 +1,14 @@
 package spi
 
-import "github.com/SoundMatt/go-RCP/regmap"
+import (
+	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/regmap"
+)
 
 // MaxChannels is the largest number of independently pre-configured
 // chip-select channels one SPI endpoint may declare, per ROADMAP.md
-// Milestone 47.
+// Milestone 47. It is also exactly the number TC18 §13.5 Table 30's SPI row
+// can address: "000b to 101b — selects channel 0 … 5".
 const MaxChannels = 6
 
 // EndpointType re-exports regmap.EndpointTypeSPI so a caller that only
@@ -12,9 +16,20 @@ const MaxChannels = 6
 // SPI endpoint's type with server.Server.AddEndpoint.
 const EndpointType = regmap.EndpointTypeSPI
 
+// EVTClass is the row of TC18 §13.5 Table 30 that governs how this endpoint
+// type interprets a request's evt[2:0] field. SPI has that row to itself:
+// evt[2:0] IS the channel selector. Endpoint.HandleRequest routes every
+// request through acf.Message.EVTDisposition with this class — see
+// acf/evt.go.
+const EVTClass = acf.EVTClassChannelSelect
+
 // Channel selects one of an endpoint's up to MaxChannels pre-configured
-// chip-select channels. It is this package's request sub-opcode: the first
-// byte of every transfer request/response body (see EncodeTransferRequest).
+// chip-select channels. It is carried by the request's evt[2:0] field, per
+// TC18 §13.5 Table 30's SPI row — "selects channel 0 … 5; the interface
+// settings are to be applied according to this selection; the CSN pin
+// assigned to this selection is to be asserted" — and not by any byte of the
+// request body, which is the SPI payload in full from its first byte
+// (§13.7.3, Figure 23).
 type Channel uint8
 
 const (

@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/avtp"
 	"github.com/SoundMatt/go-RCP/discovery"
 	"github.com/SoundMatt/go-RCP/lifecycle"
@@ -243,6 +244,122 @@ func (s *Server) WriteFunctional(requester avtp.StreamID, addr avtp.ByteBusID, d
 	}
 	ep.Functional.Data = append([]byte(nil), data...)
 	return nil
+}
+
+// WriteFunctionalAt performs the offset-addressed functional-configuration
+// write TC18 §12.7.1 defines for an evt[2:0] = 111b configuration request:
+// data is written into addr's functional block starting at startAddr, a byte
+// offset relative to that block's own base ("relative Register start address
+// in EP_func", Figure 18), leaving every byte outside [startAddr,
+// startAddr+len(data)) as it was. It is subject to exactly the same access
+// rule as WriteFunctional.
+//
+// Per §12.7.1, "Any byte_msg_payload for which the length plus the
+// start_address results in a value larger than the EP_LEN, is to be
+// ignored": an overrunning write is silently discarded in full (no error, no
+// truncation, no partial application), so this returns nil having changed
+// nothing. EP_LEN is the addressed endpoint's current functional-block
+// length — this call never grows the block, since the block's length is
+// itself the endpoint's declared EP_LEN rather than a free-growing buffer. A
+// write into an endpoint whose functional block has never been populated
+// therefore lands in the ignore case, which is the correct outcome: there is
+// no EP_func region to address yet.
+//
+// A zero-length data is a no-op that still performs the access and
+// endpoint-existence checks, so a caller can use it to probe both.
+func (s *Server) WriteFunctionalAt(requester avtp.StreamID, addr avtp.ByteBusID, startAddr uint16, data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.access.CanAccess(requester, addr) {
+		return regmap.ErrAccessDenied
+	}
+	ep, ok := s.rmap.Endpoint(addr)
+	if !ok {
+		return regmap.ErrUnknownEndpoint
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	end := int(startAddr) + len(data)
+	if end > len(ep.Functional.Data) {
+		return nil // §12.7.1: "is to be ignored"
+	}
+	copy(ep.Functional.Data[startAddr:end], data)
+	return nil
+}
+
+// ApplyConfigRequest performs the TC18 §12.7.1 endpoint-configuration access
+// an evt[2:0] = 111b request asks for (see acf.EVTActionConfigure), and
+// returns the response body for it — nil for a write, the addressed EP_func
+// slice for a read.
+//
+// This is the single shared implementation every endpoint-type package's
+// HandleRequest delegates its configuration-change path to, rather than each
+// package re-deriving §12.7.1 for itself. The two callbacks are the only
+// type-specific part:
+//
+//   - encode returns the endpoint's current configuration rendered as its
+//     EP_func block (typically the package's own EncodeConfig applied to its
+//     cached Config). Its length is that endpoint's EP_LEN.
+//   - adopt decodes, validates and adopts a patched EP_func block (typically
+//     DecodeConfig + Config.Validate + storing the result). It must leave
+//     the endpoint unchanged and return an error if the patched block is not
+//     a valid configuration for this endpoint type.
+//
+// A write patches encode()'s block at the request's relative start address
+// and, if adopt accepts it, persists it through WriteFunctional. Per
+// §12.7.1, "Any byte_msg_payload for which the length plus the start_address
+// results in a value larger than the EP_LEN, is to be ignored": such a write
+// is silently discarded in full and answered with an ordinary empty success
+// response. If persisting fails (e.g. the requester's grant was revoked
+// between the two calls), the previously adopted block is restored before
+// the error is returned, so the endpoint's in-memory configuration never
+// diverges from the register map.
+//
+// A read returns req.ReadSizeOrSegment bytes of the EP_func block starting
+// at the request's relative start address, clamped to the end of the block,
+// or the whole remainder of the block when ReadSizeOrSegment is zero.
+func (s *Server) ApplyConfigRequest(
+	requester avtp.StreamID,
+	addr avtp.ByteBusID,
+	req acf.Message,
+	encode func() []byte,
+	adopt func([]byte) error,
+) ([]byte, error) {
+	start, data, err := acf.DecodeConfigRequestBody(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	current := encode()
+
+	if req.Control.Has(acf.FlagWrite) {
+		end := int(start) + len(data)
+		if end > len(current) {
+			return nil, nil // §12.7.1: "is to be ignored"
+		}
+		patched := append([]byte(nil), current...)
+		copy(patched[start:end], data)
+		if err := adopt(patched); err != nil {
+			return nil, err
+		}
+		if err := s.WriteFunctional(requester, addr, patched); err != nil {
+			// Roll back to the block that was in effect before this
+			// request; it decoded and validated once, so re-adopting it
+			// cannot fail for any reason this one did not already.
+			_ = adopt(current)
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	if int(start) >= len(current) {
+		return nil, nil
+	}
+	tail := current[start:]
+	if n := int(req.ReadSizeOrSegment); n > 0 && n < len(tail) {
+		tail = tail[:n]
+	}
+	return append([]byte(nil), tail...), nil
 }
 
 // ReadEndpoint returns the encoded GenericEndpointBlock+FunctionalBlock for

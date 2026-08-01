@@ -22,7 +22,7 @@ func FuzzDecodeWriteRequest(f *testing.F) {
 	f.Add([]byte{})
 	f.Add(goldenWriteRequest)
 	f.Fuzz(func(t *testing.T, b []byte) {
-		_, _, _ = gpio.DecodeWriteRequest(b) // must not panic
+		_, _ = gpio.DecodeWriteRequest(b) // must not panic
 	})
 }
 

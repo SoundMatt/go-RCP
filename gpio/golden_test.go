@@ -43,23 +43,29 @@ func TestGolden_Config(t *testing.T) {
 	}
 }
 
-// goldenWriteRequest is SemanticOr(1), operand=0x00000005.
-var goldenWriteRequest = []byte{0x01, 0x00, 0x00, 0x00, 0x05}
+// goldenWriteRequest is a GPIO write request's whole byte_msg_payload:
+// operand=0x00000005, exactly four bytes (TC18 §13.7.4.1 Figure 24). The
+// combining rule is NOT in here — it is evt[2:0] in the request-descriptor
+// header (§13.5 Table 30), which goldenWriteEVT carries.
+var goldenWriteRequest = []byte{0x00, 0x00, 0x00, 0x05}
+
+// goldenWriteEVT is evt[2:0] = 001b, Table 30's bitwise-OR combining rule.
+const goldenWriteEVT = uint8(acf.EVTSelector1)
 
 // goldenResponseValue is pin value 0x00000005.
 var goldenResponseValue = []byte{0x00, 0x00, 0x00, 0x05}
 
 func TestGolden_WriteRequestAndResponse(t *testing.T) {
-	got := gpio.EncodeWriteRequest(gpio.SemanticOr, 0x00000005)
+	got := gpio.EncodeWriteRequest(0x00000005)
 	if !bytes.Equal(got, goldenWriteRequest) {
 		t.Fatalf("EncodeWriteRequest changed:\n got  % X\n want % X", got, goldenWriteRequest)
 	}
-	sem, operand, err := gpio.DecodeWriteRequest(goldenWriteRequest)
+	operand, err := gpio.DecodeWriteRequest(goldenWriteRequest)
 	if err != nil {
 		t.Fatalf("DecodeWriteRequest(golden): %v", err)
 	}
-	if sem != gpio.SemanticOr || operand != 0x00000005 {
-		t.Errorf("DecodeWriteRequest(golden) = (%v, %#x), want (SemanticOr, 0x5)", sem, operand)
+	if operand != 0x00000005 {
+		t.Errorf("DecodeWriteRequest(golden) = %#x, want 0x5", operand)
 	}
 
 	respBody := gpio.EncodeValue(0x00000005)
@@ -75,6 +81,7 @@ func TestGolden_EndToEndDispatch(t *testing.T) {
 	req := acf.Message{
 		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
+		EVT:       goldenWriteEVT,
 		Control:   acf.FlagWrite,
 		Body:      goldenWriteRequest,
 	}

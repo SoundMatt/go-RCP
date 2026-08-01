@@ -81,3 +81,4 @@ package uart
 //fusa:req REQ-UART-008
 //fusa:req REQ-UART-009
 //fusa:req REQ-UART-010
+//fusa:req REQ-UART-011

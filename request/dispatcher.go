@@ -435,11 +435,27 @@ func (d *Dispatcher) Pending() int {
 // the given inner Control/Body — used for every kind that ultimately calls
 // d.handler.HandleRequest (Plain, a matched Compound, Triggered, Timed, and
 // each Chained segment).
+//
+// The original request's EVT is carried through unchanged. It has to be:
+// evt[2:0] is the endpoint's write-semantic selector / config-vs-data
+// discriminator (TC18 §13.5 Table 30), so dropping it would silently
+// rewrite every wrapped request into a plain evt[2:0] = 000b one — an
+// enveloped "OR into the current pin state" would land as a bare "set", and
+// an enveloped configuration write would be driven onto the physical
+// interface.
+//
+// One caveat worth stating: for a compound-WAIT request §13.5.1 gives the
+// OUTER evt field a different meaning again (the wait comparison selector).
+// This package encodes the wait condition in its own envelope body rather
+// than in evt (see EncodeCompound), so there is no conflict today; if a
+// future milestone moves that condition onto evt, the inner and outer uses
+// will need separating here.
 func innerMessage(t *ticket, control acf.ControlFlags, body []byte) acf.Message {
 	return acf.Message{
 		Kind:              t.original.Kind,
 		ByteBusID:         t.original.ByteBusID,
 		TransactionNum:    t.original.TransactionNum,
+		EVT:               t.original.EVT,
 		Control:           control,
 		ReadSizeOrSegment: t.original.ReadSizeOrSegment,
 		Timestamp:         t.original.Timestamp,

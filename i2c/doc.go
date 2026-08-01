@@ -76,3 +76,4 @@ package i2c
 //fusa:req REQ-I2C-007
 //fusa:req REQ-I2C-008
 //fusa:req REQ-I2C-009
+//fusa:req REQ-I2C-010
