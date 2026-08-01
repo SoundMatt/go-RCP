@@ -4748,6 +4748,15 @@
       "level": "ASIL-B",
       "asil": "ASIL-B",
       "tc18": "\u00a712.9.6 Table 27, TC18.txt:3414-3446"
+    },
+    {
+      "id": "REQ-AVTP-021",
+      "title": "ResponseKind classifies a response per TC18 Table 15",
+      "text": "Message.ResponseKind() shall return ResponseAcknowledge whenever EVT equals 0xF, regardless of Control.Has(FlagError) or the read/write flags, per TC18 Table 15/\u00a711.3.1 -- a rejected Acknowledge (err set) is still an Acknowledge, not a ResponseError. Otherwise it shall return ResponseError whenever Control.Has(FlagError), and otherwise ResponseWrite for Control.Has(FlagWrite) or ResponseRead.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.3 Table 15 + \u00a711.3.1-\u00a711.3.4, TC18.txt L1876-1926"
     }
   ]
 }

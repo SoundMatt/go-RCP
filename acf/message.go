@@ -219,6 +219,60 @@ func (m Message) ReadSize() (uint16, bool) {
 	return 0, false
 }
 
+// ResponseKind classifies a response Message (Control.Has(FlagResponse))
+// into TC18 §11.3 Table 15's four response semantics. It is meaningless
+// for a request Message, whose evt field carries Table 30's entirely
+// different, endpoint-specific meaning instead — see EVT's own doc
+// comment and acf/evt.go.
+type ResponseKind uint8
+
+const (
+	// ResponseAcknowledge is evt[3:0] == 0xF (§11.3.1): err = 0 confirms
+	// the request was filed into the endpoint's request storage with no
+	// byte_msg_payload; err = 1 indicates the request was rejected and
+	// byte_msg_payload carries an error code. This is a response's own
+	// distinct "rejected" outcome, not the same thing as ResponseError
+	// below — a rejected Acknowledge stays an Acknowledge.
+	ResponseAcknowledge ResponseKind = iota
+
+	// ResponseWrite is evt[3:0] < 0x9 and op = 1 (§11.3.2): confirms
+	// successful execution of a write request, no byte_msg_payload.
+	ResponseWrite
+
+	// ResponseRead is evt[3:0] < 0x9 and op = 0 (§11.3.3): confirms
+	// successful execution of a read request, byte_msg_payload present.
+	ResponseRead
+
+	// ResponseError is evt[3:0] < 0x9 and err = 1 (§11.3.4): execution of
+	// the request failed, byte_msg_payload carries an error code.
+	ResponseError
+)
+
+// evtResponseAcknowledge is TC18 Table 15's evt[3:0] = 0xF response-kind
+// marker. Numerically identical to maxEVT (evt is a 4-bit field, so its
+// maximum representable value doubles as the acknowledge sentinel), named
+// separately here since the two constants mean different things: one is a
+// range bound, the other is a specific wire value to compare against.
+const evtResponseAcknowledge = 0x0F
+
+// ResponseKind classifies m per TC18 §11.3 Table 15/§11.3.1-§11.3.4.
+// evt[3:0] == 0xF (Acknowledge) is checked first and takes priority over
+// err/op, per the specification's own precedence: a rejected Acknowledge
+// (err = 1) is still an Acknowledge, not a ResponseError, which is a
+// distinct evt[3:0] < 0x9 case.
+func (m Message) ResponseKind() ResponseKind {
+	if m.EVT == evtResponseAcknowledge {
+		return ResponseAcknowledge
+	}
+	if m.Control.Has(FlagError) {
+		return ResponseError
+	}
+	if m.Control.Has(FlagWrite) {
+		return ResponseWrite
+	}
+	return ResponseRead
+}
+
 // unpaddedLen returns the total encoded length of m, excluding Pad.
 func (m Message) unpaddedLen() int {
 	n := descriptorLen + len(m.Body)
