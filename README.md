@@ -133,6 +133,7 @@ Part II for the full program and each satellite package's disposition.
 | `capi` | C-compatible handle-based API for go-RCP controllers, addressed by `avtp.StreamID`/`avtp.ByteBusID` |
 | `codegen` | Generates `request.Handler` stubs and go-FuSa requirement scaffolding from a server/endpoint manifest |
 | `proxy` | Transparent RC Server proxy for multi-hop topologies |
+| `tc18gap` | Machine-readable registry of the TC18 normative clauses this module does **not** implement, keyed to `.fusa-reqs.json` |
 
 ## Install
 

@@ -211,3 +211,10 @@ package server
 //fusa:req REQ-RCS-020
 //fusa:req REQ-RCS-031
 //fusa:req REQ-RCS-032
+
+// TC18 normative-surface coverage (see .fusa-reqs.json REQ-TC18-*): clauses
+// this package already satisfies but which carried no requirement of their
+// own until the TC18 coverage pass. Clauses this package does NOT satisfy are
+// recorded in package tc18gap instead, not here.
+//fusa:req REQ-TC18-080
+//fusa:req REQ-TC18-135

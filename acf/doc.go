@@ -85,3 +85,10 @@ package acf
 //fusa:req REQ-EVT-005
 //fusa:req REQ-EVT-006
 //fusa:req REQ-EVT-007
+
+// TC18 normative-surface coverage (see .fusa-reqs.json REQ-TC18-*): clauses
+// this package already satisfies but which carried no requirement of their
+// own until the TC18 coverage pass. Clauses this package does NOT satisfy are
+// recorded in package tc18gap instead, not here.
+//fusa:req REQ-TC18-121
+//fusa:req REQ-TC18-122

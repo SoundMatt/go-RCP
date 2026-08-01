@@ -1773,7 +1773,7 @@
     {
       "id": "REQ-AVTP-005",
       "title": "Header decode rejects nonzero reserved bits",
-      "text": "avtp.DecodeHeader shall return ErrReservedBitsSet when any bit TC18 §11.1 p.22 marks reserved within the AVTPDU header's first (subtype-data) quadlet is nonzero: the untimed header's r bit (Figure 6, bit 12), and the timestamped header's rsv field (Figure 5, bits 13-14) and reserved bits 24-30.",
+      "text": "avtp.DecodeHeader shall return ErrReservedBitsSet when any bit TC18 \u00a711.1 p.22 marks reserved within the AVTPDU header's first (subtype-data) quadlet is nonzero: the untimed header's r bit (Figure 6, bit 12), and the timestamped header's rsv field (Figure 5, bits 13-14) and reserved bits 24-30.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1869,7 +1869,7 @@
     {
       "id": "REQ-AVTP-017",
       "title": "Encoded AVTPDU headers match TC18 Figures 5 and 6 byte-for-byte",
-      "text": "avtp.EncodeHeader shall produce exactly the octet layouts defined by OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC §11.1 p.22. An untimed header shall be 12 octets: one quadlet packing subtype(8) | sv(1) | version(3) | r(1) | ntscf_data_length(11) | sequence_num(8) per Figure 6, immediately followed by the 64-bit stream_id with no reserved gap. A timestamped header shall be 24 octets: the Figure 5 subtype-data quadlet packing subtype(8) | sv(1) | version(3) | mr(1) | rsv(2) | tv(1) | sequence_num(8) | reserved(7) | tu(1), then stream_id(64), avtp_timestamp(32), the reserved format-specific quadlet(32), and a quadlet carrying stream_data_length(16) followed by 16 reserved bits.",
+      "text": "avtp.EncodeHeader shall produce exactly the octet layouts defined by OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC \u00a711.1 p.22. An untimed header shall be 12 octets: one quadlet packing subtype(8) | sv(1) | version(3) | r(1) | ntscf_data_length(11) | sequence_num(8) per Figure 6, immediately followed by the 64-bit stream_id with no reserved gap. A timestamped header shall be 24 octets: the Figure 5 subtype-data quadlet packing subtype(8) | sv(1) | version(3) | mr(1) | rsv(2) | tv(1) | sequence_num(8) | reserved(7) | tu(1), then stream_id(64), avtp_timestamp(32), the reserved format-specific quadlet(32), and a quadlet carrying stream_data_length(16) followed by 16 reserved bits.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1877,7 +1877,7 @@
     {
       "id": "REQ-AVTP-018",
       "title": "AVTPDU subtype tags carry the specification's own values",
-      "text": "avtp.SubtypeNTSCF shall equal 0x82 and avtp.SubtypeTSCF shall equal 0x05, the values labelled on the subtype field of TC18 §11.1 p.22 Figure 6 and Figure 5 respectively, so that a frame this package emits is recognised as the intended AVTPDU control format by a conformant peer.",
+      "text": "avtp.SubtypeNTSCF shall equal 0x82 and avtp.SubtypeTSCF shall equal 0x05, the values labelled on the subtype field of TC18 \u00a711.1 p.22 Figure 6 and Figure 5 respectively, so that a frame this package emits is recognised as the intended AVTPDU control format by a conformant peer.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1885,7 +1885,7 @@
     {
       "id": "REQ-AVTP-019",
       "title": "The timestamped header's timestamp marker is carried by TC18's separate tv and tu bits",
-      "text": "avtp.EncodeHeader shall encode Header.TimestampStatus into the two single-bit fields TC18 Figure 5 defines for it — tv (bit 15) and tu (bit 31) — as TimestampValid: tv=1,tu=0; TimestampUncertain: tv=1,tu=1; TimestampMissing and TimestampInvalid: tv=0,tu=0. avtp.DecodeHeader shall report tv=0 as TimestampMissing regardless of tu, tv=1 with tu=0 as TimestampValid, and tv=1 with tu=1 as TimestampUncertain.",
+      "text": "avtp.EncodeHeader shall encode Header.TimestampStatus into the two single-bit fields TC18 Figure 5 defines for it \u2014 tv (bit 15) and tu (bit 31) \u2014 as TimestampValid: tv=1,tu=0; TimestampUncertain: tv=1,tu=1; TimestampMissing and TimestampInvalid: tv=0,tu=0. avtp.DecodeHeader shall report tv=0 as TimestampMissing regardless of tu, tv=1 with tu=0 as TimestampValid, and tv=1 with tu=1 as TimestampUncertain.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -4729,6 +4729,2436 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-TC18-001",
+      "title": "Endpoint dispatch is keyed on the (stream_id, byte_bus_id) pair",
+      "text": "NOT IMPLEMENTED \u2014 udp.Router shall resolve a request's endpoint from a configurable look-up table keyed on the pair (avtp.Header.StreamID, acf.Message.ByteBusID), so two RC Clients may address the same endpoint under different byte_bus_id values and the same byte_bus_id on two streams may resolve to two different endpoints. Today Router.handlers is keyed on ByteBusID alone. TC18 \u00a710.1 (TC18.txt:1020-1022), restated at \u00a712.9.1 (TC18.txt:3194-3196) and \u00a713.1 (TC18.txt:3501).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a710.1 (TC18.txt:1020-1022); \u00a712.9.1 (TC18.txt:3194-3196); \u00a713.1 (TC18.txt:3501)"
+    },
+    {
+      "id": "REQ-TC18-002",
+      "title": "Every response echoes the request's byte_bus_id and transaction_num",
+      "text": "Every response an endpoint or udp.errorResponse emits shall carry the originating request's ByteBusID and TransactionNum unchanged, since a response's stream target is derived from the byte_bus_id the request carried rather than from any server-side address. TC18 \u00a710.1 (TC18.txt:1023-1024), \u00a711.3 Table 15 (TC18.txt:1881-1885), \u00a712.9.1 (TC18.txt:3213) and \u00a712.9.6 (TC18.txt:3410-3411).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a710.1 (TC18.txt:1023-1024); \u00a711.3 Table 15 (TC18.txt:1881-1885); \u00a712.9.1 (TC18.txt:3213)"
+    },
+    {
+      "id": "REQ-TC18-003",
+      "title": "The destination (multicast) address is derived from the stream identification",
+      "text": "NOT IMPLEMENTED \u2014 The l2 and udp send paths shall derive each frame's destination (multicast) address from the avtp.StreamID carried inside the AVTPDU rather than accepting a caller-supplied destination that may contradict it. l2.EncodeFrame and l2.Transport.Send take dst as a parameter today. TC18 \u00a710.2 (TC18.txt:1032-1033).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a710.2 (TC18.txt:1032-1033)"
+    },
+    {
+      "id": "REQ-TC18-004",
+      "title": "Requests carrying an unknown stream_id are discarded",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall discard, without invoking any request.Handler and without replying, a request whose avtp.Header.StreamID is not among the streams the addressed endpoint is configured to listen to. TC18 \u00a713.1 (TC18.txt:3500-3501) and \u00a712.8.2 (TC18.txt:3171-3173).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.1 (TC18.txt:3500-3501); \u00a712.8.2 (TC18.txt:3171-3173)"
+    },
+    {
+      "id": "REQ-TC18-005",
+      "title": "A TSCF-headed request executes no earlier than its presentation time",
+      "text": "NOT IMPLEMENTED \u2014 udp.Router.Route shall defer a request whose avtp.Header.Disposition reports DispositionScheduled until the header's avtp_timestamp is reached, rather than invoking the handler synchronously. TC18 \u00a711.2 (TC18.txt:1093), \u00a711.2.1 (TC18.txt:1140), \u00a711.4.3 (TC18.txt:1976) and \u00a712.9.2 (TC18.txt:3250-3251). Supersedes REQ-UDP-010's documented immediate-dispatch non-goal.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2 (TC18.txt:1093); \u00a711.4.3 (TC18.txt:1976); \u00a712.9.2 (TC18.txt:3250-3251)"
+    },
+    {
+      "id": "REQ-TC18-006",
+      "title": "KindLong with mtv=0 is the sole routing signal for a conditional or cancel envelope",
+      "text": "request.Dispatcher.Submit shall treat an acf.Message as a conditional/cancel envelope exactly when Kind == acf.KindLong && !MTV, and shall dispatch every acf.KindShort message and every acf.KindLong message with MTV set to the wrapped Handler unchanged as a plain request. TC18 \u00a711.2 (TC18.txt:1116-1122) and Tables 11-13 (TC18.txt:1701).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a711.2 (TC18.txt:1116-1122); \u00a711.2.3.1 Table 11 (TC18.txt:1701)"
+    },
+    {
+      "id": "REQ-TC18-007",
+      "title": "A standard ACF_ABB request with hs, cs or err set is rejected",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall reject an acf.KindShort standard request whose HS, CS or FlagError bit is set; TC18 Table 4 fixes mtv, rsv, hs, cs and err to zero for every standard request. acf.Message.HS and .CS round-trip but have no consumer today. TC18 \u00a711.2.1 Table 4 (TC18.txt:1156-1167).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.1 Table 4 (TC18.txt:1156-1167)"
+    },
+    {
+      "id": "REQ-TC18-008",
+      "title": "A conditional request's request_type occupies message_timestamp byte 0 with the Table 5 codes",
+      "text": "NOT IMPLEMENTED \u2014 A conditional request shall carry its request_type as the first octet of acf.Message.Timestamp with the values TC18 Table 5 assigns \u2014 0x0F/0x8F compound, 0x0B/0x8B compound wait, 0x0E/0x8E triggered, 0x01 chained, 0x0A timed \u2014 not as a leading Body byte with this package's own iota values. TC18 \u00a711.2.2 Table 5 (TC18.txt:1187-1199). Tracked as go-RCP-F1 in ROADMAP.md.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2 Table 5 (TC18.txt:1187-1199)"
+    },
+    {
+      "id": "REQ-TC18-009",
+      "title": "Safety-request tagging uses the Table 5 0x8x codes",
+      "text": "NOT IMPLEMENTED \u2014 The safety-request variants shall encode as request_type 0x8F (compound), 0x8B (compound wait) and 0x8E (triggered) \u2014 the base Table 5 code with bit 7 set \u2014 rather than request.KindCompoundSafety=0x81, KindCompoundWaitSafety=0x82 and KindTriggeredSafety=0x83. The safety *behaviour* is already required by REQ-REQ-022..025; only the wire values differ. TC18 \u00a711.2.2 (TC18.txt:1189-1191).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2 (TC18.txt:1189-1191)"
+    },
+    {
+      "id": "REQ-TC18-010",
+      "title": "A conditional request reaching an endpoint with no conditional support is answered UNSUPPORTED_CMD",
+      "text": "NOT IMPLEMENTED \u2014 udp.Router.Route shall answer a KindLong/mtv=0 conditional request addressed to a handler that does not implement conditional handling with an error response carrying udp.ErrorCodeUnsupportedCommand, rather than passing the envelope through as an opaque endpoint payload. TC18 \u00a711.2.2.1 (TC18.txt:1204-1205), \u00a711.2.2.2 (TC18.txt:1300-1301), \u00a711.2.2.3 (TC18.txt:1409-1410) and \u00a711.2.2.4 (TC18.txt:1497-1498).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.1-.4 (TC18.txt:1204,1300,1409,1497)"
+    },
+    {
+      "id": "REQ-TC18-011",
+      "title": "Compound requests use the cmp_start_state / cmp_next_state state-transition model",
+      "text": "NOT IMPLEMENTED \u2014 request.EncodeCompound/DecodeCompound shall carry cmp_sequencer, cmp_start_state and cmp_next_state; the request shall start when the addressed sequencer's state equals cmp_start_state (or in any state when cmp_start_state is 0, unless the sequencer is disabled) and on completion shall set the sequencer to cmp_next_state when non-zero. The current request.Conditional comparison model is this package's own. TC18 \u00a711.2.2.1 Figure 8 / Table 6 (TC18.txt:1206-1215, 1249-1281).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.1 Figure 8/Table 6 (TC18.txt:1206-1215,1249-1281)"
+    },
+    {
+      "id": "REQ-TC18-012",
+      "title": "Every conditional request honours its exec_delay in units of ep_delay_time",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher.Pump shall delay a matched compound, compound-wait, triggered or chained ticket by its encoded *_exec_delay multiplied by the endpoint's configured ep_delay_time (1/10/20/50 us per TC18 \u00a713.2 Table 28), and shall still execute the request once that delay expires even if the sequencer state changed meanwhile. No exec_delay field exists today. TC18 \u00a711.2.2.1 Table 6 (TC18.txt:1262-1265), Table 7 (TC18.txt:1369-1372), Table 8 (TC18.txt:1459-1461), Table 9 (TC18.txt:1550-1551).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.1 Table 6 (TC18.txt:1262-1265) and Tables 7/8/9"
+    },
+    {
+      "id": "REQ-TC18-013",
+      "title": "A repetition counter controls re-arming and request-storage removal",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall re-arm a conditional ticket after each execution while its *_repetitions field is non-zero, decrementing it by one per execution, shall never decrement the reserved infinite value 0xFFFF, and shall remove the ticket once the count reaches zero at end of execution. TC18 \u00a711.2.2.1 Table 6 (TC18.txt:1266-1269) and \u00a712.9.3 (TC18.txt:3281-3286).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.1 Table 6 (TC18.txt:1266-1269); \u00a712.9.3 (TC18.txt:3281-3286)"
+    },
+    {
+      "id": "REQ-TC18-014",
+      "title": "A starvation-prone repetitive wildcard compound request is diagnosed",
+      "text": "NOT IMPLEMENTED \u2014 request.EncodeCompound should diagnose an encoding combining cmp_start_state == 0, a non-zero cmp_repetitions and cmp_exec_delay == 0 \u2014 the combination TC18 warns will hinder execution of other compound requests and of lower-priority requests. This is a SHOULD-strength clause and is recorded here so the corpus is complete rather than because a fix is planned. TC18 \u00a711.2.2.1 (TC18.txt:1213-1215).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.1 (TC18.txt:1213-1215)"
+    },
+    {
+      "id": "REQ-TC18-015",
+      "title": "A compound-wait condition is evaluated over the endpoint's output state under evt, gated by cs",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall resolve a KindCompoundWait ticket by comparing the request's byte_msg_payload against the addressed endpoint's current output state under the comparison acf.Message evt[2:0] selects, checking once immediately when CS is clear and only after the next endpoint output-state change when CS is set. The current implementation compares a sequencer register and never touches the endpoint. TC18 \u00a711.2.2.2 (TC18.txt:1303, 1306-1310, 1336-1339).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.2 (TC18.txt:1303,1306-1310,1336-1339)"
+    },
+    {
+      "id": "REQ-TC18-016",
+      "title": "Triggered requests carry trigger_signal_nr and trigger_threshold at full source-EP width",
+      "text": "NOT IMPLEMENTED \u2014 request.EncodeTriggered/DecodeTriggered shall carry trigger_source_ep at its full 11-bit avtp.ByteBusID width plus trigger_signal_nr, trigger_threshold, trigger_exec_delay and trigger_repetitions, and the Dispatcher shall execute only after trigger_threshold + 1 events of the named signal number. Today the source is truncated to one byte and the threshold is fixed at zero. TC18 \u00a711.2.2.3 Figure 10 / Table 8 (TC18.txt:1454-1461).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.3 Figure 10/Table 8 (TC18.txt:1454-1461)"
+    },
+    {
+      "id": "REQ-TC18-017",
+      "title": "A chain links successive messages within one AVTPDU and never spans two",
+      "text": "NOT IMPLEMENTED \u2014 A chained request shall link one acf.Message in an acf.Frame.Messages slice to its immediate predecessor in the same frame, deferring execution until that predecessor finalizes, and a chain shall never span two AVTPDUs. The current model packs a segment list inside a single message's Body. TC18 \u00a711.2.2.4 (TC18.txt:1499-1501, 1521).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.4 (TC18.txt:1499-1501,1521)"
+    },
+    {
+      "id": "REQ-TC18-018",
+      "title": "A leading chained request in an AVTPDU is ignored and every chain member is answered CHAIN_ERROR",
+      "text": "NOT IMPLEMENTED \u2014 When the first message of an AVTPDU is a chained request there is no predecessor to chain to: the server shall execute no request in that chain and shall emit one error response per chained request carrying udp.ErrorCodeChainError, unless suppressed by endpoint configuration. TC18 \u00a711.2.2.4 (TC18.txt:1518-1520).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.4 (TC18.txt:1518-1520)"
+    },
+    {
+      "id": "REQ-TC18-019",
+      "title": "A chained request's cs bit selects continue-on-error versus CHAIN_ABORTED",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall execute a chained request whose acf.Message.CS is clear even when its predecessor returned an error, and shall skip it and every remaining link \u2014 answering udp.ErrorCodeChainAborted \u2014 only when CS is set. The current implementation is unconditionally fail-fast, i.e. the cs=1 branch applied always. TC18 \u00a711.2.2.4 Table 9 (TC18.txt:1555-1560).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.4 Table 9 (TC18.txt:1555-1560)"
+    },
+    {
+      "id": "REQ-TC18-020",
+      "title": "A chain repeats under its first request's repetition count",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall re-execute an entire chain from its first request once per repetition remaining on that first request's repetition count, and shall remove every request in the chain from request storage when no repetitions remain. TC18 \u00a711.2.2.4 (TC18.txt:1522-1524).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.4 (TC18.txt:1522-1524)"
+    },
+    {
+      "id": "REQ-TC18-021",
+      "title": "A still-executing chained request is not restarted by a repeated predecessor completion",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall ignore a predecessor's repeat finalization while the chained successor has not itself finalized, never starting that successor a second time concurrently. TC18 \u00a711.2.2.4 (TC18.txt:1525-1526).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.4 (TC18.txt:1525-1526)"
+    },
+    {
+      "id": "REQ-TC18-022",
+      "title": "Non-zero reserved bits in a chained request are rejected",
+      "text": "NOT IMPLEMENTED \u2014 request.DecodeChained shall reject a chained request whose TC18 Figure 11 reserved fields (following request_type and following chain_exec_delay) are non-zero. Depends on the Figure 11 layout being adopted at all. TC18 \u00a711.2.2.4 Table 9 (TC18.txt:1549, 1552).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.4 Table 9 (TC18.txt:1549,1552)"
+    },
+    {
+      "id": "REQ-TC18-023",
+      "title": "A timed request carries a 48-bit gPTP presentation_time in message_timestamp",
+      "text": "NOT IMPLEMENTED \u2014 request.EncodeTimed/DecodeTimed shall write request_type 0x0A followed by a 48-bit presentation_time in acf.Message.Timestamp, with presentation_time = (AS_sec x 10^9 + AS_ns) mod 2^48 in gPTP nanoseconds, and Dispatcher.Pump shall compare against that same domain including its ~3.25-day rollover. Today an arbitrary caller-chosen 64-bit monotonic microsecond value is carried in Body. TC18 \u00a711.2.2.5 Figure 12 / Table 10 (TC18.txt:1590-1591, 1615-1616).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 Figure 12/Table 10 (TC18.txt:1590-1591,1615-1616)"
+    },
+    {
+      "id": "REQ-TC18-024",
+      "title": "Non-zero reserved bits in a timed request are rejected",
+      "text": "NOT IMPLEMENTED \u2014 request.DecodeTimed shall reject a timed request whose TC18 Figure 12 reserved field (between request_type and presentation_time[47:32]) is non-zero. TC18 \u00a711.2.2.5 Table 10 (TC18.txt:1614).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 Table 10 (TC18.txt:1614)"
+    },
+    {
+      "id": "REQ-TC18-025",
+      "title": "A timed request with hs or cs set is rejected with UNSUPPORTED_CMD",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall answer a timed request whose acf.Message.HS or CS bit is set with an error response carrying udp.ErrorCodeUnsupportedCommand. TC18 \u00a711.2.2.5 Table 10 (TC18.txt:1628-1629).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 Table 10 (TC18.txt:1628-1629)"
+    },
+    {
+      "id": "REQ-TC18-026",
+      "title": "A timed request's own presentation_time overrides the enclosing TSCF avtp_timestamp",
+      "text": "NOT IMPLEMENTED \u2014 When a request_type 0x0A timed request arrives under a timestamped (TSCF) avtp.Header, the schedule shall be taken from the request's own 48-bit presentation_time and the header's Timestamp shall be ignored. TC18 \u00a711.2.2.5 (TC18.txt:1646-1647).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 (TC18.txt:1646-1647)"
+    },
+    {
+      "id": "REQ-TC18-027",
+      "title": "Timed requests are rejected with GPTP_FAIL when synchronization is not established",
+      "text": "NOT IMPLEMENTED \u2014 udp.Router shall distinguish 'time synchronization not supported' (TC18 \u00a711.1 TC18.txt:1074: drop the AVTPDU, send no response) from 'supported but not currently established' (send an error response carrying udp.ErrorCodeGPTPFailure), applying the latter to both a request_type 0x0A timed request and a TSCF-headed request. udp.ErrorCodeGPTPFailure is defined and golden-tested today but produced by no code path. TC18 \u00a711.2.2.5 (TC18.txt:1651-1652) and \u00a712.9.6 Table 27 (TC18.txt:3438).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 (TC18.txt:1651-1652); \u00a712.9.6 Table 27 (TC18.txt:3438)"
+    },
+    {
+      "id": "REQ-TC18-028",
+      "title": "A configurable scheduling horizon rejects an over-distant presentation_time",
+      "text": "NOT IMPLEMENTED \u2014 udp.Router may expose a maximum scheduling horizon and answer a timed request beyond it with udp.ErrorCodePresentationTimeTooFarInFuture. The clause is explicitly optional per TC18 ('may reject ... which is implementation dependent'); the entry exists because udp.ErrorCodePresentationTimeTooFarInFuture is exported, accepted by ErrorCode.Valid and golden-tested while no code path produces it. TC18 \u00a711.2.2.5 (TC18.txt:1649-1650).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 (TC18.txt:1649-1650)"
+    },
+    {
+      "id": "REQ-TC18-029",
+      "title": "Loss of time synchronization does not stall already-accepted timed requests",
+      "text": "NOT IMPLEMENTED \u2014 An already-accepted timed or TSCF-scheduled ticket shall continue to be evaluated and executed against the free-running local clock after time synchronization is lost; only newly arriving timed requests are rejected. There is no clock abstraction today \u2014 Dispatcher.Pump takes the time from its caller. TC18 \u00a711.2.2.5 (TC18.txt:1654-1656).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.2.5 (TC18.txt:1654-1656)"
+    },
+    {
+      "id": "REQ-TC18-030",
+      "title": "Cancelling a request cancels its chained successors",
+      "text": "NOT IMPLEMENTED \u2014 When a cancellation finalizes a ticket, request.Dispatcher shall also finalize every pending ticket chained as a successor of it. go-RCP models a chain as one ticket holding a segment list, so there is no inter-ticket successor relation to follow. TC18 \u00a711.2.3 (TC18.txt:1674-1675).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3 (TC18.txt:1674-1675)"
+    },
+    {
+      "id": "REQ-TC18-031",
+      "title": "Every cancelled request produces a REQUEST_CANCELED error response on the wire",
+      "text": "NOT IMPLEMENTED \u2014 For every TicketID request.Dispatcher.Pump reports as finalized by a cancellation, the server shall emit an error response correlated to that ticket's original TransactionNum carrying acf.FlagError and udp.ErrorCodeRequestCancelled. The error-code mapping exists but Pump's finalized-ID return value is consumed by no caller, so a cancelled request is left with no reply. TC18 \u00a711.2.3 (TC18.txt:1675-1676).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3 (TC18.txt:1675-1676)"
+    },
+    {
+      "id": "REQ-TC18-032",
+      "title": "Cancellation never aborts a request already under execution",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher's cancellation kinds shall finalize only tickets in StateQueued or StateStarted, never one in StateExecuting, and Kind.IsCancellation's documented contract shall state that bound rather than claiming Executing tickets are cleared. The current matcher accepts any non-finalized ticket; synchronous execution inside Pump makes the violation unreachable today but the stated contract is wrong. TC18 \u00a711.2.3 (TC18.txt:1673-1674).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3 (TC18.txt:1673-1674)"
+    },
+    {
+      "id": "REQ-TC18-033",
+      "title": "Cancellation clears only tickets received on the cancelling request's own stream",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher's three cancellation kinds shall finalize only tickets whose recorded requester avtp.StreamID equals that of the cancellation request itself. All three matchers ignore the requester today, so a cancellation from one stream clears another stream's pending tickets. TC18 \u00a711.2.3.1 (TC18.txt:1680), \u00a711.2.3.2 (TC18.txt:1734) and \u00a711.2.3.3 (TC18.txt:1793, 1796).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.1 (TC18.txt:1680); \u00a711.2.3.3 (TC18.txt:1793,1796)"
+    },
+    {
+      "id": "REQ-TC18-034",
+      "title": "A cancellation request_type occupies the first byte of the message_timestamp field",
+      "text": "NOT IMPLEMENTED \u2014 A cancellation request shall be an acf.KindLong message with MTV false whose Timestamp field's leading octet is the TC18 request_type \u2014 0x05 clear-all, 0x06 clear-all-non-safestate, 0x07 clear-single followed by the clear_transaction_num. The request.Kind byte at Body[0] (values 6/7/8) is this implementation's own encoding. TC18 \u00a711.2.3.1 Figure 13/Table 11 (TC18.txt:1681,1704), \u00a711.2.3.2 Figure 14/Table 12 (TC18.txt:1735,1759), \u00a711.2.3.3 Figure 15/Table 13 (TC18.txt:1794,1819).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.1-.3 Figures 13-15 / Tables 11-13 (TC18.txt:1681,1735,1794)"
+    },
+    {
+      "id": "REQ-TC18-035",
+      "title": "A cancellation request with non-zero evt[2:0], hs or cs is rejected with UNSUPPORTED_CMD",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher.Submit shall reject a cancellation-kind request whose evt[2:0] is non-zero or whose HS or CS is set, with an error udp.errorCodeFor renders as udp.ErrorCodeUnsupportedCommand; evt[3] (acknowledge-requested) remains permitted. TC18 \u00a711.2.3.1 (TC18.txt:1681) and \u00a711.2.3.2 Table 12 (TC18.txt:1774-1775).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.2 Table 12 (TC18.txt:1774-1775); \u00a711.2.3.1 (TC18.txt:1681)"
+    },
+    {
+      "id": "REQ-TC18-036",
+      "title": "Reserved bits of a cancellation request's message_timestamp field must be zero",
+      "text": "NOT IMPLEMENTED \u2014 Decoding a cancellation request shall reject it when any bit TC18 Tables 11-13 mark reserved within the repurposed message_timestamp field is non-zero. Unreachable today because that field is treated as an opaque uint64. TC18 \u00a711.2.3.1 Table 11 (TC18.txt:1705), Table 12 (TC18.txt:1760), Table 13 (TC18.txt:1820).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.1-.3 Tables 11-13 (TC18.txt:1705,1760,1820)"
+    },
+    {
+      "id": "REQ-TC18-037",
+      "title": "The optional clear-all-non-safestate cancellation is request_type 0x06",
+      "text": "NOT IMPLEMENTED \u2014 If go-RCP implements TC18's optional enhanced cancellation, request_type 0x06 shall clear every non-safety ticket received on the same stream \u2014 the semantic request.Dispatcher.PurgeNonSafety already implements but which is reachable only from the watchdog, not from any wire request \u2014 and request.KindCancelSequencer shall be documented as a go-RCP extension with no TC18 counterpart rather than as one of the two optional variants. TC18 \u00a711.2.3.2 (TC18.txt:1733-1736) and \u00a712.2 (TC18.txt:2038).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.2 (TC18.txt:1733-1736); \u00a712.2 (TC18.txt:2038)"
+    },
+    {
+      "id": "REQ-TC18-038",
+      "title": "A clear-single cancellation matching no transaction returns REQUEST_NOT_FOUND",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher's clear-single cancellation shall finalize with an error udp.errorCodeFor renders as udp.ErrorCodeRequestNotFound when no pending ticket on the requester's stream carries the requested clear_transaction_num, rather than returning a success response reporting zero cancellations. TC18 \u00a711.2.3.3 (TC18.txt:1837-1838).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.3 (TC18.txt:1837-1838)"
+    },
+    {
+      "id": "REQ-TC18-039",
+      "title": "A successful clear-single cancellation response carries an empty body",
+      "text": "NOT IMPLEMENTED \u2014 The clear-single success response shall have a nil or empty Body; the cancelled-count body EncodeCancelResponse produces is this implementation's own addition. TC18 \u00a711.2.3.3 (TC18.txt:1838).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.2.3.3 (TC18.txt:1838)"
+    },
+    {
+      "id": "REQ-TC18-040",
+      "title": "Response evt[3:0] carries TC18 Table 15's response coding",
+      "text": "NOT IMPLEMENTED \u2014 acf shall expose the response-side interpretation of evt[3:0] \u2014 0x0 simple/data/error response, 0x1..0x8 the multi-response counter rolling over from 0x8 to 0x1, 0x9..0xE reserved, 0xF acknowledge \u2014 as a classifier distinct from ClassifyEVT's request-side Table 30 rows, and shall reject a decoded response whose evt[3:0] falls in 0x9..0xE. Every response builder leaves EVT at zero today. TC18 \u00a711.3 Table 15 (TC18.txt:1876-1880) and \u00a712.9.4 (TC18.txt:3373-3377).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.3 Table 15 (TC18.txt:1876-1880); \u00a712.9.4 (TC18.txt:3373-3377)"
+    },
+    {
+      "id": "REQ-TC18-041",
+      "title": "A request with evt[3] set receives an evt[3:0]=0xF acknowledge",
+      "text": "NOT IMPLEMENTED \u2014 When acf.Message.EVTAckRequested reports true, the server shall emit an acknowledge with evt[3:0] = 0xF and an empty body on successful filing into the endpoint's request storage (err=0), and with err=1 plus an error-code body when the request is rejected, separate from and preceding the request's own response. EVTAckRequested has no non-test caller in the repository. TC18 \u00a711.3.1 (TC18.txt:1908-1911), \u00a713.5 (TC18.txt:3673), \u00a712.9.1 (TC18.txt:3205-3206) and \u00a712.9.5 (TC18.txt:3384-3387).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.3.1 (TC18.txt:1908-1911); \u00a713.5 (TC18.txt:3673); \u00a712.9.5 (TC18.txt:3384-3387)"
+    },
+    {
+      "id": "REQ-TC18-042",
+      "title": "A successful write response carries no byte_msg_payload",
+      "text": "NOT IMPLEMENTED \u2014 A response to a request with op = 1 (acf.FlagWrite) and evt[3:0] < 0x9 shall have an empty Body. Endpoint packages that echo the written value back conflict with this clause, and so do the existing requirements that mandate the echo (REQ-CANEP-008, REQ-LINEP-005, REQ-SPI-006, REQ-I2C-006); resolving it needs a deliberate decision, not a silent change. TC18 \u00a711.3.2 (TC18.txt:1915-1916).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.3.2 (TC18.txt:1915-1916)"
+    },
+    {
+      "id": "REQ-TC18-043",
+      "title": "An untimestamped response is emitted as ACF_ABB, not ACF_GBB",
+      "text": "NOT IMPLEMENTED \u2014 A response carrying no capture timestamp shall be acf.KindShort (ACF_ABB, acf_msg_type 0x0E) regardless of the requesting message's own Kind. Every response builder copies req.Kind through today, so a response to a conditional or cancellation request goes out as ACF_GBB carrying an all-zero, invalid message_timestamp. TC18 \u00a711.3 (TC18.txt:1864) and \u00a711.4.2 (TC18.txt:1965-1966).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.3 (TC18.txt:1864); \u00a711.4.2 (TC18.txt:1965-1966)"
+    },
+    {
+      "id": "REQ-TC18-044",
+      "title": "Every response sets rsp, echoes op, and leaves hs and cs zero",
+      "text": "Every response go-RCP emits shall carry acf.FlagResponse, the same op bit (FlagRead/FlagWrite) as its request, and HS and CS false. TC18 \u00a711.3 Table 15 (TC18.txt:1881-1885).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a711.3 Table 15 (TC18.txt:1881-1885)"
+    },
+    {
+      "id": "REQ-TC18-045",
+      "title": "Every error response carries a valid Table 27 error code as its leading payload byte",
+      "text": "A response carrying acf.FlagError shall have a non-empty Body whose leading byte is a udp.ErrorCode for which ErrorCode.Valid reports true. TC18 \u00a711.3.4 (TC18.txt:1925-1926) and \u00a712.9.6 (TC18.txt:3410-3411).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a711.3.4 (TC18.txt:1925-1926); \u00a712.9.6 (TC18.txt:3410-3411)"
+    },
+    {
+      "id": "REQ-TC18-046",
+      "title": "avtp_timestamp is derived from gPTP seconds and nanoseconds modulo 2^32",
+      "text": "NOT IMPLEMENTED \u2014 avtp shall provide a conversion from a gPTP (seconds, nanoseconds) pair to the 32-bit Header.Timestamp as (AS_sec x 10^9 + AS_ns) mod 2^32, so a caller cannot supply an arbitrarily-scaled value; the field rolls over roughly every 4.29 s. TC18 \u00a711.4.1 (TC18.txt:1952-1954).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.4.1 (TC18.txt:1952-1954)"
+    },
+    {
+      "id": "REQ-TC18-047",
+      "title": "message_timestamp is derived from gPTP seconds and nanoseconds modulo 2^64",
+      "text": "NOT IMPLEMENTED \u2014 acf shall provide a conversion from a gPTP (seconds, nanoseconds) pair to the 64-bit Message.Timestamp as (AS_sec x 10^9 + AS_ns) mod 2^64, and that shall be the only supported way to populate the field with a valid (MTV=1) capture timestamp. TC18 \u00a711.4.1 (TC18.txt:1955-1957).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.4.1 (TC18.txt:1955-1957)"
+    },
+    {
+      "id": "REQ-TC18-048",
+      "title": "Response and acknowledge timestamping are separately selectable per endpoint",
+      "text": "NOT IMPLEMENTED \u2014 The endpoint register map shall carry two independent per-endpoint flags selecting whether responses and whether acknowledges are timestamped; when a flag is clear the corresponding message shall be acf.KindShort with no timestamp slot, when set it shall be acf.KindLong with MTV true. No timestamp selection exists anywhere in regmap. TC18 \u00a711.4.2 (TC18.txt:1964-1966), \u00a712.9.4 (TC18.txt:3369-3370) and \u00a713.7 Table 32 (TC18.txt:3924-3934).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.4.2 (TC18.txt:1964-1966); \u00a712.9.4 (TC18.txt:3369-3370); \u00a713.7 Table 32 (TC18.txt:3924-3934)"
+    },
+    {
+      "id": "REQ-TC18-049",
+      "title": "An acknowledge's message_timestamp is the moment of acceptance into the request storage",
+      "text": "NOT IMPLEMENTED \u2014 When acknowledge timestamping is enabled, the acknowledge's Message.Timestamp shall be the time request.Dispatcher.Submit admitted the ticket, not the time it executed or the time the acknowledge was transmitted. TC18 \u00a711.4.2 (TC18.txt:1967-1968).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.4.2 (TC18.txt:1967-1968)"
+    },
+    {
+      "id": "REQ-TC18-050",
+      "title": "A read response's message_timestamp is the physical-interface capture instant",
+      "text": "NOT IMPLEMENTED \u2014 When response timestamping is enabled, a read response's Message.Timestamp shall be the time the reported input signal was captured at the endpoint's physical interface, not the time the response was built; endpoint Transport interfaces would have to surface a capture instant. TC18 \u00a711.4.2 (TC18.txt:1969-1970).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.4.2 (TC18.txt:1969-1970)"
+    },
+    {
+      "id": "REQ-TC18-051",
+      "title": "The RC Server always replies with an untimed (NTSCF) AVTPDU header",
+      "text": "Every AVTPDU the server transmits shall carry an untimed (NTSCF, subtype 0x82) avtp.Header with Timed false; a capture timestamp is conveyed only via ACF_GBB's message_timestamp, never by a TSCF header. TC18 \u00a711.4.3 (TC18.txt:1979-1980).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a711.4.3 (TC18.txt:1979-1980)"
+    },
+    {
+      "id": "REQ-TC18-052",
+      "title": "An internal clock may be synchronized to the system clock as a receiving clock",
+      "text": "NOT IMPLEMENTED \u2014 An RC Server may synchronize an internal clock to a system clock using IEEE 802.1AS (gPTP), acting as a receiving clock. Not implemented and not claimed: udp.NewRouter takes a static caller-supplied timeSyncSupported flag, explicitly documented as not a live check. Recorded because every \u00a711.4 timestamp requirement depends on it. TC18 \u00a711.4 (TC18.txt:1943-1946) and \u00a712.2 (TC18.txt:2021-2027).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a711.4 (TC18.txt:1943-1946); \u00a712.2 (TC18.txt:2021-2027)"
+    },
+    {
+      "id": "REQ-TC18-053",
+      "title": "The RC Server exposes status and debug information for itself and its endpoints",
+      "text": "NOT IMPLEMENTED \u2014 regmap.RegisterMap shall carry a readable status/debug region for the server and for each declared endpoint, so udp.ErrorCodeEPError has the ep_status detail register its own documentation already promises. No status-shaped block exists. TC18 \u00a712.1 (TC18.txt:2010) and \u00a712.9.6 Table 27 (TC18.txt:3424).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.1 (TC18.txt:2010); \u00a712.9.6 Table 27 (TC18.txt:3424)"
+    },
+    {
+      "id": "REQ-TC18-054",
+      "title": "A set configuration lock rejects every write to a lockable register",
+      "text": "NOT IMPLEMENTED \u2014 When regmap.GeneralBlock.ConfigLock is non-zero, the server's configuration write paths shall return regmap.ErrRegisterLocked and leave the map unchanged, independently of lifecycle state and of root-client status. ConfigLock round-trips on the wire but no write path consults it. TC18 \u00a712.1 (TC18.txt:2009) and \u00a712.7.5 Table 18 (TC18.txt:2551-2553).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.1 (TC18.txt:2009); \u00a712.7.5 Table 18 (TC18.txt:2551-2553)"
+    },
+    {
+      "id": "REQ-TC18-055",
+      "title": "A conformant RC Server implements TC18's four mandatory features",
+      "text": "A server shall support NTSCF header processing, standard request handling, an endpoint at regmap.EP0, and the clear-all-requests cancellation request \u2014 the four features TC18 makes mandatory for every compliant RC Server, none of which may be left unregistered. TC18 \u00a712.2 (TC18.txt:2014-2019).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a712.2 (TC18.txt:2014-2019)"
+    },
+    {
+      "id": "REQ-TC18-056",
+      "title": "Optional-feature bundles are advertised consistently",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall define named constants for each GeneralBlock.Options bit and validate the bundles TC18 defines: the compound-request bit requires at least four sequencer state registers, and the time-synchronization bit requires TSCF processing, gPTP, timed requests and timestamped acknowledges and responses. Options is a raw byte with no constants and no validation today. TC18 \u00a712.2 (TC18.txt:2021-2038), \u00a712.7.5 Table 18 (TC18.txt:2554-2560) and \u00a712.10 (TC18.txt:3471).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.2 (TC18.txt:2021-2038); \u00a712.7.5 Table 18 (TC18.txt:2554-2560)"
+    },
+    {
+      "id": "REQ-TC18-057",
+      "title": "A server starts in the lifecycle state it was configured in",
+      "text": "NOT IMPLEMENTED \u2014 The server package shall provide a constructor restoring a persisted lifecycle.LifecycleState together with its register map, so a cold-started server resumes the state it was configured in and enforces that state's locks from its first call, rather than always starting at StateUnconfigured. TC18 \u00a712.3 (TC18.txt:2059-2062) and \u00a712.4.1 (TC18.txt:2289-2292).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3 (TC18.txt:2059-2062); \u00a712.4.1 (TC18.txt:2289-2292)"
+    },
+    {
+      "id": "REQ-TC18-058",
+      "title": "svr_lifecycle_state is a register that reads and drives lifecycle transitions",
+      "text": "NOT IMPLEMENTED \u2014 The encoded register map shall carry an 8-bit svr_lifecycle_state field encoding 0x00 HW_UNCONFIGURED, 0x55 HW_CONFIGURED and 0xAA RCP_CONFIGURED, readable through a discovery read, and a write of one of those values through EP0 shall invoke the corresponding transition guard. Lifecycle transitions are Go-API-only today and lifecycle.LifecycleState uses iota values 0/1/2, discarding TC18's deliberately high-Hamming-distance encodings. TC18 \u00a712.3.1 (TC18.txt:2167,2186,2199) and \u00a713.7.1.2 Table 33 (TC18.txt:3990-3992).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1 (TC18.txt:2167,2186,2199); \u00a713.7.1.2 Table 33 (TC18.txt:3990-3992)"
+    },
+    {
+      "id": "REQ-TC18-059",
+      "title": "Advancing to HW_CONFIGURED enforces both plausibility checks",
+      "text": "NOT IMPLEMENTED \u2014 The HW_UNCONFIGURED to HW_CONFIGURED transition shall be rejected, leaving the state unchanged, when any endpoint with ep_used set has no entry in the pin map, or when the request-queue configuration has not been set for such an endpoint. Only the converse pin-map direction is checked today, and the queue check runs at the later transition. TC18 \u00a712.3.1.1 (TC18.txt:2169-2174).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.1 (TC18.txt:2169-2174)"
+    },
+    {
+      "id": "REQ-TC18-060",
+      "title": "Advancing to RCP_CONFIGURED enforces the stream-association plausibility checks",
+      "text": "NOT IMPLEMENTED \u2014 The HW_CONFIGURED to RCP_CONFIGURED transition shall be rejected when any used endpoint has no stream_id/byte_bus_id association, when a configured stream has no byte_bus_id, or when a configured response stream is assigned to no request stream. None of the three is performed, because the association table those checks operate on does not exist in regmap. TC18 \u00a712.3.1.2 (TC18.txt:2190-2196).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.2 (TC18.txt:2190-2196)"
+    },
+    {
+      "id": "REQ-TC18-061",
+      "title": "Demotion out of HW_CONFIGURED is refused while any endpoint is not idle",
+      "text": "NOT IMPLEMENTED \u2014 server.Server.DemoteToUnconfigured shall return an EPs-not-idle error, leaving the lifecycle state unchanged, when any declared endpoint still has a pending or in-flight request; endpoint idleness shall be an interrogable predicate. No such predicate exists. TC18 \u00a712.3 Figure 16 (TC18.txt:2119, 2129-2131).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3 Figure 16 (TC18.txt:2119,2129-2131)"
+    },
+    {
+      "id": "REQ-TC18-062",
+      "title": "Lifecycle-transition failures map onto defined Table 27 error codes",
+      "text": "NOT IMPLEMENTED \u2014 Each lifecycle-transition rejection shall be rendered as a defined udp.ErrorCode rather than the unclassified fallback: DISCOVERY_STREAM_OCCUPIED, HW_CFG_INCONSISTENT, RCP_CFG_INCONSISTENT, LOCKED_CONFIG_ACCESS and EPs_NOT_IDLE. None of Figure 16's five names appears in Table 27, so the mapping chosen shall be recorded as a resolution of that spec-internal inconsistency. TC18 \u00a712.3 Figure 16 (TC18.txt:2075,2087,2108,2113,2131) versus \u00a712.9.6 Table 27 (TC18.txt:3414-3446).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3 Figure 16 (TC18.txt:2075,2087,2108,2113,2131)"
+    },
+    {
+      "id": "REQ-TC18-063",
+      "title": "An unconfigured server silently drops every request but an EP0 discovery read",
+      "text": "NOT IMPLEMENTED \u2014 While the server is in StateUnconfigured, the receive path shall emit no reply at all for any request that is not an ACF_ABB request to regmap.EP0 on the assigned discovery stream, and for any request on an unknown stream_id/byte_bus_id combination. udp.Router never consults the server's lifecycle state and answers an unknown endpoint with an error response. TC18 \u00a712.3.1.1 (TC18.txt:2164) and \u00a712.3 Figure 16 (TC18.txt:2075-2077, 2101-2105).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.1 (TC18.txt:2164); \u00a712.3 Figure 16 (TC18.txt:2075-2077,2101-2105)"
+    },
+    {
+      "id": "REQ-TC18-064",
+      "title": "TSCF and ACF_GBB requests are dropped in the two pre-configured lifecycle states",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall drop without reply every request carrying a timestamped (TSCF) header and every acf.KindLong (ACF_GBB) request while the server is in StateUnconfigured or StateHWLocked, independently of the router's time-sync capability flag. Today a TSCF request is dropped only when time sync is unsupported, and ACF_GBB is rejected only on the EP0 discovery-read path. TC18 \u00a712.3.1.1 (TC18.txt:2162) and \u00a712.3.1.2 (TC18.txt:2180-2181).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.1 (TC18.txt:2162); \u00a712.3.1.2 (TC18.txt:2180-2181)"
+    },
+    {
+      "id": "REQ-TC18-065",
+      "title": "Write requests are accepted only from unicast frames",
+      "text": "NOT IMPLEMENTED \u2014 The request-admission path shall carry the frame's destination MAC and reject any request with acf.FlagWrite set whose destination MAC has the group bit set, in every lifecycle state; reads including broadcast discovery are unaffected. No code inspects the destination address, which never reaches the admission path. TC18 \u00a712.3.1.1 (TC18.txt:2166), \u00a712.3.1.2 (TC18.txt:2181), \u00a712.3.1.3 (TC18.txt:2223).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.1 (TC18.txt:2166); \u00a712.3.1.2 (TC18.txt:2181); \u00a712.3.1.3 (TC18.txt:2223)"
+    },
+    {
+      "id": "REQ-TC18-066",
+      "title": "EP0 writes while HW_CONFIGURED admit the active discovery-stream claimant",
+      "text": "NOT IMPLEMENTED \u2014 While the server is in StateHWLocked, a write via EP0 to another endpoint's configuration shall be accepted from the stream holding the active discovery-stream configuration claim as well as from the configured root client; in StateFullyConfigured it remains root-client-only. WriteEP0 is root-only in every state today, so a discovery-only configuration flow cannot write endpoint configuration. TC18 \u00a712.3.1.2 (TC18.txt:2184) and \u00a712.3.1.3 (TC18.txt:2224).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.2 (TC18.txt:2184); \u00a712.3.1.3 (TC18.txt:2224)"
+    },
+    {
+      "id": "REQ-TC18-067",
+      "title": "Only configuration requests reach non-EP0 endpoints while HW_CONFIGURED",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall drop without reply any request addressed to a byte_bus_id other than regmap.EP0 whose evt[2:0] is not 111b (configuration) while the server is in StateHWLocked. TC18 \u00a712.3.1.2 (TC18.txt:2185).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.2 (TC18.txt:2185)"
+    },
+    {
+      "id": "REQ-TC18-068",
+      "title": "A disabled endpoint queues operational requests and executes only configuration requests",
+      "text": "NOT IMPLEMENTED \u2014 While an endpoint's ep_enable bit is clear it shall execute only evt[2:0]=111b configuration requests; every operational request shall be stored in that endpoint's request storage without execution, an acknowledge shall still be sent if requested, and the stored requests shall begin executing in arrival order when ep_enable is set. There is no ep_enable field in the functional block and no per-endpoint enable gate in the dispatcher. TC18 \u00a712.3.1.3 (TC18.txt:2218-2221) and \u00a713.1 (TC18.txt:3509-3511).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.3.1.3 (TC18.txt:2218-2221); \u00a713.1 (TC18.txt:3509-3511)"
+    },
+    {
+      "id": "REQ-TC18-069",
+      "title": "A hot start checks network availability and reports the wake source",
+      "text": "NOT IMPLEMENTED \u2014 On a hot start the server shall enable the network interface, check availability, initiate a network wake if unavailable, and once available send a repetitive response to the original sleep request carrying a wake message and the wake-up source, on the responder stream configured for that sleep request. wakeup.WakeHandshake carries no wake source and powerstate.Driver targets a construction-time stream. TC18 \u00a712.4.1 (TC18.txt:2296-2305).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.4.1 (TC18.txt:2296-2305)"
+    },
+    {
+      "id": "REQ-TC18-070",
+      "title": "The wake-handshake repetition interval is honoured",
+      "text": "NOT IMPLEMENTED \u2014 powerstate.Driver shall pace successive wake-handshake transmissions at wakeup.Config.WakeHandshakeIntervalMillis using an injectable clock. The field is validated non-zero and round-trips on the wire, but no code reads it for timing; repetition rate is left entirely to the caller's Pump cadence. TC18 \u00a712.4.1 (TC18.txt:2300-2301).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.4.1 (TC18.txt:2300-2301)"
+    },
+    {
+      "id": "REQ-TC18-071",
+      "title": "Acknowledging the wake handshake re-enables endpoints and response queues",
+      "text": "NOT IMPLEMENTED \u2014 On reception of a valid message from the sleep-requesting client, the server shall re-enable every used endpoint and every configured response queue, including heartbeat-configured queues, in addition to discarding pending handshake repeats. TC18 \u00a712.4.1 (TC18.txt:2301-2303).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.4.1 (TC18.txt:2301-2303)"
+    },
+    {
+      "id": "REQ-TC18-072",
+      "title": "A sleep or standby request is rejected while wake events, busy endpoints or queued responses remain",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.Endpoint shall reject a request targeting PowerSleep or PowerStandBy, without changing state and with an error udp.errorCodeFor renders as udp.ErrorCodeRequestCancelled, when the wake-up event register wup_status is not cleared, when any declared endpoint is not idle, or when any responder queue holds a message pending transmission. None of the three predicates exists. TC18 \u00a712.5 (TC18.txt:2327-2332).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.5 (TC18.txt:2327-2332)"
+    },
+    {
+      "id": "REQ-TC18-073",
+      "title": "A wake event racing a sleep request aborts the transition",
+      "text": "NOT IMPLEMENTED \u2014 If an event configured as a wake-up source occurs during the processing of a sleep request, the request shall not be executed and the server shall not enter sleep mode. The transition is applied immediately under the mutex with no re-check. TC18 \u00a712.5 (TC18.txt:2325-2326).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.5 (TC18.txt:2325-2326)"
+    },
+    {
+      "id": "REQ-TC18-074",
+      "title": "Standby is request-only while sleep also accepts a TC14/TC10 network request",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.Endpoint shall expose a network-initiated sleep entry point distinct from a request, applying the identical rejection conditions and reporting to its caller whether TC14/TC10 LPS may be signalled; PowerStandBy shall remain reachable only via an RC Server request. No TC14/TC10 ingress or PHY LPS hook exists. TC18 \u00a712.5 (TC18.txt:2318-2319, 2336-2337).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.5 (TC18.txt:2318-2319,2336-2337)"
+    },
+    {
+      "id": "REQ-TC18-075",
+      "title": "The power-state change is committed only after its response has been sent",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.Endpoint shall not apply a PowerSleep or PowerStandBy transition until the corresponding response has been handed to the transport, so a failed transmission leaves the server in PowerNormal. The current order is inverted: the state changes before the response is built. TC18 \u00a712.5 (TC18.txt:2334-2335).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.5 (TC18.txt:2334-2335)"
+    },
+    {
+      "id": "REQ-TC18-076",
+      "title": "The first discovery request assigns the discovery stream",
+      "text": "NOT IMPLEMENTED \u2014 When the server is in StateUnconfigured or StateHWLocked and no active claim is held, handling a discovery request shall establish the configuration claim for the requesting stream as a side effect of answering it, so that stream is thereafter the only one from which configuration requests are accepted. Today the claim is established only by a separate explicit call. TC18 \u00a712.6 (TC18.txt:2356-2358).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.6 (TC18.txt:2356-2358)"
+    },
+    {
+      "id": "REQ-TC18-077",
+      "title": "The discovery-stream timeout is the specified svr_discovery_timeout default",
+      "text": "NOT IMPLEMENTED \u2014 discovery.DefaultConfigurationClaimTimeout shall be 20 ms \u2014 the svr_discovery_timeout default of 20000 microseconds \u2014 and the live value shall be carried in the register map as a 16-bit microsecond field kept in agreement with the configured timeout. The current default is 30 s, explicitly documented as this package's own reasoned value rather than a transcription. TC18 \u00a712.6 (TC18.txt:2357-2359) and \u00a713.7.1.2 Table 33 (TC18.txt:3993-3995).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.6 (TC18.txt:2357-2359); \u00a713.7.1.2 Table 33 (TC18.txt:3993-3995)"
+    },
+    {
+      "id": "REQ-TC18-078",
+      "title": "Configuration requests from a stream other than the discovery claimant are rejected",
+      "text": "NOT IMPLEMENTED \u2014 While a discovery-stream configuration claim is active, the server's configuration write paths shall reject a requester that is neither the claimant nor the configured root client; the read half shall remain unrestricted, since TC18 requires every discovery request to be answered with the server_config map. The claim is consulted by no configuration method today. TC18 \u00a712.6 (TC18.txt:2359-2361).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.6 (TC18.txt:2359-2361)"
+    },
+    {
+      "id": "REQ-TC18-079",
+      "title": "A discovery request is validated against Table 16's full field profile",
+      "text": "NOT IMPLEMENTED \u2014 Handling a discovery request shall additionally require sv = 1b (avtp.Header.StreamIDValid), unique_id = 0x0000 (avtp.StreamID suffix zero) and evt = 0000b, dropping without reply any request that violates them. Only the NTSCF, ACF_ABB, byte_bus_id-zero and op=read constraints are checked today. TC18 \u00a712.6.1 Table 16 (TC18.txt:2370-2382).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.6.1 Table 16 (TC18.txt:2370-2382)"
+    },
+    {
+      "id": "REQ-TC18-080",
+      "title": "A discovery request framed as ACF_GBB is dropped without reply",
+      "text": "Handling a discovery request shall return discovery.ErrDiscoveryRequestIsACFGBB and no register-map bytes when the request is acf.KindLong, and udp.Router.Route shall render that error as a silent drop rather than a wire-level error response. TC18 \u00a712.6.1 Table 16 (TC18.txt:2367).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a712.6.1 Table 16 (TC18.txt:2367)"
+    },
+    {
+      "id": "REQ-TC18-081",
+      "title": "A discovery response is truncated to the request's read_size",
+      "text": "NOT IMPLEMENTED \u2014 The discovery response body shall be the encoded register map from address 0x0000 truncated to the request's read_size, so acf_msg_length never exceeds it. The current path returns the whole encoded map because the discovery handler never receives the acf.Message and so cannot see ReadSizeOrSegment. TC18 \u00a712.6.2 (TC18.txt:2402-2403) and Table 17 (TC18.txt:2422-2423).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.6.2 Table 17 (TC18.txt:2402-2403,2422-2423)"
+    },
+    {
+      "id": "REQ-TC18-082",
+      "title": "A discovery response uses the server's own stream_id and the requester's streamMAC as destination",
+      "text": "NOT IMPLEMENTED \u2014 A discovery response shall carry stream_id = localMAC + unique_id 0x0000, be framed with destination MAC equal to the request's stream_id MAC and source MAC equal to the server's device MAC, and carry no VLAN tag. The response builder sets no avtp.Header and no code derives the destination from the request. TC18 \u00a712.6.2 Table 17 (TC18.txt:2418-2419, 2432-2435).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.6.2 Table 17 (TC18.txt:2418-2419,2432-2435)"
+    },
+    {
+      "id": "REQ-TC18-083",
+      "title": "Only unconditional standard requests reach EP0 before full configuration",
+      "text": "NOT IMPLEMENTED \u2014 While the server is in StateUnconfigured, or in StateHWLocked with no valid stream_id/byte_bus_id combination configured, EP0 shall reject any request whose kind is other than the unconditional standard kind with an error rendered as udp.ErrorCodeRequestRejected. That code is defined but reachable from no path today. TC18 \u00a712.7 (TC18.txt:2454-2457).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7 (TC18.txt:2454-2457)"
+    },
+    {
+      "id": "REQ-TC18-084",
+      "title": "Endpoint-direct configuration is lifecycle-gated and ends for the discovery stream at RCP_CONFIGURED",
+      "text": "NOT IMPLEMENTED \u2014 An endpoint-direct configuration request shall be accepted only in StateFullyConfigured, or in StateHWLocked when the requester's stream_id/byte_bus_id combination is configured for that endpoint, and shall otherwise be dropped without reply; in StateFullyConfigured a discovery-stream configuration claim shall be refused while discovery reads continue to be answered. The configuration write paths perform no lifecycle check at all. TC18 \u00a712.7 (TC18.txt:2458-2459), \u00a712.7.2 (TC18.txt:2488-2489), \u00a712.7.3 (TC18.txt:2493-2494), \u00a712.7.4 (TC18.txt:2498-2500).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7 (TC18.txt:2458-2459); \u00a712.7.2-.4 (TC18.txt:2488,2493,2498)"
+    },
+    {
+      "id": "REQ-TC18-085",
+      "title": "EP_func relative address 0x00 exposes the endpoint's EP_LEN",
+      "text": "NOT IMPLEMENTED \u2014 The first byte of every endpoint's EP_func block, as returned by a configuration read at relative start address 0x00, shall be that endpoint's EP_LEN. Today the block length is carried in a separate prefix written outside the block, so relative address 0x00 returns configuration data instead. The overrun rule (a payload whose length plus start address exceeds EP_LEN is ignored) is already covered by REQ-RCS-032. TC18 \u00a712.7.1 (TC18.txt:2482-2484).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.1 (TC18.txt:2482-2484)"
+    },
+    {
+      "id": "REQ-TC18-086",
+      "title": "A configuration request is ACF_ABB with evt=111b and zeroed pad, mtv and rsv",
+      "text": "NOT IMPLEMENTED \u2014 A request carrying a configuration access shall be acf.KindShort with evt[2:0] = 111b and zeroed pad/mtv/rsv fields, and the configuration path shall reject an ACF_GBB-framed or mtv-set configuration request rather than decoding its body as a \u00a712.7.1 access. REQ-EVT-007 covers the body codec and REQ-RCS-032 the addressing; the header profile is unasserted. TC18 \u00a712.7.1 Figure 18 (TC18.txt:2468-2479).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.1 Figure 18 (TC18.txt:2468-2479)"
+    },
+    {
+      "id": "REQ-TC18-087",
+      "title": "The general block carries the network, PHY, time-synch and security configuration pointers",
+      "text": "NOT IMPLEMENTED \u2014 regmap.GeneralBlock shall carry eight further 16-bit read-only registers at offsets 0x0030-0x003F \u2014 network-interface, physical-layer, time-synch and security configuration pointer/capacity pairs \u2014 and shall round-trip them; a zero pointer means the corresponding feature is not supported. generalBlockLen is 0x30 today and the encoder stops at 0x2F. TC18 \u00a712.7.5 Table 18 (TC18.txt:2633-2661).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.5 Table 18 (TC18.txt:2633-2661)"
+    },
+    {
+      "id": "REQ-TC18-088",
+      "title": "Reserved general-block registers always read as zero",
+      "text": "NOT IMPLEMENTED \u2014 regmap.EncodeRegisterMap shall force the reserved registers at 0x0017, 0x0022-0x0023 and 0x002B to zero regardless of the stored GeneralBlock, so a client-supplied whole-map write can never cause a reserved register to read non-zero. The decoder copies whatever bytes arrive and the encoder does not force them. TC18 \u00a712.7.5 Table 18 (TC18.txt:2562, 2599).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.5 Table 18 (TC18.txt:2562,2599)"
+    },
+    {
+      "id": "REQ-TC18-089",
+      "title": "The pin-mapping table is bounded by svr_io_pin_count",
+      "text": "NOT IMPLEMENTED \u2014 regmap.PinMap.Validate shall reject any PinAssignment whose Pin is greater than or equal to GeneralBlock.NumIOPins, since TC18 makes the available IO-pin count a constant read from the general register block. Validate checks uniqueness, endpoint declaration and signal-index range only. TC18 \u00a712.7.5 Table 18 (TC18.txt:2564-2566) and \u00a712.7.6 (TC18.txt:2694-2695).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.5 Table 18 (TC18.txt:2564-2566); \u00a712.7.6 (TC18.txt:2694-2695)"
+    },
+    {
+      "id": "REQ-TC18-090",
+      "title": "Configured queue memory is bounded by svr_responder_mem_size and svr_req_mem_size",
+      "text": "NOT IMPLEMENTED \u2014 Advancing to RCP_CONFIGURED shall reject a configuration whose total configured queue memory, in 32-bit words, exceeds GeneralBlock.MaxResponderQueueWords or MaxRequestQueueWords. Both registers round-trip but constrain nothing, and there is no per-queue queue_size register to sum. TC18 \u00a712.7.5 Table 18 (TC18.txt:2543-2547).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.5 Table 18 (TC18.txt:2543-2547)"
+    },
+    {
+      "id": "REQ-TC18-091",
+      "title": "The HW_config table encodes three bytes per IO pin, indexed by pin number",
+      "text": "NOT IMPLEMENTED \u2014 The HW_config table shall be encoded as NumIOPins consecutive 3-byte records \u2014 hw_ep_nr, hw_ep_pin_nr, hw_pin_type \u2014 positioned by physical pin index with no length prefix, so pin n's hw_ep_nr sits at the table pointer plus 3n. The current encoding is a 2-byte entry count followed by 4-byte records carrying an explicit pin field and no pin type. TC18 \u00a712.7.6 Table 19 (TC18.txt:2698-2718).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.6 Table 19 (TC18.txt:2698-2718)"
+    },
+    {
+      "id": "REQ-TC18-092",
+      "title": "A pin assignment carries the Table 20 IO-pin property bitfield",
+      "text": "NOT IMPLEMENTED \u2014 regmap.PinAssignment shall carry an 8-bit hw_pin_type encoding pull mode in bits 1:0 (float, pull-down, pull-up), output stage in bits 3:2 (input, open-drain, open-source, push-pull), drive strength in bits 5:4, a reserved bit 6 reading zero, and Schmitt-trigger enable in bit 7, with validation rejecting a set bit 6. No such field exists. TC18 \u00a712.7.6 Table 20 (TC18.txt:2738-2760) and \u00a712.7.6 (TC18.txt:2720-2722).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.6 Table 20 (TC18.txt:2738-2760)"
+    },
+    {
+      "id": "REQ-TC18-093",
+      "title": "PWM_OUT and PWM_IN are distinct endpoint types with distinct signal counts",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall declare separate endpoint types for PWM_OUT (signals PWM_OUT and PWM_OUTN) and PWM_IN (signal PWM_IN) so a pin assignment naming signal index 1 on a PWM input endpoint is rejected. A single merged EndpointTypePWM carries both signal names today. TC18 \u00a712.7.6 Table 21 (TC18.txt:2807-2810) and \u00a713.2 Table 29 (TC18.txt:3601-3618).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.6 Table 21 (TC18.txt:2807-2810); \u00a713.2 Table 29 (TC18.txt:3601-3618)"
+    },
+    {
+      "id": "REQ-TC18-094",
+      "title": "Endpoint types outside Table 21's enumeration are marked as vendor extensions",
+      "text": "NOT IMPLEMENTED \u2014 regmap.EndpointTypeWakeup has no row in TC18 Table 21's endpoint-type enumeration and shall be documented as a vendor extension assigned a value in a reserved range that cannot collide with a future TC18-assigned EP_Type. TC18 \u00a712.7.6 Table 21 (TC18.txt:2779-2821).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.6 Table 21 (TC18.txt:2779-2821)"
+    },
+    {
+      "id": "REQ-TC18-095",
+      "title": "Request-stream configuration implements the Table 22 per-stream record",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall carry an array of per-request-stream records of 0x18 bytes each laid out per Table 22 \u2014 rx_stream_id, rx_stream_max_request_size, rx_wd_timeout_intervall, rx_secure_channel_index, the rx_enforce_e2e / rx_enforce_seq / rx_seq_safestate_enable / rx_wd_enable / rx_wd_safestate_enable / rx_ovrflw_safestate_enable / rx_safety_measure / rx_wd_info_enable bits, rx_safestate_seqencer, rx_safe_sequencer_state, rx_ack_stream_index, rx_resp_stream_index and the reserved words \u2014 with TC18's defaults, including rx_resp_stream_index defaulting to 1 so a discovery request can be answered. regmap.StreamLimits is an invented 3-byte substitute. TC18 \u00a712.7.7 Table 22 (TC18.txt:2843-2928).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.7 Table 22 (TC18.txt:2843-2928)"
+    },
+    {
+      "id": "REQ-TC18-096",
+      "title": "A zero rx_stream_id accepts no requests",
+      "text": "NOT IMPLEMENTED \u2014 A request stream whose rx_stream_id register is zero shall receive nothing, since zero is not a valid stream_id. TC18 \u00a712.7.7 Table 22 (TC18.txt:2847-2851).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.7 Table 22 (TC18.txt:2847-2851)"
+    },
+    {
+      "id": "REQ-TC18-097",
+      "title": "rx_enforce_seq requires a single sequence-number increment, not merely a strict increase",
+      "text": "NOT IMPLEMENTED \u2014 When rx_enforce_seq is set, requests shall be filed for execution only if the AVTPDU sequence number increased by exactly one, and rx_seq_safestate_enable shall bring all endpoints to safe state when it did not. e2e's monotonicity check accepts any strict increase (REQ-CRC-006) and neither register exists. TC18 \u00a712.7.7 Table 22 (TC18.txt:2868-2873).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.7 Table 22 (TC18.txt:2868-2873)"
+    },
+    {
+      "id": "REQ-TC18-098",
+      "title": "rx_safety_measure selects high-impedance pins or sequencer-based safety requests",
+      "text": "NOT IMPLEMENTED \u2014 On safe-state entry the server shall either drive all mapped IO pins to high impedance (rx_safety_measure = 0b) or use sequencer-based safety requests (1b), as that register selects. Neither behaviour nor register exists. TC18 \u00a712.7.7 Table 22 (TC18.txt:2883-2887).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.7 Table 22 (TC18.txt:2883-2887)"
+    },
+    {
+      "id": "REQ-TC18-099",
+      "title": "rx_ovrflw_safestate_enable enters safe state on request-storage overflow",
+      "text": "NOT IMPLEMENTED \u2014 When rx_ovrflw_safestate_enable is set, the server shall enter safe state if the request storage of any endpoint overflows. No overflow-to-safe-state path exists. TC18 \u00a712.7.7 Table 22 (TC18.txt:2880-2882).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.7 Table 22 (TC18.txt:2880-2882)"
+    },
+    {
+      "id": "REQ-TC18-100",
+      "title": "rx_wd_info_enable emits repetitive safe-state notifications",
+      "text": "NOT IMPLEMENTED \u2014 When rx_wd_info_enable is set, the server shall send a repetitive notification while in safe state. TC18 \u00a712.7.7 Table 22 (TC18.txt:2888-2890).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.7 Table 22 (TC18.txt:2888-2890)"
+    },
+    {
+      "id": "REQ-TC18-101",
+      "title": "EP_ID_config maps (request stream, byte_bus_id) pairs to endpoints",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall encode an EP_ID_config table of up to EndpointMapMaxEntries 4-byte entries \u2014 Request_Stream_Index, EP_Nr and a 16-bit BBID carrying an 11-bit byte_bus_id \u2014 defaulting entry 1 to {1, 0, 0} so EP0 is reachable, treating Request_Stream_Index 0 as end-of-table, and rejecting entries not in ascending order. The section is never emitted and routing is done by an unrelated grant model. TC18 \u00a712.7.8 Table 23 (TC18.txt:2962-2990).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.8 Table 23 (TC18.txt:2962-2990)"
+    },
+    {
+      "id": "REQ-TC18-102",
+      "title": "An endpoint address preserves all eleven bits of byte_bus_id",
+      "text": "NOT IMPLEMENTED \u2014 regmap's generic endpoint block shall encode avtp.ByteBusID in sixteen bits rather than truncating it to eight, since TC18 makes byte_bus_id an 11-bit field. The encoder writes a single byte today, so an endpoint above address 255 cannot survive an encode. TC18 \u00a712.7.8 Table 23 (TC18.txt:2962-2990) and \u00a711.2.1 Table 4.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.8 Table 23 (TC18.txt:2962-2990)"
+    },
+    {
+      "id": "REQ-TC18-103",
+      "title": "Granting an endpoint to a second stream is reported as a safety-relevant condition",
+      "text": "NOT IMPLEMENTED \u2014 regmap.AccessController.Grant shall expose whether the endpoint was already granted to a different stream, since TC18 recommends for safety reasons that one endpoint be used by one RC Client at a time. This is a SHOULD-strength clause; Grant currently permits unlimited streams silently. TC18 \u00a712.7.8 (TC18.txt:2985).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.8 (TC18.txt:2985)"
+    },
+    {
+      "id": "REQ-TC18-104",
+      "title": "Endpoints sharing a byte_bus_id within one stream are of the same type",
+      "text": "NOT IMPLEMENTED \u2014 If multiple endpoints use the same byte_bus_id inside one stream they should be of the same type; this SHOULD-strength clause cannot be checked because no EP_ID_config table exists to check against. TC18 \u00a712.7.8 (TC18.txt:2988).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.8 (TC18.txt:2988)"
+    },
+    {
+      "id": "REQ-TC18-105",
+      "title": "Max_AVTPDUsize bounds every generated AVTPDU and is validated against the MTU",
+      "text": "NOT IMPLEMENTED \u2014 The responder-queue configuration shall carry a 16-bit Max_AVTPDUsize in quadlets, the server shall never emit an AVTPDU longer than four times that value, and advancing to RCP_CONFIGURED shall reject a configuration whose Max_AVTPDUsize would produce a frame exceeding the transport MTU. udp.MaxFrameLen is a compile-time constant, not a register. TC18 \u00a712.7.9 (TC18.txt:3009-3011) and Table 24 (TC18.txt:3030-3032).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.9 Table 24 (TC18.txt:3009-3011,3030-3032)"
+    },
+    {
+      "id": "REQ-TC18-106",
+      "title": "The responder-queue fragmentation threshold is derived from Max_AVTPDUsize",
+      "text": "NOT IMPLEMENTED \u2014 The responder queue shall call fragment.Split with a maximum body derived from that queue's Max_AVTPDUsize rather than fragment.DefaultMaxSegmentBody, which is documented in the package itself as a choice and not a specification-mandated limit. TC18 \u00a712.7.9 (TC18.txt:3012-3013).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.9 (TC18.txt:3012-3013)"
+    },
+    {
+      "id": "REQ-TC18-107",
+      "title": "flush_on_count is measured in 32-bit words and flushes inclusively",
+      "text": "NOT IMPLEMENTED \u2014 The queue flush threshold shall count 32-bit words of queued payload rather than messages, shall default to 1 meaning immediate transmission, and on crossing the threshold the server shall transmit every queued ACF type including the one that crossed it, packed into as many AVTPDUs as Max_AVTPDUsize requires. regmap.QueueConfig.FlushThreshold counts messages and defaults to zero. TC18 \u00a712.7.9 (TC18.txt:3014-3017) and Table 24 (TC18.txt:3035-3039).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.9 Table 24 (TC18.txt:3014-3017,3035-3039)"
+    },
+    {
+      "id": "REQ-TC18-108",
+      "title": "Flush_time is a 16-bit microsecond register",
+      "text": "NOT IMPLEMENTED \u2014 The queue flush-time register shall be a 16-bit value in microseconds with zero meaning flush-only-by-count, replacing regmap.QueueConfig's 32-bit millisecond field. TC18 \u00a712.7.9 Table 24 (TC18.txt:3041-3043).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.9 Table 24 (TC18.txt:3041-3043)"
+    },
+    {
+      "id": "REQ-TC18-109",
+      "title": "An expired Flush_time transmits an AVTPDU even when the queue is empty",
+      "text": "NOT IMPLEMENTED \u2014 When a responder queue's Flush_time elapses since its last transmission the server shall emit an AVTPDU even if the queue is empty, which is the liveness heartbeat; the separate HeartbeatIntervalMillis field is a register Table 24 does not define and should be removed in favour of that behaviour. TC18 \u00a712.7.9 (TC18.txt:3018-3021) and \u00a713.7.1.1 (TC18.txt:3967-3970).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.9 (TC18.txt:3018-3021); \u00a713.7.1.1 (TC18.txt:3967-3970)"
+    },
+    {
+      "id": "REQ-TC18-110",
+      "title": "QUEUE_config is a per-responder-queue array with distinct lock classes",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall encode QUEUE_config as an array of 0x0A-byte records \u2014 STREAM_UID, Max_AVTPDUsize, queue_size, flush_on_count, Flush_time \u2014 one per configurable response stream, gating STREAM_UID, flush_on_count and Flush_time on the configuration lock (R/W+) while gating Max_AVTPDUsize and queue_size on lifecycle state (R/W*). RegisterMap.Queues is a single global QueueConfig with one uniform lock. TC18 \u00a712.7.9 Table 24 (TC18.txt:3025-3048).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.9 Table 24 (TC18.txt:3025-3048)"
+    },
+    {
+      "id": "REQ-TC18-111",
+      "title": "Sequencer state registers read 1 after reset, not 0",
+      "text": "NOT IMPLEMENTED \u2014 request.NewSequencer shall initialise every sequencer state register to 1, so Get returns 1 for a never-advanced SequencerID; TC18 states that upon power-on reset all sequencer state values are set to 1 and Table 25 gives Seq_state a default of 1. The current bank starts every register at zero, and REQ-REQ-004's 'starting at zero' clause codifies that deviation. TC18 \u00a712.7.10 (TC18.txt:3068-3069), Table 25 (TC18.txt:3080-3081) and \u00a712.10 (TC18.txt:3466-3468).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.10 Table 25 (TC18.txt:3068-3069,3080-3081); \u00a712.10 (TC18.txt:3466-3468)"
+    },
+    {
+      "id": "REQ-TC18-112",
+      "title": "SEQUENCER_config exposes sequencer state and client binding through the register map",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall encode a SEQUENCER_config table of 2-byte records \u2014 Seq_state (8-bit R/W, reset value 1, zero meaning disabled) and Request_stream_index (8-bit R/W*) \u2014 backed by the same registers request.Sequencer uses, and shall reject a sequencer access issued by a stream other than that sequencer's Request_stream_index. The pointer is documented as always zero on encode and no section is emitted. Note also that Table 25 makes Seq_state 8-bit where request.Sequencer stores uint32. TC18 \u00a712.7.10 Table 25 (TC18.txt:3077-3097) and \u00a712.10 (TC18.txt:3468-3470).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.10 Table 25 (TC18.txt:3077-3097); \u00a712.10 (TC18.txt:3468-3470)"
+    },
+    {
+      "id": "REQ-TC18-113",
+      "title": "svr_sequencers_max advertises the sequencers the server actually implements",
+      "text": "NOT IMPLEMENTED \u2014 The server shall set GeneralBlock.NumSequencerStates to the number of sequencer state registers it provides, so a client reading the general block is not told sequencer operation is unsupported while compound requests are in fact honoured. The field is never set above zero today. TC18 \u00a712.7.10 (TC18.txt:3071-3073) and \u00a712.7.5 Table 18 (TC18.txt:2548-2550).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.10 (TC18.txt:3071-3073); \u00a712.7.5 Table 18 (TC18.txt:2548-2550)"
+    },
+    {
+      "id": "REQ-TC18-114",
+      "title": "Product-specific configuration windows are addressable through their general-block pointers",
+      "text": "NOT IMPLEMENTED \u2014 regmap shall expose the network-interface, physical-layer, time-synch and security configuration sections as opaque byte windows located at their respective general-block pointers and bounded by the matching capacity registers, round-tripping their bytes without interpreting them, with a zero pointer signalling that physical-layer configuration, time synch or security respectively is not supported. TC18 \u00a712.7.11 (TC18.txt:3114-3119), \u00a712.7.12 (TC18.txt:3122-3128), \u00a712.7.13 (TC18.txt:3131-3135), \u00a712.7.14 (TC18.txt:3138-3142).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.7.11-.14 (TC18.txt:3114-3142)"
+    },
+    {
+      "id": "REQ-TC18-115",
+      "title": "A 10BASE-T1S deployment declares its PLCA transmit slots",
+      "text": "NOT IMPLEMENTED \u2014 When the configured link is 10BASE-T1S the transport shall carry at least one configured PLCA transmit-opportunity slot in which the RC Server is allowed to send, and shall refuse to transmit when none is configured. No PLCA concept exists in the repository. TC18 \u00a712.8.1 (TC18.txt:3162-3163).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.8.1 (TC18.txt:3162-3163)"
+    },
+    {
+      "id": "REQ-TC18-116",
+      "title": "MACsec-protected frames are verified and unwrapped before AVTPDU decode",
+      "text": "NOT IMPLEMENTED \u2014 If MACsec is enabled on an interface, the receive path shall verify and strip the SecTAG and ICV before handing the remainder to acf.DecodeFrame. This is a MAY-strength clause in TC18 and is not implemented; it is recorded because \u00a712.7.7's rx_secure_channel_index register presumes it. TC18 \u00a712.8.2 (TC18.txt:3168-3169).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.8.2 (TC18.txt:3168-3169)"
+    },
+    {
+      "id": "REQ-TC18-117",
+      "title": "A frame that is neither gPTP nor an IEEE 1722 AVTPDU is discarded",
+      "text": "avtp.DecodeHeader shall return avtp.ErrUnknownSubtype for any buffer whose subtype octet is neither SubtypeNTSCF (0x82) nor SubtypeTSCF (0x05), and the receive path shall drop such a datagram without reply rather than misinterpreting it. TC18 \u00a712.8.2 (TC18.txt:3170).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a712.8.2 (TC18.txt:3170)"
+    },
+    {
+      "id": "REQ-TC18-118",
+      "title": "Fragmented requests are reassembled before dispatch",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall pass every inbound acf.Message carrying acf.FlagMoreSegments through a fragment.Reassembler and dispatch only the reassembled message to the addressed handler. The fragment package is complete and required by REQ-FRAG-001..012 but is not wired into the server, so a non-terminal segment is routed as if it were a whole request. TC18 \u00a712.8.2 (TC18.txt:3174).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.8.2 (TC18.txt:3174)"
+    },
+    {
+      "id": "REQ-TC18-119",
+      "title": "Frames arriving at the minimum interpacket gap are not dropped",
+      "text": "NOT IMPLEMENTED \u2014 The receive path shall not drop a correctly formed AVTPDU solely because it arrived at the minimum time after its predecessor. This is a PHY/driver-level property with no representation in this library. TC18 \u00a712.8.2 (TC18.txt:3175-3176).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.8.2 (TC18.txt:3175-3176)"
+    },
+    {
+      "id": "REQ-TC18-120",
+      "title": "Responses and acknowledges are emitted through per-stream responder and acknowledge queues",
+      "text": "NOT IMPLEMENTED \u2014 The server shall maintain one responder queue and one acknowledge queue per configured stream, each with its own (possibly multicast) destination address, and each endpoint's configuration shall name which queues carry its responses and acknowledges for a request received on a given stream. regmap.QueueConfig is a single global flush table and replies are sent synchronously to the sender's address. TC18 \u00a712.9.1 (TC18.txt:3201-3204) and \u00a712.9.4 (TC18.txt:3366-3368).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.1 (TC18.txt:3201-3204); \u00a712.9.4 (TC18.txt:3366-3368)"
+    },
+    {
+      "id": "REQ-TC18-121",
+      "title": "A frame carrying multiple ACF messages is decoded and routed message by message",
+      "text": "acf.DecodeFrame shall return every ACF message present in an AVTPDU payload in wire order, and the server shall route each one individually, checking each against the addressed endpoint and emitting one reply frame carrying every response produced. TC18 \u00a712.9.1.1 (TC18.txt:3221-3223) and \u00a712.9.1.1 (TC18.txt:3226-3231).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a712.9.1.1 (TC18.txt:3221-3223)"
+    },
+    {
+      "id": "REQ-TC18-122",
+      "title": "One frame's header governs every message it carries",
+      "text": "acf.Frame shall carry exactly one avtp.Header, and that header shall be passed unchanged when routing every message decoded from the frame, so a TSCF presentation time applies uniformly to all of them and a mixture of timestamped and untimestamped requests in one frame is impossible. TC18 \u00a712.9.1.1 (TC18.txt:3224-3226).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a712.9.1.1 (TC18.txt:3224-3226)"
+    },
+    {
+      "id": "REQ-TC18-123",
+      "title": "Mixed request types in one frame are each dispatched under their own kind",
+      "text": "NOT IMPLEMENTED \u2014 Each message of a multi-message frame shall be dispatched according to its own request kind, so a frame mixing standard, triggered and compound requests executes each under its own readiness rule. Heterogeneous messages per frame decode correctly, but the request-type envelopes themselves are this repository's own layout rather than TC18 \u00a711.2.2's. TC18 \u00a712.9.1.1 (TC18.txt:3226-3231).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.1.1 (TC18.txt:3226-3231)"
+    },
+    {
+      "id": "REQ-TC18-124",
+      "title": "Table 26's per-type execution procedure governs each kind's RS/RE/RF transitions",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall implement TC18 Table 26 for each request kind: cancellation, timed and standard requests advance from request-started to request-under-execution immediately; triggered, compound and chained requests start their exec-delay timer on entering request-started and advance only once it expires and the endpoint is idle with no higher-priority request pending; a triggered request resets its trigger count on entering request-started; a compound request sets cmp_sequencer to cmp_next_state at request-finalized only if the sequencer still equals cmp_start_state; a compound-wait request checks its condition exactly once on entering request-under-execution. No execution-delay timer exists and every ready ticket advances through all states in one Pump call. TC18 \u00a712.9.3 Table 26 (TC18.txt:3289-3341).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.3 Table 26 (TC18.txt:3289-3341)"
+    },
+    {
+      "id": "REQ-TC18-125",
+      "title": "Trigger observation and delay start are independent of endpoint idleness",
+      "text": "NOT IMPLEMENTED \u2014 A dispatcher shall record trigger-condition fulfilment and start the request's trigger exec-delay timer at the moment the trigger is observed, regardless of whether the endpoint is executing another request. Trigger sources are polled only while iterating tickets already started. TC18 \u00a712.9.3 (TC18.txt:3344-3346).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.3 (TC18.txt:3344-3346)"
+    },
+    {
+      "id": "REQ-TC18-126",
+      "title": "A full endpoint request storage drops the new request and answers REQ_storage_OVFL",
+      "text": "NOT IMPLEMENTED \u2014 request.Dispatcher shall enforce a configured maximum number of non-finalized tickets, reject a further Submit with a distinct sentinel, and udp.errorCodeFor shall render that sentinel as udp.ErrorCodeRequestStorageOverflow. Submit is unbounded today and that error code is produced by no path. TC18 \u00a712.9.3 (TC18.txt:3347-3349) and \u00a712.9.6 Table 27 (TC18.txt:3430).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.3 (TC18.txt:3347-3349); \u00a712.9.6 Table 27 (TC18.txt:3430)"
+    },
+    {
+      "id": "REQ-TC18-127",
+      "title": "A full responder queue evicts the lowest sequence_num and flags overflow",
+      "text": "NOT IMPLEMENTED \u2014 When a responder queue is full and a further response is delivered, the server shall discard the queued AVTPDU with the lowest sequence_num, enqueue the new response, and set that queue's overflow bit. Neither the queue nor the overflow bit exists. TC18 \u00a712.9.4 (TC18.txt:3378-3380).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.4 (TC18.txt:3378-3380)"
+    },
+    {
+      "id": "REQ-TC18-128",
+      "title": "A full acknowledge queue evicts the lowest sequence_num and flags overflow",
+      "text": "NOT IMPLEMENTED \u2014 When an acknowledge queue is full and a further acknowledge is delivered, the server shall discard the queued AVTPDU with the lowest sequence_num, enqueue the new acknowledge, and set that queue's overflow bit. TC18 \u00a712.9.5 (TC18.txt:3388-3390).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.5 (TC18.txt:3388-3390)"
+    },
+    {
+      "id": "REQ-TC18-129",
+      "title": "An endpoint execution failure is reported as EP_ERROR, not INVALID_PARAMETER",
+      "text": "NOT IMPLEMENTED \u2014 udp.errorCodeFor shall map an error originating from a request.Handler's execution \u2014 as distinct from request decoding or validation \u2014 to udp.ErrorCodeEPError, reserving udp.ErrorCodeInvalidParameter for out-of-range request parameters. A hardware or execution failure currently falls through to the malformed-parameter code, and ErrorCodeEPError is selected by no path. TC18 \u00a712.9.6 (TC18.txt:3407-3408) and Table 27 (TC18.txt:3424).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.6 Table 27 (TC18.txt:3407-3408,3424)"
+    },
+    {
+      "id": "REQ-TC18-130",
+      "title": "Error responses are timestamped when the endpoint is configured for it",
+      "text": "NOT IMPLEMENTED \u2014 When an endpoint's timestamp-error-responses configuration is set, the error response shall be acf.KindLong with MTV true and a populated Timestamp. The error-response builder copies the request's Kind and sets no timestamp. TC18 \u00a712.9.6 (TC18.txt:3409).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.6 (TC18.txt:3409)"
+    },
+    {
+      "id": "REQ-TC18-131",
+      "title": "udp.ErrorCode transcribes Table 27's seventeen-entry enumeration exactly",
+      "text": "udp.ErrorCode shall define exactly the seventeen codes of TC18 Table 27 at their specified numeric values, from UNSUPPORTED_CMD = 1 through CHAIN_ERROR = 17, and ErrorCode.Valid shall accept exactly those values and reject 0 and any value of 18 or more. TC18 \u00a712.9.6 Table 27 (TC18.txt:3414-3446).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a712.9.6 Table 27 (TC18.txt:3414-3446)"
+    },
+    {
+      "id": "REQ-TC18-132",
+      "title": "An unknown sequencer is answered SEQUENCER_NOT_KNOWN",
+      "text": "NOT IMPLEMENTED \u2014 A request naming a sequencer beyond the server's configured sequencer count shall be answered with udp.ErrorCodeSequencerNotKnown. request.Sequencer auto-creates every identifier on first use, so the condition never arises and the code is produced by no path. TC18 \u00a712.9.6 Table 27 (TC18.txt:3416) and \u00a712.10 (TC18.txt:3472-3473).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.9.6 Table 27 (TC18.txt:3416); \u00a712.10 (TC18.txt:3472-3473)"
+    },
+    {
+      "id": "REQ-TC18-133",
+      "title": "Sequencer identifiers and state values are bounded at 256",
+      "text": "NOT IMPLEMENTED \u2014 The number of sequencers and the number of states per sequencer are limited to 256, and a server may support fewer; request.SequencerID is uint16 and the state register is uint32 with saturation, both wider than the specification allows, while GeneralBlock.NumSequencerStates has the correct width but is never set. A count of zero shall mean sequencer operation is unsupported. TC18 \u00a712.10 (TC18.txt:3472-3473).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a712.10 (TC18.txt:3472-3473)"
+    },
+    {
+      "id": "REQ-TC18-134",
+      "title": "A not-used endpoint accepts no pin assignments and validates no requests",
+      "text": "NOT IMPLEMENTED \u2014 regmap.PinMap.Validate shall reject an assignment referencing an endpoint whose ep_used bit is clear, and the dispatch path shall reject a request addressed to such an endpoint rather than executing it. The Enabled flag is carried but consulted only by the encoder. TC18 \u00a713.1 (TC18.txt:3502-3503).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.1 (TC18.txt:3502-3503)"
+    },
+    {
+      "id": "REQ-TC18-135",
+      "title": "A granted non-root stream can write only an endpoint's functional block",
+      "text": "For a non-root requester holding a grant for an endpoint, the server shall expose no path that mutates that endpoint's generic block (ep_type, ep_used, pin mapping) \u2014 only its functional block. TC18 \u00a713.1 (TC18.txt:3516-3518).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.1 (TC18.txt:3516-3518)"
+    },
+    {
+      "id": "REQ-TC18-136",
+      "title": "The generic endpoint block carries Table 28's full twelve-octet layout",
+      "text": "NOT IMPLEMENTED \u2014 regmap's generic endpoint block shall carry ep_type, ep_used, ep_delay_time, ep_req_storage_size, ep_description, ep_tx_buffer_size and ep_rx_buffer_size at TC18 Table 28's relative offsets and bit positions within a twelve-octet, 0x000C-stride block. The current block is a bespoke three-byte record of address, type and enabled. TC18 \u00a713.2 Table 28 (TC18.txt:3541-3582).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.2 Table 28 (TC18.txt:3541-3582)"
+    },
+    {
+      "id": "REQ-TC18-137",
+      "title": "EndpointType constants carry Table 29's own numeric values",
+      "text": "NOT IMPLEMENTED \u2014 regmap.EndpointType shall assign each endpoint kind exactly the value TC18 Table 29 gives it \u2014 Server 0x00, WakeUp Ctrl 0x01, GPIO 0x02, SPI 0x03, I2C 0x04, UART 0x05, LIN 0x06, PWM_OUT 0x07, PWM_IN 0x08, ADC 0x09, DAC 0x0A, CAN 0x0B, ISELED 0x0C, MDIO 0x0D \u2014 so a decoded ep_type byte names the endpoint kind a conformant peer meant. The current constants are a locally invented iota run in which every value disagrees. TC18 \u00a713.2 Table 29 (TC18.txt:3601-3618).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.2 Table 29 (TC18.txt:3601-3618)"
+    },
+    {
+      "id": "REQ-TC18-138",
+      "title": "EP0's ep_used bit is fixed at 1",
+      "text": "NOT IMPLEMENTED \u2014 The generic endpoint block for regmap.EP0 shall always encode ep_used = 1, since EP0 must always be implemented, and a write attempting to clear it shall be rejected. TC18 \u00a713.2 Table 28 (TC18.txt:3551-3553).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.2 Table 28 (TC18.txt:3551-3553)"
+    },
+    {
+      "id": "REQ-TC18-139",
+      "title": "EP_RESP_ON_ERROR gauges driven pins and names the failing pin in the error response",
+      "text": "NOT IMPLEMENTED \u2014 When an endpoint's EP_RESP_ON_ERROR option is set, every pin-driving endpoint shall read back each pin it drove and, for a pin whose state does not follow the commanded value, return an error response carrying that pin's reference; an error from a different source shall produce an error response with the corresponding error code. No EP_RESP_ON_ERROR field, pin read-back or pin-reference response field exists. TC18 \u00a713.2 (TC18.txt:3585-3588).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.2 (TC18.txt:3585-3588)"
+    },
+    {
+      "id": "REQ-TC18-140",
+      "title": "A server without time synchronization can be configured to execute a timed request rather than drop it",
+      "text": "NOT IMPLEMENTED \u2014 avtp.Header.Disposition and its caller shall accept a policy selecting either DispositionDrop or DispositionBestEffort for a timed header on a server without time synchronization; TC18 names both alternatives and makes the choice a configuration matter, whereas Disposition hard-codes the drop. TC18 \u00a713.3 (TC18.txt:3636-3638).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.3 (TC18.txt:3636-3638)"
+    },
+    {
+      "id": "REQ-TC18-141",
+      "title": "A tv=0 timestamped header is dispositioned as if untimed",
+      "text": "NOT IMPLEMENTED \u2014 avtp.Header.Disposition shall report DispositionBestEffort for a timed header whose timestamp is marked invalid (tv = 0) even when the caller reports no time-sync support, since such a request carries no presentation time and TC18 requires it to be queued as if the header were NTSCF; DispositionDrop is reserved for a header that genuinely carries a presentation time. Disposition tests time-sync support before looking at the timestamp status, so a tv=0 TSCF request is dropped today. TC18 \u00a713.3 (TC18.txt:3639-3641).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.3 (TC18.txt:3639-3641)"
+    },
+    {
+      "id": "REQ-TC18-142",
+      "title": "An uncertain timestamp is scheduled exactly as a valid one",
+      "text": "NOT IMPLEMENTED \u2014 avtp.Header.Disposition shall report DispositionScheduled for a timed header whose timestamp is marked uncertain (tu = 1) on a time-sync-capable server, since TC18 requires tu = 1 to be executed as if tu = 0. The current code folds uncertain down to DispositionBestEffort, and REQ-AVTP-008 mandates that demotion. TC18 \u00a713.3 (TC18.txt:3641-3642).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.3 (TC18.txt:3641-3642)"
+    },
+    {
+      "id": "REQ-TC18-143",
+      "title": "A compound-wait comparison caps a longer interface status and never matches a shorter one",
+      "text": "NOT IMPLEMENTED \u2014 The \u00a713.5.1 comparison shall report no match unconditionally when the endpoint's interface status is shorter than the byte_msg_payload, and shall truncate the interface status to the payload's length when it is longer \u2014 so a four-byte payload checks only the first four of twenty received SPI bytes. TC18 \u00a713.5.1 (TC18.txt:3737-3740).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.5.1 (TC18.txt:3737-3740)"
+    },
+    {
+      "id": "REQ-TC18-144",
+      "title": "acf gains a compound-wait evt class implementing the eight \u00a713.5.1 comparisons",
+      "text": "NOT IMPLEMENTED \u2014 acf shall provide a compound-wait classification of evt[2:0] distinct from ClassifyEVT's three Table 30 request-side rows, mapping 000b to exact match, 001b to payload-AND-status OR NOT-payload equal to all ones, 010b to payload-AND-status equal to zero, 100b/101b to first-half greater-or-equal / less-or-equal and 110b/111b to last-half greater-or-equal / less-or-equal over the first quadlet, and returning a reserved error for 011b that renders as udp.ErrorCodeUnsupportedCommand. Note 111b in this class is a comparison, not Table 30's configuration action, so reusing ClassifyEVT would be wrong. TC18 \u00a713.5.1 (TC18.txt:3742-3764).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.5.1 (TC18.txt:3742-3764)"
+    },
+    {
+      "id": "REQ-TC18-145",
+      "title": "Safe-command mode is a discoverable, configurable bit of the endpoint register map",
+      "text": "NOT IMPLEMENTED \u2014 The endpoint register map shall carry the plain/safe command-mode selection so a client can discover which endpoints are CRC-secured, and the server shall interpose e2e.Guard for exactly the endpoints whose bit is set. Protection is a construction-time wiring decision today, invisible on the wire. TC18 \u00a713.6 (TC18.txt:3782-3787) and \u00a713.7 Table 32 (TC18.txt:3913-3923).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3782-3787); \u00a713.7 Table 32 (TC18.txt:3913-3923)"
+    },
+    {
+      "id": "REQ-TC18-146",
+      "title": "e2e.Compute implements CRC32P4 with Table 31's exact parameters",
+      "text": "e2e.Compute shall implement the CRC TC18 Table 31 specifies \u2014 polynomial 0xF4ACFB13, width 32, initial value 0xFFFFFFFF, final XOR 0xFFFFFFFF, input and output reflected \u2014 and not the IEEE 802.3 CRC-32, so a safe point this package produces is accepted by a conformant peer. TC18 \u00a713.6 Table 31 (TC18.txt:3792-3807).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.6 Table 31 (TC18.txt:3792-3807)"
+    },
+    {
+      "id": "REQ-TC18-147",
+      "title": "The safe point covers the AVTPDU header's avtp_timestamp, zeroed for NTSCF",
+      "text": "NOT IMPLEMENTED \u2014 e2e's CRC computation shall take the enclosing avtp.Header and include its avtp_timestamp field in the covered bytes, substituting all zeros when the header is NTSCF. The current computation takes only the StreamID and hashes the ACF message_timestamp, an entirely different field. TC18 \u00a713.6 (TC18.txt:3809-3811).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3809-3811)"
+    },
+    {
+      "id": "REQ-TC18-148",
+      "title": "The safe point covers the whole encoded ACF message header",
+      "text": "NOT IMPLEMENTED \u2014 e2e's CRC shall be computed over the ACF message's encoded wire bytes \u2014 acf_msg_type, acf_msg_length, pad, mtv, byte_bus_id, evt, rsv, hs, cs, transaction_num, the control bits and read_size/segment_num \u2014 rather than a bespoke subset of struct fields. evt, hs, cs, mtv, pad, acf_msg_type and acf_msg_length are uncovered today, so evt[2:0] can be altered in flight with the CRC still verifying. TC18 \u00a713.6 (TC18.txt:3812) and Figures 19 and 20 (TC18.txt:3844-3881).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3812); Figures 19/20 (TC18.txt:3844-3881)"
+    },
+    {
+      "id": "REQ-TC18-149",
+      "title": "The covered header carries the CRC-inclusive lengths",
+      "text": "NOT IMPLEMENTED \u2014 The acf_msg_length and the AVTPDU ntscf_data_length or stream_data_length values fed into the CRC shall already include the trailing CRC32 quadlet \u2014 plus one quadlet and plus four octets respectively. The encoders do produce the incremented wire lengths, but since those fields are not covered by the CRC the 'before CRC calculation' ordering cannot be implemented until the coverage span is corrected. TC18 \u00a713.6 (TC18.txt:3813-3815).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3813-3815)"
+    },
+    {
+      "id": "REQ-TC18-150",
+      "title": "Each ACF message in a multi-message AVTPDU carries and verifies its own safe point",
+      "text": "For an AVTPDU carrying several ACF messages the CRC32 shall be computed per message, so each carries its own trailing safe point and a corrupt safe point on one message does not invalidate any other message in the same frame. TC18 \u00a713.6 (TC18.txt:3789-3791).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3789-3791)"
+    },
+    {
+      "id": "REQ-TC18-151",
+      "title": "Only the terminal segment of a fragmented sequence carries a safe point",
+      "text": "NOT IMPLEMENTED \u2014 fragment.Split shall place the trailing CRC32 and the corresponding length increases only on the segment with acf.FlagMoreSegments clear, and the reassembler shall reject a segment carrying FlagMoreSegments together with a trailing safe point. The combined-payload and terminal-segment verification half is covered by REQ-FRAG-009; rejecting a non-terminal segment that carries a CRC is not. TC18 \u00a713.6 (TC18.txt:3816-3823).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3816-3823)"
+    },
+    {
+      "id": "REQ-TC18-152",
+      "title": "A CRC mismatch skips execution and is reported as the Table 27 CRC error code",
+      "text": "A request received in an end-to-end protected stream whose CRC does not match shall not be executed, and the error response shall carry udp.ErrorCodePOCIFailure, TC18 Table 27's code for a request CRC that does not match, rather than falling through to the generic invalid-parameter code. TC18 \u00a713.6 (TC18.txt:3827-3828) and \u00a712.9.6 Table 27 (TC18.txt:3432).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.6 (TC18.txt:3827-3828); \u00a712.9.6 Table 27 (TC18.txt:3432)"
+    },
+    {
+      "id": "REQ-TC18-153",
+      "title": "A protected body is payload, then pad, then the CRC32 quadlet",
+      "text": "e2e.Protect shall assemble the protected body as the real payload, followed by zero to three zero pad bytes rounding the payload up to a whole quadlet, followed by the four-byte big-endian CRC32 as the final quadlet \u2014 never CRC before pad. TC18 \u00a713.6 Figures 19 and 20 (TC18.txt:3843-3881).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.6 Figures 19/20 (TC18.txt:3843-3881)"
+    },
+    {
+      "id": "REQ-TC18-154",
+      "title": "Every endpoint's functional block reserves Table 32's common register header",
+      "text": "NOT IMPLEMENTED \u2014 Each endpoint type's EncodeConfig shall place ep_len at relative address 0x0000, ep_enable&clr at 0x0002 and ep_options at 0x0003, so a client patching ep_options at 0x0003 reaches that register on every endpoint type. Every endpoint package lays out its own fields from offset zero today, colliding with the reserved common pair. TC18 \u00a713.7 Table 32 (TC18.txt:3900-3947).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7 Table 32 (TC18.txt:3900-3947)"
+    },
+    {
+      "id": "REQ-TC18-155",
+      "title": "A newly declared endpoint is enabled by default and EP0 is always enabled",
+      "text": "NOT IMPLEMENTED \u2014 Declaring an endpoint shall leave its ep_enable bit set, since TC18 makes 1b the power-on default, and a write clearing EP0's enable bit shall be rejected because EP0 is always enabled. regmap.GenericEndpointBlock.Enabled is a Go bool defaulting to false and is set by no constructor. TC18 \u00a713.7 Table 32 (TC18.txt:3903-3907).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7 Table 32 (TC18.txt:3903-3907)"
+    },
+    {
+      "id": "REQ-TC18-156",
+      "title": "Writing ep_clear_req_storage purges the endpoint's request storage and reads back zero",
+      "text": "NOT IMPLEMENTED \u2014 A write of 1b to relative address 0x0002 bit 4 of an endpoint's functional block shall discard every pending ticket that endpoint holds, and a subsequent read of that byte shall report bit 4 clear. No write-1-clears register exists. TC18 \u00a713.7 Table 32 (TC18.txt:3909-3911).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7 Table 32 (TC18.txt:3909-3911)"
+    },
+    {
+      "id": "REQ-TC18-157",
+      "title": "Safe-mode CRC is selected per endpoint by ep_options bits 0 to 2",
+      "text": "NOT IMPLEMENTED \u2014 e2e.Guard shall consult the addressed endpoint's ep_options bits \u2014 0x0003.0 request-CRC checking, .1 acknowledge-CRC generation, .2 response-CRC generation \u2014 verifying a request's trailing CRC32 only when bit 0 is set and appending a safe point to acknowledges and responses only when bits 1 and 2 respectively are set. Guard wraps a handler unconditionally at construction and has no separate acknowledge and response switches. TC18 \u00a713.7 Table 32 (TC18.txt:3913-3923).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7 Table 32 (TC18.txt:3913-3923)"
+    },
+    {
+      "id": "REQ-TC18-158",
+      "title": "ep_error_stream routes error responses to the acknowledge stream",
+      "text": "NOT IMPLEMENTED \u2014 The server shall place an error response on the addressed endpoint's acknowledge stream rather than its response stream when that endpoint's ep_options bit 0x0003.4 is set. There is one combined reply path today. TC18 \u00a713.7 Table 32 (TC18.txt:3927-3931).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7 Table 32 (TC18.txt:3927-3931)"
+    },
+    {
+      "id": "REQ-TC18-159",
+      "title": "ep_options bits 6 and 7 suppress error and successful-write responses",
+      "text": "NOT IMPLEMENTED \u2014 The server shall emit no reply for an error response when the addressed endpoint's ep_options bit 0x0003.6 is set, and none for a successful write request's response when bit 0x0003.7 is set, while still executing the request. No suppression configuration exists. TC18 \u00a713.7 Table 32 (TC18.txt:3935-3944) and \u00a712.9.1 (TC18.txt:3209-3212).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7 Table 32 (TC18.txt:3935-3944); \u00a712.9.1 (TC18.txt:3209-3212)"
+    },
+    {
+      "id": "REQ-TC18-160",
+      "title": "A configured response queue emits a heartbeat, falling back to a headers-only NTSCF PDU",
+      "text": "NOT IMPLEMENTED \u2014 The server shall support sending a cyclic heartbeat by flushing a response queue on a fixed period, transmitting an AVTPDU carrying just an NTSCF header and no ACF types when the queue is empty. acf.EncodeFrame structurally accepts zero messages but no caller emits such a frame. TC18 \u00a713.7.1.1 (TC18.txt:3967-3970).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.1.1 (TC18.txt:3967-3970)"
+    },
+    {
+      "id": "REQ-TC18-161",
+      "title": "EP0 register access uses the address-plus-data payload and Table 30's combining rules",
+      "text": "NOT IMPLEMENTED \u2014 An EP0 write's byte_msg_payload shall be decoded as a big-endian 16-bit register address followed by the data to write, and that data shall be combined into the addressed register under the request's evt[2:0] as SET, OR, AND or XOR. The EP0 path decodes the body as a whole encoded register map and never consults evt, so a client cannot OR, AND or XOR a server register. TC18 \u00a713.7.1.1 (TC18.txt:3963-3966), \u00a713.7.1.2 (TC18.txt:4000-4004, 4035-4044) and Figure 21 (TC18.txt:4011).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.1.2 Figure 21 (TC18.txt:4000-4004,4011,4035-4044)"
+    },
+    {
+      "id": "REQ-TC18-162",
+      "title": "A write touching a read-only server register has no effect and is confirmed normally",
+      "text": "NOT IMPLEMENTED \u2014 A write whose data would change a read-only register shall discard that portion and return an ordinary success response, since TC18 reserves an error response for write-prohibited registers only. WriteEP0 returns regmap.ErrGeneralBlockReadOnly instead, and REQ-RCS-011 pins that behaviour. TC18 \u00a713.7.1.2 (TC18.txt:4039-4041).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.1.2 (TC18.txt:4039-4041)"
+    },
+    {
+      "id": "REQ-TC18-163",
+      "title": "A locked-register write is answered UNAUTHORIZED_ACCESS",
+      "text": "NOT IMPLEMENTED \u2014 udp.errorCodeFor shall map regmap.ErrRegisterLocked to udp.ErrorCodeUnauthorizedAccess, the code TC18 names for a write to a write-prohibited register such as the map-set lock bit; it currently maps to udp.ErrorCodeLockedMemAccess. TC18 \u00a713.7.1.2 (TC18.txt:4040-4041).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.1.2 (TC18.txt:4040-4041)"
+    },
+    {
+      "id": "REQ-TC18-164",
+      "title": "svr_root_client_index is a register and a non-root EP0 write cannot reach other endpoints",
+      "text": "NOT IMPLEMENTED \u2014 The RC Server register map shall expose svr_root_client_index as the request-stream index holding root write access, with zero meaning no stream has it, and a non-root stream's EP0 write shall be accepted when it touches only EP0's own registers while being rejected when it would change any other endpoint's block. Root ownership is modelled by an access controller keyed on StreamID with no register, and WriteEP0 is root-only outright. TC18 \u00a713.7.1.2 Table 33 (TC18.txt:3985-3989, 4003-4005).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.1.2 Table 33 (TC18.txt:3985-3989,4003-4005)"
+    },
+    {
+      "id": "REQ-TC18-165",
+      "title": "A PTP-capable server emits trigger references 0 and 1 on sync acquisition and loss",
+      "text": "NOT IMPLEMENTED \u2014 A server reporting time-sync support shall queue a drainable trigger with reference number 0 when PTP time synchronization is established and reference number 1 when it is lost, so a client can gate timed requests on the server's clock validity. There is no server-side trigger queue and time-sync support is a static caller-supplied flag. TC18 \u00a713.7.1.3 Table 34 (TC18.txt:4047-4054).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.1.3 Table 34 (TC18.txt:4047-4054)"
+    },
+    {
+      "id": "REQ-TC18-166",
+      "title": "A wakeup-control endpoint may only be declared at byte_bus_id 1",
+      "text": "NOT IMPLEMENTED \u2014 Declaring an endpoint shall reject a wakeup-control endpoint at any address other than 1, and shall reject any other endpoint type at address 1, since TC18 fixes the WakeUp endpoint to endpoint number 1 as the only endpoint that stays active in sleep mode. Any address is accepted today. TC18 \u00a713.7.2.1 (TC18.txt:4084-4086).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.1 (TC18.txt:4084-4086)"
+    },
+    {
+      "id": "REQ-TC18-167",
+      "title": "Wakeup configuration carries a null-terminated wake-source pin table",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.Config shall carry a read-only wup_nr_io_pins_max and a table of 16-bit wake-source entries packing the IO pin number in bits [10:0] and the IO behaviour in bits [15:11], terminated by an entry whose pin number is zero. The config is three fields with no wake-source table at all. TC18 \u00a713.7.2.2 Table 36 (TC18.txt:4100-4118).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.2 Table 36 (TC18.txt:4100-4118)"
+    },
+    {
+      "id": "REQ-TC18-168",
+      "title": "A wake source's IO behaviour is one of Table 37's six defined encodings",
+      "text": "NOT IMPLEMENTED \u2014 wakeup shall define a wake-source behaviour type accepting exactly the six encodings of TC18 Table 37 \u2014 00000b inactive, 00001b rising edge, 00010b falling edge, 00011b both edges, 00100b high level, 00101b low level \u2014 and rejecting every other five-bit value, which the table reserves. TC18 \u00a713.7.2.2 Table 37 (TC18.txt:4136-4144).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.2 Table 37 (TC18.txt:4136-4144)"
+    },
+    {
+      "id": "REQ-TC18-169",
+      "title": "wup_status reports which wake source fired and is cleared by writing one",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.Endpoint shall maintain a 16-bit wup_status register in which each bit represents a wake-up source, setting the bit for the source that caused the most recent transition out of sleep and clearing each bit for which a client writes 1b. No such register exists, and TC18 \u00a712.5 makes clearing it a precondition for re-entering sleep. TC18 \u00a713.7.2.2 Table 36 (TC18.txt:4108-4110).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.2 Table 36 (TC18.txt:4108-4110)"
+    },
+    {
+      "id": "REQ-TC18-170",
+      "title": "A debounce time suppresses wake-up on noise",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.Config shall carry a debounce duration applied to every configured wake-source signal, and a source assertion shorter than that duration shall not cause a transition out of sleep. TC18 \u00a713.7.2.2 (TC18.txt:4097).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.2 (TC18.txt:4097)"
+    },
+    {
+      "id": "REQ-TC18-171",
+      "title": "A sleep request carries SleepCMD 0xA5",
+      "text": "NOT IMPLEMENTED \u2014 wakeup.EncodePowerStateRequest shall emit the byte 0xA5 for a request targeting sleep \u2014 the SleepCMD value TC18 Figure 22 fixes \u2014 and the decoder shall accept 0xA5 as sleep, rather than emitting this package's own enum ordinal 0x02. 0xA5 is a deliberate high-Hamming-distance sentinel on a safety-relevant command; the current bytes are frozen by a golden vector. TC18 \u00a713.7.2.3 Figure 22 (TC18.txt:4160-4168).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.3 Figure 22 (TC18.txt:4160-4168)"
+    },
+    {
+      "id": "REQ-TC18-172",
+      "title": "Entering sleep is gated on every endpoint going idle and every responder queue draining",
+      "text": "NOT IMPLEMENTED \u2014 On a sleep request the server shall first stop admitting incoming requests to endpoint queues, then wait until every declared endpoint reports no pending timed or standard requests and every responder queue is empty, and only then acknowledge the request and enter sleep. The transition is applied immediately with no quiesce. TC18 \u00a713.7.2.3 (TC18.txt:4149-4158).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.2.3 (TC18.txt:4149-4158)"
+    },
+    {
+      "id": "REQ-TC18-173",
+      "title": "SPI trigger events carry Table 38's reference numbers",
+      "text": "NOT IMPLEMENTED \u2014 spi.TriggerEvent shall expose a reference number of 0 for transfer-complete and 2 + 2*channel + (0 asserted, 1 de-asserted) for a chip-select edge, yielding 2 through 13 for CS0 through CS5, and shall never emit reference number 1, which Table 38 reserves. The event carries no reference number today and the internal chip-select-edge kind collides with the reserved slot. TC18 \u00a713.7.3.1 Table 38 (TC18.txt:4205-4220).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.1 Table 38 (TC18.txt:4205-4220)"
+    },
+    {
+      "id": "REQ-TC18-174",
+      "title": "SPI channel configuration carries every Table 39 per-channel parameter",
+      "text": "NOT IMPLEMENTED \u2014 spi.ChannelConfig shall carry spi_cs_polarity, spi_use_cs, spi_cs_clk_leadtime, spi_clk_cs_trailtime, spi_bits_max and spi_pause_min (in spi_clk cycles) at Table 39's relative offsets, and the configuration shall expose a read-only spi_nr_cs. Only clock, mode and an inter-transfer delay in microseconds exist today. TC18 \u00a713.7.3.2 Table 39 (TC18.txt:4244-4296).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.2 Table 39 (TC18.txt:4244-4296)"
+    },
+    {
+      "id": "REQ-TC18-175",
+      "title": "An SPI transfer appends zeros when read_size exceeds the payload length",
+      "text": "NOT IMPLEMENTED \u2014 The SPI endpoint shall extend the transmitted byte sequence with zero bytes until it is at least read_size bytes long before handing it to the channel transport, so a read longer than the write still clocks the full requested count. read_size is never consulted by the SPI package. TC18 \u00a713.7.3.3 (TC18.txt:4359) and Figure 23 (TC18.txt:4356).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.3 Figure 23 (TC18.txt:4356,4359)"
+    },
+    {
+      "id": "REQ-TC18-176",
+      "title": "An SPI transfer presents the full payload on PICO and truncates its response to read_size",
+      "text": "NOT IMPLEMENTED \u2014 The SPI endpoint shall transmit the entire byte_msg_payload on PICO regardless of read_size, and shall truncate the response body to the first read_size received bytes when read_size is non-zero and smaller than the payload \u2014 Figure 23's twenty-byte write answered by a ten-byte response. The response currently returns the full received sequence. TC18 \u00a713.7.3.3 (TC18.txt:4360-4361).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.3 (TC18.txt:4360-4361)"
+    },
+    {
+      "id": "REQ-TC18-177",
+      "title": "SPI retains the last received data, channel-independently, for wait comparison",
+      "text": "NOT IMPLEMENTED \u2014 spi.Endpoint shall retain the most recently received byte sequence from any channel up to read_size bytes, and a wait request shall compare its byte_msg_payload against that retained data irrespective of which chip-select channel produced it. The optional wait feature is not implemented and received bytes are discarded after each transfer. TC18 \u00a713.7.3.1 (TC18.txt:4200-4202) and \u00a713.7.3.3 (TC18.txt:4334-4336).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.1 (TC18.txt:4200-4202); \u00a713.7.3.3 (TC18.txt:4334-4336)"
+    },
+    {
+      "id": "REQ-TC18-178",
+      "title": "An SPI transfer halted on cs/hs latches an error state and disables the endpoint",
+      "text": "NOT IMPLEMENTED \u2014 When a transfer stops on the request's cs or hs bits, spi.Endpoint shall record the condition in its status register, clear its enable bit, and reject every subsequent request until the client both clears the error status and re-enables the endpoint. The cs and hs bits are decoded but consulted nowhere in the SPI package and a transport error is not latched. TC18 \u00a713.7.3.3 (TC18.txt:4337-4340).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.3 (TC18.txt:4337-4340)"
+    },
+    {
+      "id": "REQ-TC18-179",
+      "title": "A clamped SPI pin raises a server diagnostic flag and sets err on every response from that endpoint",
+      "text": "NOT IMPLEMENTED \u2014 When an SPI endpoint detects a clamped (stuck at VDD or GND) pin it shall set the corresponding flag in the server's diagnostic registers and shall set acf.FlagError on every response it subsequently emits until the condition is cleared. No diagnostic register exists and the response builder never sets FlagError, so a stuck-pin fault currently produces indistinguishably successful responses. TC18 \u00a713.7.3.3 (TC18.txt:4340-4342).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.3.3 (TC18.txt:4340-4342)"
+    },
+    {
+      "id": "REQ-TC18-180",
+      "title": "GPIO emits per-pin change, rising and falling triggers at Table 40's reference numbers",
+      "text": "NOT IMPLEMENTED \u2014 gpio.Endpoint shall queue a distinct trigger for each of change, rising edge and falling edge of every changed trigger-enabled pin, carrying reference numbers 3i+1, 3i+2 and 3i+3 for pin i, plus reference 0 on request-execution completion. One bitmask-valued event per write is queued today, so another endpoint cannot subscribe to a specific pin edge. TC18 \u00a713.7.4.1 Table 40 (TC18.txt:4408-4420).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.4.1 Table 40 (TC18.txt:4408-4420)"
+    },
+    {
+      "id": "REQ-TC18-181",
+      "title": "GPIO configuration carries Table 41's clock and per-pin debounce registers",
+      "text": "NOT IMPLEMENTED \u2014 gpio.Config shall carry gpio_io_max, gpio_base_clk (kHz, read-only), gpio_clk_divider and thirty-two per-pin gpio_debounce values at Table 41's relative offsets, where a debounce count n greater than zero requires n consecutive equal samples \u2014 taken at the divided base clock, independently of request arrival \u2014 before the pin's value changes. The config is pin count, direction and trigger-enable only. TC18 \u00a713.7.4.2 Table 41 (TC18.txt:4439-4471) and \u00a713.7.4.1 (TC18.txt:4385).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.4.2 Table 41 (TC18.txt:4439-4471)"
+    },
+    {
+      "id": "REQ-TC18-182",
+      "title": "Each GPIO output pin carries a drive strength and an output topology",
+      "text": "NOT IMPLEMENTED \u2014 gpio.Config shall carry, for each pin its direction marks as an output, a configurable drive strength and an output topology selecting push-pull, open-drain or open-source, both ignored for input pins. Neither exists, and Table 41 allocates no offset for them \u2014 a spec-internal inconsistency worth raising upstream. TC18 \u00a713.7.4.1 (TC18.txt:4386-4388).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.4.1 (TC18.txt:4386-4388)"
+    },
+    {
+      "id": "REQ-TC18-183",
+      "title": "A GPIO write, or a read carrying a payload, defers its response until debounce elapses",
+      "text": "NOT IMPLEMENTED \u2014 gpio.Endpoint shall answer a read request with an empty byte_msg_payload immediately, and shall, for a write request or a read carrying a payload, first apply the new drive and then defer the response until the configured debounce time has elapsed. Every path answers synchronously today and a read carrying a payload is not distinguished from a pure read. TC18 \u00a713.7.4.3 (TC18.txt:4484-4486).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.4.3 (TC18.txt:4484-4486)"
+    },
+    {
+      "id": "REQ-TC18-184",
+      "title": "A GPIO wait request is evaluated against the live pin-value register",
+      "text": "NOT IMPLEMENTED \u2014 gpio.Endpoint shall evaluate a wait request's condition against its internal GPIO read register \u2014 the same word a read returns \u2014 rather than against sequencer state, gating the request's completion on that comparison. The endpoint handles only read and write and rejects everything else. TC18 \u00a713.7.4.3 (TC18.txt:4478-4479).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.4.3 (TC18.txt:4478-4479)"
+    },
+    {
+      "id": "REQ-TC18-185",
+      "title": "An endpoint's trigger output can fire another endpoint's triggered request",
+      "text": "NOT IMPLEMENTED \u2014 A dispatcher shall release a triggered request naming trigger reference number n when the endpoint owning reference n emits it, so that a GPIO endpoint's response can be generated by another endpoint's trigger. No endpoint's drained trigger events are registered as a dispatcher trigger source, and with no reference numbers there is no identifier for a triggered request to name. TC18 \u00a713.7.4.1 (TC18.txt:4406) and \u00a713.7.10.1 (TC18.txt:5279).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.4.1 (TC18.txt:4406); \u00a713.7.10.1 (TC18.txt:5279)"
+    },
+    {
+      "id": "REQ-TC18-186",
+      "title": "PWM_OUT emits Table 42's three numbered trigger signals",
+      "text": "NOT IMPLEMENTED \u2014 pwm.Endpoint shall emit three distinguishable trigger signals \u2014 index 0 on request-execution completion, index 1 at the start of each PWM cycle, index 2 at the midpoint of the active pulse, the last emitted even when the duty cycle is 0% \u2014 and pwm.TriggerEvent shall carry the Table 42 index. Only the execution-done trigger exists and events carry no index. TC18 \u00a713.7.5.1 Table 42 (TC18.txt:4530-4537).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.1 Table 42 (TC18.txt:4530-4537)"
+    },
+    {
+      "id": "REQ-TC18-187",
+      "title": "PWM_OUT functional configuration implements Table 43's register block",
+      "text": "NOT IMPLEMENTED \u2014 pwm's output configuration shall represent TC18 Table 43 at its relative addresses, including pwmo_base_clk (kHz, read-only), pwmo_clk_divider, pwmo_inv_polarity, pwmo_idle_state, pwmo_duty_cycle_min and _max, and pwmo_skew, with every read/write field writable at runtime. The current config is enable, role and two default tick counts. TC18 \u00a713.7.5.2 Table 43 (TC18.txt:4562-4604).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.2 Table 43 (TC18.txt:4562-4604)"
+    },
+    {
+      "id": "REQ-TC18-188",
+      "title": "PWM_OUT write requests are capped, not rejected, at the configured duty-cycle limits",
+      "text": "NOT IMPLEMENTED \u2014 pwm.Endpoint shall clamp a write request's active-time value up to pwmo_duty_cycle_min and down to pwmo_duty_cycle_max before applying it, reporting the clamped value rather than returning an error; TC18 says requests outside the limits are capped. Only an active-exceeds-period rejection exists. TC18 \u00a713.7.5.2 Table 43 (TC18.txt:4589-4594).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.2 Table 43 (TC18.txt:4589-4594)"
+    },
+    {
+      "id": "REQ-TC18-189",
+      "title": "A PWM_OUT request whose body is not exactly four bytes is rejected as INVALID_PARAMETER",
+      "text": "A PWM_OUT request whose byte_msg_payload is not exactly four bytes shall be rejected, and the resulting decode error shall be rendered on the wire as udp.ErrorCodeInvalidParameter. TC18 \u00a713.7.5.3 (TC18.txt:4630-4631) and \u00a713.7.4.1 (TC18.txt:4391-4392) for GPIO.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.7.5.3 (TC18.txt:4630-4631)"
+    },
+    {
+      "id": "REQ-TC18-190",
+      "title": "A zero period stops PWM_OUT generation",
+      "text": "NOT IMPLEMENTED \u2014 pwm.Endpoint shall treat a PWM_OUT write whose period field is zero as a stop command, ceasing waveform generation and cycle-derived triggers and driving the output to its configured idle state, resuming on the next request with a non-zero period. Period zero is stored as an ordinary waveform today. TC18 \u00a713.7.5.3 (TC18.txt:4641-4642).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.3 (TC18.txt:4641-4642)"
+    },
+    {
+      "id": "REQ-TC18-191",
+      "title": "A zero active time disables the PWM_OUT output while triggers continue",
+      "text": "NOT IMPLEMENTED \u2014 A PWM_OUT write with active time zero and a non-zero period shall leave the endpoint running: the output is held inactive while the cycle-derived triggers continue at the configured period. TC18 \u00a713.7.5.3 (TC18.txt:4643-4644).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.3 (TC18.txt:4643-4644)"
+    },
+    {
+      "id": "REQ-TC18-192",
+      "title": "A PWM_OUT trigger-configuration request's leading field is a phase shift",
+      "text": "NOT IMPLEMENTED \u2014 When a PWM_OUT request is a trigger configuration, pwm shall decode the first two bytes of byte_msg_payload as a phase shift relative to the referenced source endpoint rather than as the period, and apply that offset to the generated waveform. Bytes 0-1 are decoded unconditionally as the period, so such a request is silently mis-applied. TC18 \u00a713.7.5.3 (TC18.txt:4645-4646).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.3 (TC18.txt:4645-4646)"
+    },
+    {
+      "id": "REQ-TC18-193",
+      "title": "PWM_OUT monitors its own output pin for toggling and signals a stuck pin",
+      "text": "NOT IMPLEMENTED \u2014 pwm.Endpoint shall sample its own output pin while generating and shall signal an error when the pin does not toggle as commanded. pwm.OutputTransport is write-only with no read-back path. TC18 \u00a713.7.5.3 (TC18.txt:4647-4648).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.3 (TC18.txt:4647-4648)"
+    },
+    {
+      "id": "REQ-TC18-194",
+      "title": "A complementary PWM_OUT pin is driven in opposite phase with the configured skew",
+      "text": "NOT IMPLEMENTED \u2014 If the optional inverted output is configured, pwm shall drive PWM_OUTN in opposite phase to PWM_OUT with the rising edges separated by pwmo_skew source-clock cycles for break-before-make behaviour, and shall derive the trigger signals from the delayed signal. The pin pair is named in the pin map but the transport drives a single waveform with no inversion or skew. TC18 \u00a713.7.5.1 (TC18.txt:4515-4521).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.5.1 (TC18.txt:4515-4521)"
+    },
+    {
+      "id": "REQ-TC18-195",
+      "title": "PWM_IN functional configuration implements Table 45's register block",
+      "text": "NOT IMPLEMENTED \u2014 pwm's input configuration shall represent TC18 Table 45 at its relative addresses, including pwmi_base_clk, pwmi_clk_divider, pwmi_polarity, pwmi_err_on_max_period, pwmi_continuous_mode and pwmi_max_period, with bits 3 to 7 of offset 0x0009 reading zero. TC18 \u00a713.7.6.2 Table 45 (TC18.txt:4696-4740).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.6.2 Table 45 (TC18.txt:4696-4740)"
+    },
+    {
+      "id": "REQ-TC18-196",
+      "title": "PWM_IN detects an over-long period per pwmi_err_on_max_period and reports it only when enabled",
+      "text": "NOT IMPLEMENTED \u2014 pwm.Endpoint in input role shall detect an incoming period exceeding pwmi_max_period; with pwmi_err_on_max_period clear it shall invalidate the measurement and resynchronize on the next active phase, and with it set it shall stop measuring and return a signal-lost error only when the endpoint's EP_RESP_ON_ERR option is enabled. The error surface exists but there is no max-period register, no two-behaviour split and no response gate. TC18 \u00a713.7.6.1 (TC18.txt:4668-4670) and \u00a713.7.6.2 (TC18.txt:4721).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.6.1 (TC18.txt:4668-4670); \u00a713.7.6.2 (TC18.txt:4721)"
+    },
+    {
+      "id": "REQ-TC18-197",
+      "title": "PWM_IN emits Table 44's rising- and falling-edge trigger signals",
+      "text": "NOT IMPLEMENTED \u2014 pwm.Endpoint in input role shall emit trigger index 0 on each rising edge and index 1 on each falling edge of the observed signal, with polarity taken from pwmi_polarity. The package offers a per-measurement trigger and a signal-lost trigger, neither of which is an edge. TC18 \u00a713.7.6.1 Table 44 (TC18.txt:4671-4676).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.6.1 Table 44 (TC18.txt:4671-4676)"
+    },
+    {
+      "id": "REQ-TC18-198",
+      "title": "pwmi_continuous_mode selects one-shot deferred versus continuous immediate responses",
+      "text": "NOT IMPLEMENTED \u2014 An input-role read shall, with pwmi_continuous_mode clear, start one measurement and defer the response until it finalizes, and with it set shall respond immediately with the most recent measurement. Only the immediate path exists and there is no register to select the other. TC18 \u00a713.7.6.2 Table 45 (TC18.txt:4725-4731).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.6.2 Table 45 (TC18.txt:4725-4731)"
+    },
+    {
+      "id": "REQ-TC18-199",
+      "title": "The I2C endpoint accepts a transfer request in either ACF_ABB or ACF_GBB",
+      "text": "i2c.Endpoint shall accept a transfer request framed as either acf.KindShort (ACF_ABB) or acf.KindLong (ACF_GBB) and shall answer with a response of the same message kind. TC18 \u00a713.7.7.1 (TC18.txt:4789-4791).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.7.7.1 (TC18.txt:4789-4791)"
+    },
+    {
+      "id": "REQ-TC18-200",
+      "title": "An I2C wait request resolves on a matching received bit sequence",
+      "text": "NOT IMPLEMENTED \u2014 If i2c.Endpoint supports TC18's optional wait request, it shall hold the request pending until the bytes received from the connected device match the request's expected sequence, then respond. The endpoint scopes to the plain request shape only. TC18 \u00a713.7.7.1 (TC18.txt:4792-4793).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.7.1 (TC18.txt:4792-4793)"
+    },
+    {
+      "id": "REQ-TC18-201",
+      "title": "I2C functional configuration implements Table 46's register block",
+      "text": "NOT IMPLEMENTED \u2014 i2c.Config shall represent TC18 Table 46, including i2c_base_clk (read-only), i2c_clock_divider, i2c_mode and i2c_trail, with every read/write field changeable at runtime. The current config is enable, speed and a trailing time in microseconds. Note Table 46 assigns i2c_base_clk to 0x0002, colliding with i2c_ep_enable&clr \u2014 a spec defect whose adopted resolution must be recorded. TC18 \u00a713.7.7.2 Table 46 (TC18.txt:4798-4826).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.7.2 Table 46 (TC18.txt:4798-4826)"
+    },
+    {
+      "id": "REQ-TC18-202",
+      "title": "I2C enforces i2c_trail between consecutive transactions in I2C clock cycles",
+      "text": "NOT IMPLEMENTED \u2014 i2c.Endpoint shall not begin a transaction until at least i2c_trail I2C clock cycles, derived from the base clock and divider, have elapsed since the previous transaction completed. The configured trailing time is stored and round-tripped but read by no code, and its unit is microseconds rather than clock cycles. TC18 \u00a713.7.7.2 Table 46 (TC18.txt:4821-4823).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.7.2 Table 46 (TC18.txt:4821-4823)"
+    },
+    {
+      "id": "REQ-TC18-203",
+      "title": "The I2C endpoint is transparent to the address format",
+      "text": "i2c.Endpoint shall place the request's byte_msg_payload on the bus verbatim including its leading address bytes, and shall never parse, validate or rewrite them, so 7-bit and 10-bit addressing are handled identically. TC18 \u00a713.7.7.3 (TC18.txt:4830-4832) and Figure 29.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.7.7.3 Figure 29 (TC18.txt:4830-4832)"
+    },
+    {
+      "id": "REQ-TC18-204",
+      "title": "The I2C trigger signal's Table 47 index is unassigned in this specification revision",
+      "text": "NOT IMPLEMENTED \u2014 i2c.Endpoint emits one trigger per completed transfer, but TC18 Table 47 declares three I2C trigger signal indices with no event assigned to any of them, so the index that trigger should carry cannot be determined from the specification. No index shall be guessed; the ambiguity is recorded here and should be raised with the working group. TC18 \u00a713.7.7.4 Table 47 (TC18.txt:4851-4857).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.7.4 Table 47 (TC18.txt:4851-4857)"
+    },
+    {
+      "id": "REQ-TC18-205",
+      "title": "The UART receive FIFO is bounded by uart_rx_fifo_size and flags overflow",
+      "text": "NOT IMPLEMENTED \u2014 uart.Endpoint shall buffer at most uart_rx_fifo_size received bytes, discarding bytes that do not fit and setting the overflow flag in the UART status register, which is reported to the client and cleared through that register. The FIFO is an unbounded append today, which is also an unbounded-growth exposure when a peer never reads. TC18 \u00a713.7.8.1 (TC18.txt:4881-4882).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.1 (TC18.txt:4881-4882)"
+    },
+    {
+      "id": "REQ-TC18-206",
+      "title": "A UART read completes on read_size, on uart_timeout, or on a full FIFO with a fragmented response",
+      "text": "NOT IMPLEMENTED \u2014 uart.Endpoint shall hold a read request until read_size bytes are available, until uart_timeout bit-times have elapsed, or \u2014 when the requested size exceeds uart_rx_fifo_size \u2014 until the FIFO is full, in which case the response shall be delivered as a fragmented sequence. The read path returns whatever is present immediately; the configured read timeout is read by no code. TC18 \u00a713.7.8.1 (TC18.txt:4884-4889).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.1 (TC18.txt:4884-4889)"
+    },
+    {
+      "id": "REQ-TC18-207",
+      "title": "UART functional configuration implements Table 48's register block and its units",
+      "text": "NOT IMPLEMENTED \u2014 uart.Config shall represent TC18 Table 48, expressing baud rate in kbit/s as a 16-bit value, stop bits as a count of half stop bits, uart_timeout and uart_trail in bit times, and carrying uart_parity_enable and uart_parity_pol, uart_rts_enable and uart_cts_enable as separate fields, plus uart_half_duplex. The current config uses bit/s, a stop-bit enum, a single flow-control flag, a microsecond timeout, and adds mark/space parity the table cannot express. Note Table 48 names its enable and options rows after the PWM_IN registers and omits uart_rx_fifo_size entirely \u2014 spec defects worth raising upstream. TC18 \u00a713.7.8.2 Table 48 (TC18.txt:4912-4961).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.2 Table 48 (TC18.txt:4912-4961)"
+    },
+    {
+      "id": "REQ-TC18-208",
+      "title": "uart_half_duplex serializes transmit and receive",
+      "text": "NOT IMPLEMENTED \u2014 When uart_half_duplex is set, uart.Endpoint shall not transmit while a reception is in progress and shall not accept received bytes while transmitting; with it clear transmit and receive proceed independently. Transmit and receive are wholly independent today, which is exactly what half-duplex forbids. TC18 \u00a713.7.8.2 Table 48 (TC18.txt:4948-4950).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.2 Table 48 (TC18.txt:4948-4950)"
+    },
+    {
+      "id": "REQ-TC18-209",
+      "title": "A payload-bearing UART read is rejected as an unknown command on the wire",
+      "text": "NOT IMPLEMENTED \u2014 udp.errorCodeFor shall render uart's payload-bearing-read rejection as udp.ErrorCodeUnsupportedCommand \u2014 TC18's UNKNOWN_CMD for this case \u2014 rather than letting it fall through to the generic invalid-parameter code. The Go-level rejection is correct and tested; only the wire code is wrong. TC18 \u00a713.7.8.1 (TC18.txt:4890).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.1 (TC18.txt:4890)"
+    },
+    {
+      "id": "REQ-TC18-210",
+      "title": "A UART compound-wait request resolves on a receive-FIFO content match",
+      "text": "NOT IMPLEMENTED \u2014 uart.Endpoint shall hold a compound-wait request pending until the receive FIFO's contents match the request's expected data, and shall reject an expected-data pattern longer than uart_rx_fifo_size as unsatisfiable. TC18 \u00a713.7.8.1 (TC18.txt:4892-4894).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.1 (TC18.txt:4892-4894)"
+    },
+    {
+      "id": "REQ-TC18-211",
+      "title": "UART packs and unpacks sub-octet frames per uart_nr_bits",
+      "text": "NOT IMPLEMENTED \u2014 When uart_nr_bits is not a multiple of eight, uart.Endpoint shall unpack the request payload into uart_nr_bits-wide symbols and discard the trailing padding bits, and shall pad each response payload to an integer number of octets. The payload is passed through byte-for-byte, so a configuration of 5, 6, 7 or 9 data bits \u2014 all of which the config accepts \u2014 silently mis-frames the wire. TC18 \u00a713.7.8.3 (TC18.txt:4989-4993).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.3 (TC18.txt:4989-4993)"
+    },
+    {
+      "id": "REQ-TC18-212",
+      "title": "UART trigger index 1 fires on read-request completion",
+      "text": "NOT IMPLEMENTED \u2014 uart.Endpoint shall queue trigger index 1 when a read request is finalized \u2014 its byte count satisfied, its timeout expired, or its fragmented delivery complete \u2014 distinct from any internal receive-data-arrival notification. Index 1 currently fires on data arrival and the read path queues no trigger at all, so a consumer chaining off Table 49's index 1 fires on the wrong event and never on the right one. TC18 \u00a713.7.8.4 Table 49 (TC18.txt:4999-5006).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.8.4 Table 49 (TC18.txt:4999-5006)"
+    },
+    {
+      "id": "REQ-TC18-213",
+      "title": "ADC emits Table 50's four threshold-crossing triggers plus the interval trigger",
+      "text": "NOT IMPLEMENTED \u2014 adc.Endpoint shall compare each averaged value against adc_trigger_min and adc_trigger_max and emit trigger index 0 or 1 on a falling or rising crossing of the minimum, index 2 or 3 on a falling or rising crossing of the maximum, and index 4 on completion of each measurement interval, carrying the Table 50 index on each event. Only the measurement-done trigger exists, and threshold triggering is the mechanism by which an ADC drives other endpoints. TC18 \u00a713.7.9.1 Table 50 (TC18.txt:5050-5058).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.1 Table 50 (TC18.txt:5050-5058)"
+    },
+    {
+      "id": "REQ-TC18-214",
+      "title": "An ADC response carries read_size divided by two measurement values",
+      "text": "NOT IMPLEMENTED \u2014 adc.Endpoint shall return read_size / 2 consecutive 16-bit measurement values in the response body, each spaced by adc_sample_interval, rather than a single value. read_size is never consulted, so a Figure 33 request asking for eight measurements receives one. TC18 \u00a713.7.9.3 (TC18.txt:5162-5163) and Figures 33 and 34 (TC18.txt:5177-5212).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.3 Figures 33/34 (TC18.txt:5162-5163,5177-5212)"
+    },
+    {
+      "id": "REQ-TC18-215",
+      "title": "A plain ADC request is payload-less and a wait request is not",
+      "text": "NOT IMPLEMENTED \u2014 adc.Endpoint shall reject a plain ADC request carrying a non-empty byte_msg_payload and shall reject a compound-wait ADC request that carries none. Body length is never inspected, and the evt path does not catch it because the config-only evt class permits evt=000b with a payload. TC18 \u00a713.7.9.3 (TC18.txt:5162).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.3 (TC18.txt:5162)"
+    },
+    {
+      "id": "REQ-TC18-216",
+      "title": "ADC functional configuration implements Table 51 and its sample, average and combine model",
+      "text": "NOT IMPLEMENTED \u2014 adc.Config shall represent TC18 Table 51, including adc_base_clk and adc_base_clk_divider, adc_sample_interval, adc_avg_intervals_per_request, adc_samples_per_avg_interval, adc_combine_avg_values as the count of averaging results per response frame, adc_resolution, and adc_trigger_min and adc_trigger_max, with samples within one request spaced by adc_sample_interval ticks. Only resolution and a sample count map across, and adc.CombineMode is a false friend: it is a smoothing rule between successive values, not TC18's count of averaging results packed into one response. TC18 \u00a713.7.9.2 Table 51 (TC18.txt:5081-5126) and \u00a713.7.9.1 (TC18.txt:5037-5042).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.2 Table 51 (TC18.txt:5081-5126)"
+    },
+    {
+      "id": "REQ-TC18-217",
+      "title": "A combined ADC response carries the transaction_num of the request that produced its first average",
+      "text": "NOT IMPLEMENTED \u2014 When adc_combine_avg_values exceeds adc_avg_intervals_per_request, adc.Endpoint shall accumulate averages across successive request executions and emit one response whose TransactionNum is that of the request generating the first average included, and shall emit multiple responses per execution when the combine count is the smaller value. The response always copies the current request's transaction number and exactly one response is emitted per request. TC18 \u00a713.7.9.2 (TC18.txt:5128-5133).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.2 (TC18.txt:5128-5133)"
+    },
+    {
+      "id": "REQ-TC18-218",
+      "title": "An ADC response timestamp marks the last sample of its first average",
+      "text": "NOT IMPLEMENTED \u2014 When an ADC response carries a timestamp it shall be the capture time of the last raw sample contributing to the first average value included in the response, not the response-construction time. The response builder never sets Timestamp, so an ACF_GBB ADC response goes out with a zero timestamp. TC18 \u00a713.7.9.2 (TC18.txt:5144-5145).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.2 (TC18.txt:5144-5145)"
+    },
+    {
+      "id": "REQ-TC18-219",
+      "title": "An ADC compound-wait request never samples",
+      "text": "NOT IMPLEMENTED \u2014 adc.Endpoint shall answer a compound-wait request by comparing its expected value against the last acquired average only, and shall never invoke the sampling path or the configured transport while doing so, regardless of trigger mode. The read path does sample in on-demand mode, so a wait routed through it would violate the clause directly. TC18 \u00a713.7.9.1 (TC18.txt:5063).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.1 (TC18.txt:5063)"
+    },
+    {
+      "id": "REQ-TC18-220",
+      "title": "Self-triggering generates ADC responses cyclically at a configured cycle time",
+      "text": "NOT IMPLEMENTED \u2014 An adc.Endpoint configured for self-triggering shall generate responses cyclically at its configured cycle time by chaining each measurement-completion trigger into the next measurement, rather than requiring an external caller to invoke the sampling entry point. The self-trigger mode is metadata only and there is no cycle-time configuration. TC18 \u00a713.7.9.1 (TC18.txt:5033-5034).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.9.1 (TC18.txt:5033-5034)"
+    },
+    {
+      "id": "REQ-TC18-221",
+      "title": "A LIN read request arms a pending payload match that replies when a message matches",
+      "text": "NOT IMPLEMENTED \u2014 lin.Endpoint shall accept a read request by arming a pending match against the request's byte_msg_payload, compare every subsequently received message against it under the evt[2:0]-selected match condition, and emit the reply only when op = 0. The endpoint rejects any request without the write flag and has no read path, pending-match registry or received-message comparison at all. TC18 \u00a713.7.10.1 (TC18.txt:5275-5277).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.10.1 (TC18.txt:5275-5277)"
+    },
+    {
+      "id": "REQ-TC18-222",
+      "title": "LIN's evt[2:0] match-condition reading is reconciled against Table 30's config-only row",
+      "text": "NOT IMPLEMENTED \u2014 The reading of evt[2:0] for LIN shall be reconciled with TC18 \u00a713.7.10.1's statement that evt[2:0] gives the match condition for a pending LIN read: either a LIN-specific evt class decoding match conditions is added, or the departure is documented the same way the existing Table 30 departures are. Table 30 places LIN in the config-only row, so REQ-LINEP-009 and REQ-EVT-003 reject evt[2:0] values 001b-110b, which makes every conditioned LIN read structurally unreachable. TC18 \u00a713.7.10.1 (TC18.txt:5276-5277) versus \u00a713.5 Table 30.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.10.1 (TC18.txt:5276-5277); \u00a713.5 Table 30"
+    },
+    {
+      "id": "REQ-TC18-223",
+      "title": "A LIN transaction trigger is queued only after the configured trailing time has elapsed",
+      "text": "NOT IMPLEMENTED \u2014 lin.Endpoint shall queue its transaction-complete trigger only once the transfer has finalized and the configured trailing time has elapsed, so a completed transfer whose trailing time is still running reports no event. The trigger is appended immediately after the transfer returns, and the trailing-time field is read by no code anywhere in the repository. TC18 \u00a713.7.10.1 (TC18.txt:5278-5279).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.10.1 (TC18.txt:5278-5279)"
+    },
+    {
+      "id": "REQ-TC18-224",
+      "title": "LIN functional configuration implements Table 52's register block",
+      "text": "NOT IMPLEMENTED \u2014 lin's configuration codec shall lay out lin_ep_len, lin_ep_enable&clr, lin_ep_options, lin_base_clk, lin_ep_status and lin_clk_divider at their specified offsets and widths, with bit time derived from the base clock and divider, and every read/write field writable at runtime. The current seven-byte block carries none of those names and expresses baud rate directly. TC18 \u00a713.7.10.2 Table 52 (TC18.txt:5284-5300).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.10.2 Table 52 (TC18.txt:5284-5300)"
+    },
+    {
+      "id": "REQ-TC18-225",
+      "title": "can.Format encodes Table 54's six FrameFormat values",
+      "text": "NOT IMPLEMENTED \u2014 can's frame encoder shall emit the FrameFormat field as CBFF = 0, CEFF = 1, FBFF = 2, FEFF = 3, XL on the classic physical layer = 4 and XL on the new physical layer = 5, folding the standard/extended identifier distinction into that single field, and shall reject the reserved values 6 and 7. The package defines three format values and carries standard-versus-extended in a separate flags byte, so a classical extended frame encodes as format 0 with a flag where TC18 requires 1. TC18 \u00a713.7.11.3 Table 54 (TC18.txt:5447-5456) and Figure 39 (TC18.txt:5428-5440).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.11.3 Table 54 (TC18.txt:5447-5456)"
+    },
+    {
+      "id": "REQ-TC18-226",
+      "title": "CAN XL physical-layer selection is configurable and reaches the FrameFormat field",
+      "text": "NOT IMPLEMENTED \u2014 can.Config shall carry the CAN XL new-physical-layer selection and the encoder shall emit FrameFormat 4 for an XL frame on the classic physical layer and 5 on the new one. Neither the config nor the frame type has any physical-layer selector. TC18 \u00a713.7.11.2 (TC18.txt:5356) and Table 54 (TC18.txt:5447-5456).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.11.2 (TC18.txt:5356); Table 54 (TC18.txt:5447-5456)"
+    },
+    {
+      "id": "REQ-TC18-227",
+      "title": "An 11-bit CAN identifier is right-aligned in the wire CAN ID field",
+      "text": "can's frame encoder shall place a standard (non-extended) identifier right-aligned in the CAN ID field, so the encoded field's value equals the identifier with the upper bits zero. TC18 \u00a713.7.11.3 (TC18.txt:5471).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.7.11.3 (TC18.txt:5471)"
+    },
+    {
+      "id": "REQ-TC18-228",
+      "title": "A CAN endpoint cannot transmit a remote frame",
+      "text": "can.Frame shall carry no remote-transmission-request field and can.Endpoint shall provide no path to transmit a remote frame; every transmitted frame is a data frame. TC18 \u00a713.7.11.3 (TC18.txt:5471).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.7.11.3 (TC18.txt:5471)"
+    },
+    {
+      "id": "REQ-TC18-229",
+      "title": "A CAN XL frame exceeding one ACF message is carried via ms and segment_num segmentation",
+      "text": "NOT IMPLEMENTED \u2014 A CAN XL frame whose encoded length \u2014 up to 2054 bytes, 2048 data plus the six XL header bytes \u2014 exceeds one ACF message shall be carried as a fragment sequence using the more-segments flag and the segment number, and the endpoint shall accept the reassembled body. The generic fragment machinery exists but the CAN endpoint decodes exactly one whole frame from the request body and never consults the segmentation fields. TC18 \u00a713.7.11.3 (TC18.txt:5443-5444).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.11.3 (TC18.txt:5443-5444)"
+    },
+    {
+      "id": "REQ-TC18-230",
+      "title": "A CAN XL frame's six extra header bytes are the leading bytes of the CAN data field",
+      "text": "NOT IMPLEMENTED \u2014 For FrameFormat 4 or 5 the encoder shall emit the RRS, SDT, VCID and AF bytes \u2014 six in total per ISO 11898-1 \u2014 as the leading bytes of the CAN data field itself, so the field length is six plus the data length, rather than as a distinct region preceding a separate length prefix. The package encodes SDT, VCID and AF as a separate header and does not model RRS; its own documentation flags the layout as unverified. TC18 \u00a713.7.11.3 (TC18.txt:5472-5473).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.11.3 (TC18.txt:5472-5473)"
+    },
+    {
+      "id": "REQ-TC18-231",
+      "title": "CAN functional configuration implements Table 53's register block",
+      "text": "NOT IMPLEMENTED \u2014 can's configuration codec shall lay out can_ep_len, a reserved byte reading zero, can_ep_enable&clr, can_ep_options, can_base_clk, can_ep_status, can_clk_divider, the three 32-bit bit-time registers for Classical, FD and XL, TDCC, the CAN EP and FIFO status words, four XL acceptance filters and four receive identifier filters at their specified offsets, accepting runtime writes to every read/write field. The current nine-byte block has no endpoint clock \u2014 which TC18 makes the time base for triggered and compound execution delays \u2014 and only two bit rates where the specification names three. Table 53 assigns both acceptance filter 3 and filter 4 to 0x002C, an editorial defect whose adopted resolution must be recorded. TC18 \u00a713.7.11.2 Table 53 (TC18.txt:5363-5423) and (TC18.txt:5351-5360).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.11.2 Table 53 (TC18.txt:5363-5423)"
+    },
+    {
+      "id": "REQ-TC18-232",
+      "title": "A CAN read request can wait for a specific received payload",
+      "text": "NOT IMPLEMENTED \u2014 can.Endpoint shall support a read request that waits for a frame matching the request's supplied payload or identifier criteria, producing its response upon that frame's reception, rather than only returning the last frame recorded. TC18 \u00a713.7.11.1 (TC18.txt:5343-5346).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.11.1 (TC18.txt:5343-5346)"
+    },
+    {
+      "id": "REQ-TC18-233",
+      "title": "The ISELED endpoint performs 4b/5b encoding on transmit and 5b/4b decoding on receive",
+      "text": "NOT IMPLEMENTED \u2014 iseled.Endpoint shall 4b/5b-encode the command bytes it places on the chain and 5b/4b-decode the responses it collects, so a transport sees line-coded symbols and the aggregated response carries decoded payload bytes. No such codec exists; the package documentation declares 4b/5b a physical-layer concern outside its scope, whereas TC18 places the coding inside the endpoint. TC18 \u00a713.7.12.1 (TC18.txt:5492-5494).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.12.1 (TC18.txt:5492-5494)"
+    },
+    {
+      "id": "REQ-TC18-234",
+      "title": "An ISELED aggregated response respects read_size and spans multiple ACF messages when needed",
+      "text": "NOT IMPLEMENTED \u2014 iseled.Endpoint shall bound the aggregated response by the request's read_size and emit the remainder as further ACF messages rather than one unbounded body. read_size is never consulted. TC18 \u00a713.7.12.1 (TC18.txt:5493-5494).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.12.1 (TC18.txt:5493-5494)"
+    },
+    {
+      "id": "REQ-TC18-235",
+      "title": "ISELED CRC generation is configurable and the CRC field is four bits wide",
+      "text": "NOT IMPLEMENTED \u2014 iseled.Config shall carry a CRC-enable selection, the encoder shall append the CRC only when enabled and the decoders shall verify it only when enabled, and the CRC field shall be four bits wide. The package always appends and always requires an eight-bit CRC with no enable flag. TC18 \u00a713.7.12.1 (TC18.txt:5494-5496) and \u00a713.7.12.3 Figure 41 (TC18.txt:5600).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.12.1 (TC18.txt:5494-5496); Figure 41 (TC18.txt:5600)"
+    },
+    {
+      "id": "REQ-TC18-236",
+      "title": "ISELED request and response bodies follow Figures 40 and 41",
+      "text": "NOT IMPLEMENTED \u2014 iseled.Command shall carry a 4-bit Instruction and a 12-bit Address emitted packed in that order ahead of the data bytes, and the aggregated response shall emit each device's answer as 12-bit address, 12-bit data, optional 4-bit CRC and reserved, without a leading count byte. The current encoding is an 8-bit address, a 16-bit data length, the data and an 8-bit CRC, with no instruction field at all. TC18 \u00a713.7.12.3 Figures 40 and 41 (TC18.txt:5581-5610).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.12.3 Figures 40/41 (TC18.txt:5581-5610)"
+    },
+    {
+      "id": "REQ-TC18-237",
+      "title": "ISELED functional configuration implements Table 55, including a 16-bit LED count",
+      "text": "NOT IMPLEMENTED \u2014 iseled.Config shall carry iseled_base_clk, iseled_ep_status, iseled_clk_divider (nominally 2 MHz), the iseled_collect_resp and iseled_use_rcv_clk bits, a 16-bit iseled_nr_leds device count and a 16-bit iseled_rcv_timeout in ISELED clock tics, at Table 55's offsets, and the broadcast device address shall lie outside the widened device-index range. The current six-byte block uses an 8-bit device count \u2014 so chains above 255 LEDs are unrepresentable and the 0xFF broadcast sentinel collides with a real index once widened \u2014 and a 32-bit microsecond timeout. TC18 \u00a713.7.12.2 Table 55 (TC18.txt:5504-5547).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.12.2 Table 55 (TC18.txt:5504-5547)"
+    },
+    {
+      "id": "REQ-TC18-238",
+      "title": "ISELED receive clocking selects Freq_Sync or the ISP_N clock, and ISP_N may be left unmapped",
+      "text": "NOT IMPLEMENTED \u2014 The iseled_use_rcv_clk bit shall select between Freq_Sync-pattern clock recovery and data sampling from the clock provided on ISP_N, and the pin map shall accept an ISELED endpoint that assigns ISP_P without assigning ISP_N when Freq_Sync is selected. Nothing in the repository models the selection. TC18 \u00a713.7.12.2 (TC18.txt:5549-5551).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.12.2 (TC18.txt:5549-5551)"
+    },
+    {
+      "id": "REQ-TC18-239",
+      "title": "mdio.Mode's wire values are Table 57's mdio_mode encodings",
+      "text": "NOT IMPLEMENTED \u2014 The MDIO encoders shall emit mdio_mode as 00b for MMD single-word, 01b for MMD multiple-byte, 10b for MMS single-word and 11b for MMS multiple-double-word access, and the adopted resolution of Table 57's duplicated 01b row shall be documented. The package assigns the four modes by iota and no requirement pins the numeric values against the table, so the ambiguity is currently undocumented. TC18 \u00a713.7.13.3 Table 57 (TC18.txt:5676-5684).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.13.3 Table 57 (TC18.txt:5676-5684)"
+    },
+    {
+      "id": "REQ-TC18-240",
+      "title": "mdio_address is wide enough for the IEEE and OPEN Alliance SPI register address space",
+      "text": "NOT IMPLEMENTED \u2014 The MDIO request's address field shall be wide enough to carry the IEEE 802.3 / OPEN Alliance SPI register address for the selected mode \u2014 sixteen bits for an MMS access \u2014 and the encoders shall place it in Figure 42's mdio_address field rather than truncating it to six bits, with validation currently narrowing it further to five. TC18 \u00a713.7.13.3 Figure 42 (TC18.txt:5664-5673) and Table 57 (TC18.txt:5681).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.13.3 Figure 42/Table 57 (TC18.txt:5664-5673,5681)"
+    },
+    {
+      "id": "REQ-TC18-241",
+      "title": "MDIO multiple-access modes carry more than one data unit",
+      "text": "NOT IMPLEMENTED \u2014 The MDIO write-request and response codecs shall carry a caller-supplied count of data units for the MMD multiple-byte and MMS multiple-double-word modes and recover all of them, rather than restricting those modes to a single data unit. Today the multiple modes are byte-for-byte identical to the single ones apart from the two mode bits. TC18 \u00a713.7.13.3 Table 57 (TC18.txt:5677-5680).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.13.3 Table 57 (TC18.txt:5677-5680)"
+    },
+    {
+      "id": "REQ-TC18-242",
+      "title": "MDIO payload width follows Table 57's MMD, MMS0-1 and other-MMS rule",
+      "text": "The MDIO request's data width shall be two bytes for either MMD mode, four bytes for an MMS mode whose selected MMS index is 0 or 1, and two bytes for every other MMS index, and the encoders shall emit exactly that many payload bytes. TC18 \u00a713.7.13.3 Table 57 (TC18.txt:5682-5683).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "implemented",
+      "tc18": "\u00a713.7.13.3 Table 57 (TC18.txt:5682-5683)"
+    },
+    {
+      "id": "REQ-TC18-243",
+      "title": "MDIO functional configuration implements Table 56's four register entries",
+      "text": "NOT IMPLEMENTED \u2014 mdio's configuration codec shall lay out mdio_ep_len at 0x0000, a reserved byte reading zero at 0x0001, mdio_ep_enable&clr at 0x0002 and mdio_ep_options at 0x0003, carrying no further configurable parameters since TC18 states the MDIO endpoint has none. The current config is a single enable byte. Table 56 assigns mdio_ep_status to 0x0002, colliding with mdio_ep_enable&clr \u2014 an editorial defect whose adopted resolution must be recorded. TC18 \u00a713.7.13.2 Table 56 (TC18.txt:5636-5657).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "status": "not-implemented",
+      "tc18": "\u00a713.7.13.2 Table 56 (TC18.txt:5636-5657)"
     }
   ]
 }
