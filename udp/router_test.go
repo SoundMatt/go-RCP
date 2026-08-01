@@ -2,6 +2,7 @@
 //fusa:test REQ-UDP-008
 //fusa:test REQ-UDP-009
 //fusa:test REQ-UDP-010
+//fusa:test REQ-UDP-018
 
 package udp_test
 
@@ -257,5 +258,80 @@ func TestErrorCode_Table27Mappings(t *testing.T) {
 				t.Errorf("code = %v, want %v", code, tt.want)
 			}
 		})
+	}
+}
+
+// TestRouter_Route_RejectsNonZeroEVTWithoutPayload verifies TC18 §12.9.1's
+// general request-handling rule is applied centrally, before dispatch: "If
+// evt[2:0] ≠ 0 and no byte_msg_payload is present, then an error response
+// shall be sent with the error code = UNSUPPORTED_CMD". The rule is stated
+// in the RC Server's own "Handling of requests" section, not in any endpoint
+// chapter, so it must hold for EP0 and for an unregistered address too — and
+// the addressed Handler must never see the request (REQ-UDP-018).
+func TestRouter_Route_RejectsNonZeroEVTWithoutPayload(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	h := &stubHandler{body: []byte{0x01}}
+	if err := router.Register(1, h); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	hdr := avtp.Header{Timed: false}
+
+	for _, addr := range []avtp.ByteBusID{1, regmap.EP0, 99 /* unregistered */} {
+		for sel := 1; sel < 8; sel++ {
+			req := acf.Message{ByteBusID: addr, EVT: uint8(sel), Control: acf.FlagWrite}
+			resp, shouldReply := router.Route(hdr, req)
+			if !shouldReply {
+				t.Fatalf("addr %d evt[2:0]=%03b: shouldReply = false, want an error response", addr, sel)
+			}
+			if !resp.Control.Has(acf.FlagError) {
+				t.Errorf("addr %d evt[2:0]=%03b: response has no FlagError", addr, sel)
+			}
+			code, _, err := udp.DecodeErrorBody(resp.Body)
+			if err != nil {
+				t.Fatalf("DecodeErrorBody: %v", err)
+			}
+			if code != udp.ErrorCodeUnsupportedCommand {
+				t.Errorf("addr %d evt[2:0]=%03b: error code = %v, want UNSUPPORTED_CMD", addr, sel, code)
+			}
+		}
+	}
+
+	if h.callCount != 0 {
+		t.Errorf("handler was called %d times, want 0 (rejected before dispatch)", h.callCount)
+	}
+
+	// evt[2:0] = 0 with no payload is explicitly fine (§13.7.9's Figure 33
+	// ADC read request is exactly that shape), and so is evt[3] alone.
+	for _, evt := range []uint8{0x00, acf.EVTAckRequestBit} {
+		req := acf.Message{ByteBusID: 1, EVT: evt, Control: acf.FlagRead}
+		resp, shouldReply := router.Route(hdr, req)
+		if !shouldReply || resp.Control.Has(acf.FlagError) {
+			t.Errorf("EVT=%#x with no payload: got (%+v, %v), want a successful response", evt, resp, shouldReply)
+		}
+	}
+}
+
+// TestRouter_Route_ReservedEVTMapsToUnsupportedCmd verifies a reserved
+// evt[2:0] value returned by an endpoint (TC18 §13.5 Table 30: "reserved –
+// request to be rejected with error code = UNSUPPORTED_CMD") is rendered as
+// exactly that error code on the wire, rather than falling through to the
+// generic INVALID_PARAMETER default (REQ-UDP-018).
+func TestRouter_Route_ReservedEVTMapsToUnsupportedCmd(t *testing.T) {
+	router := udp.NewRouter(udp.NewEP0Handler(server.NewServer()), true)
+	if err := router.Register(1, &stubHandler{err: acf.ErrEVTReserved}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	req := acf.Message{ByteBusID: 1, EVT: 0b100, Control: acf.FlagWrite, Body: []byte{0, 0, 0, 1}}
+	resp, shouldReply := router.Route(avtp.Header{}, req)
+	if !shouldReply {
+		t.Fatal("shouldReply = false, want an error response")
+	}
+	code, _, err := udp.DecodeErrorBody(resp.Body)
+	if err != nil {
+		t.Fatalf("DecodeErrorBody: %v", err)
+	}
+	if code != udp.ErrorCodeUnsupportedCommand {
+		t.Errorf("error code = %v, want UNSUPPORTED_CMD", code)
 	}
 }

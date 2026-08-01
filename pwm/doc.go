@@ -79,3 +79,4 @@ package pwm
 //fusa:req REQ-PWM-008
 //fusa:req REQ-PWM-009
 //fusa:req REQ-PWM-010
+//fusa:req REQ-PWM-011

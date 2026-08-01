@@ -3,6 +3,7 @@ package udp
 import (
 	"errors"
 
+	"github.com/SoundMatt/go-RCP/acf"
 	"github.com/SoundMatt/go-RCP/e2e"
 	"github.com/SoundMatt/go-RCP/pwm"
 	"github.com/SoundMatt/go-RCP/regmap"
@@ -234,6 +235,15 @@ func (c ErrorCode) String() string {
 func errorCodeFor(err error) ErrorCode {
 	switch {
 	case errors.Is(err, ErrUnknownEndpoint):
+		return ErrorCodeUnsupportedCommand
+	case errors.Is(err, acf.ErrEVTReserved),
+		errors.Is(err, acf.ErrEVTMissingPayload):
+		// TC18 §13.5 Table 30 names UNSUPPORTED_CMD for every reserved
+		// evt[2:0] value ("request to be rejected with error code =
+		// UNSUPPORTED_CMD"), and §12.9.1 names the same code for a
+		// non-zero evt[2:0] with no byte_msg_payload. Neither may fall
+		// through to the ErrorCodeInvalidParameter default: the
+		// specification is explicit about which code a client sees.
 		return ErrorCodeUnsupportedCommand
 	case errors.Is(err, request.ErrSafeStateNotConfigured):
 		return ErrorCodeUnsupportedCommand

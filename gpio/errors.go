@@ -21,12 +21,13 @@ var (
 	ErrPinCountOutOfRange = errors.New("rcp/gpio: pin count must be between 1 and MaxPins")
 )
 
-// Request-handling errors.
+// Request-handling errors. Note that a request whose evt[2:0] selector is
+// reserved for this endpoint type, or which sets a non-zero evt[2:0] without
+// carrying any byte_msg_payload, is rejected with acf.ErrEVTReserved /
+// acf.ErrEVTMissingPayload rather than a gpio-specific sentinel — those
+// conditions and their mandated UNSUPPORTED_CMD error code are defined once,
+// for every endpoint type, in acf/evt.go.
 var (
-	// ErrInvalidSemantic is returned when a decoded WriteSemantic is not one
-	// of this package's eight recognized values.
-	ErrInvalidSemantic = errors.New("rcp/gpio: unrecognized write semantic")
-
 	// ErrWrongEndpoint is returned when a request's ByteBusID does not match
 	// the Endpoint it was handed to.
 	ErrWrongEndpoint = errors.New("rcp/gpio: request addressed to a different endpoint")

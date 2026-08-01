@@ -83,3 +83,4 @@ package can
 //fusa:req REQ-CANEP-008
 //fusa:req REQ-CANEP-009
 //fusa:req REQ-CANEP-010
+//fusa:req REQ-CANEP-011

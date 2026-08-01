@@ -58,7 +58,7 @@ func TestIntegration_WatchdogDrivenSafeStateAndPurge(t *testing.T) {
 	}
 
 	// An ordinary Timed ticket, not yet due.
-	timedBody := request.EncodeTimed(1_000_000, acf.FlagWrite, gpio.EncodeWriteRequest(gpio.SemanticOr, 0b0001))
+	timedBody := request.EncodeTimed(1_000_000, acf.FlagWrite, gpio.EncodeWriteRequest(0b0001))
 	timedID, err := d.Submit(root, acf.Message{Kind: acf.KindLong, ByteBusID: addr, TransactionNum: 1, Control: acf.FlagWrite, Body: timedBody})
 	if err != nil {
 		t.Fatalf("Submit(timed): %v", err)

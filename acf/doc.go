@@ -50,12 +50,26 @@
 // octets, and moves the message_timestamp slot to its documented position
 // between the two descriptor words rather than after both. This is a
 // breaking wire-format change; go-RCP v2.0.0 cannot interoperate with
-// go-RCP v1.x on the wire. Routing EVT's endpoint-specific bits (SPI
-// channel select, GPIO/PWM write-arithmetic semantics, config-access mode,
-// the compound-wait comparison selector) into each endpoint package's own
-// request handling is not part of this change — EVT is carried at its
-// correct wire position and is readable/settable by callers, but no
-// endpoint package interprets it yet.
+// go-RCP v1.x on the wire.
+//
+// # The evt field (§13.5 Table 30)
+//
+// evt[2:0] is the write-semantic selector / config-vs-data discriminator
+// every endpoint type's request handling turns on: it decides whether a
+// request's byte_msg_payload reaches the physical interface at all, and if
+// so how it combines with that interface's current status. TC18 §13.5
+// Table 30 states those rules once, as three endpoint-type rows, so this
+// package implements them once too — see evt.go's EVTClass, ClassifyEVT,
+// Message.EVTDisposition and ApplyEVTWriteOp, which every endpoint-type
+// package calls into rather than re-deriving Table 30 for itself. §12.9.1's
+// general "evt[2:0] ≠ 0 with no byte_msg_payload" rule lives there too, as
+// CheckEVTPayloadPresence.
+//
+// Through go-RCP v7.0.0 this was a genuine gap: EVT was carried at its
+// correct wire position and was readable/settable by callers, but no
+// endpoint package interpreted it, and gpio/spi invented their own in-band
+// selector bytes instead. See CHANGELOG/ROADMAP for the breaking change
+// that closed it.
 package acf
 
 //fusa:req REQ-AVTP-011
@@ -64,3 +78,10 @@ package acf
 //fusa:req REQ-AVTP-014
 //fusa:req REQ-AVTP-015
 //fusa:req REQ-AVTP-016
+//fusa:req REQ-EVT-001
+//fusa:req REQ-EVT-002
+//fusa:req REQ-EVT-003
+//fusa:req REQ-EVT-004
+//fusa:req REQ-EVT-005
+//fusa:req REQ-EVT-006
+//fusa:req REQ-EVT-007

@@ -17,12 +17,16 @@ import (
 	"github.com/SoundMatt/go-RCP/spi"
 )
 
+// transferReq builds a SPI transfer request for channel ch. Per TC18 §13.5
+// Table 30's SPI row the channel is evt[2:0] ("selects channel 0 … 5"), not
+// a byte of the body; the body is the payload in full (§13.7.3 Figure 23).
 func transferReq(ch spi.Channel, tx []byte) acf.Message {
 	return acf.Message{
 		Kind:      acf.KindShort,
 		ByteBusID: avtp.ByteBusID(1),
+		EVT:       uint8(ch),
 		Control:   acf.FlagWrite,
-		Body:      spi.EncodeTransferRequest(ch, tx),
+		Body:      spi.EncodeTransferRequest(tx),
 	}
 }
 
@@ -40,9 +44,9 @@ func (e *echoTransport) Transfer(tx []byte) ([]byte, error) {
 	return rx, nil
 }
 
-// TestHandleRequest_DispatchesToConfiguredChannel checks a transfer request's
-// sub-opcode channel byte reaches the correct configured channel, and a
-// disabled/unconfigured channel is rejected (REQ-SPI-004).
+// TestHandleRequest_DispatchesToConfiguredChannel checks a transfer
+// request's evt[2:0] channel selector reaches the correct configured
+// channel, and a disabled/unconfigured channel is rejected (REQ-SPI-004).
 func TestHandleRequest_DispatchesToConfiguredChannel(t *testing.T) {
 	ep, root := newDeclaredEndpoint(t)
 	if err := ep.SetChannelConfig(root, spi.Channel1, spi.ChannelConfig{Enabled: true, ClockHz: 1_000_000, Mode: spi.Mode0}); err != nil {
@@ -53,12 +57,8 @@ func TestHandleRequest_DispatchesToConfiguredChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleRequest(configured channel): %v", err)
 	}
-	ch, rx, err := spi.DecodeTransferResponse(resp.Body)
-	if err != nil {
-		t.Fatalf("DecodeTransferResponse: %v", err)
-	}
-	if ch != spi.Channel1 || !bytes.Equal(rx, []byte{0xAA, 0xBB}) {
-		t.Errorf("response = (channel %v, % X), want (Channel1, AA BB) [default loopback]", ch, rx)
+	if rx := spi.DecodeTransferResponse(resp.Body); !bytes.Equal(rx, []byte{0xAA, 0xBB}) {
+		t.Errorf("response = % X, want AA BB [default loopback]", rx)
 	}
 
 	if _, err := ep.HandleRequest(root, transferReq(spi.Channel0, []byte{0x01})); !errors.Is(err, spi.ErrChannelNotConfigured) {
@@ -75,7 +75,7 @@ func TestHandleRequest_RequiresWriteWrongEndpointOrAccess(t *testing.T) {
 		t.Fatalf("SetChannelConfig: %v", err)
 	}
 
-	noWrite := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Body: spi.EncodeTransferRequest(spi.Channel0, nil)}
+	noWrite := acf.Message{Kind: acf.KindShort, ByteBusID: avtp.ByteBusID(1), Body: spi.EncodeTransferRequest(nil)}
 	if _, err := ep.HandleRequest(root, noWrite); !errors.Is(err, spi.ErrRequestMustWrite) {
 		t.Errorf("HandleRequest(no write flag) err = %v, want ErrRequestMustWrite", err)
 	}
@@ -109,10 +109,7 @@ func TestHandleRequest_UsesConfiguredTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleRequest: %v", err)
 	}
-	_, rx, err := spi.DecodeTransferResponse(resp.Body)
-	if err != nil {
-		t.Fatalf("DecodeTransferResponse: %v", err)
-	}
+	rx := spi.DecodeTransferResponse(resp.Body)
 	if !bytes.Equal(rx, []byte{0x03, 0x02, 0x01}) {
 		t.Errorf("rx = % X, want reversed 03 02 01 (custom Transport)", rx)
 	}

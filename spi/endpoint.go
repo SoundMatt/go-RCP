@@ -128,9 +128,20 @@ func (e *Endpoint) DrainTriggers() []TriggerEvent {
 // request addressed to this endpoint. Per ROADMAP.md Milestone 47's
 // explicit scope, this is the plain request shape only — compound/
 // triggered/chained/timed request kinds are Phase 15's job (ROADMAP.md
-// Milestone 49) and are not decoded here. req must set acf.FlagWrite: a SPI
-// transfer always carries an outgoing payload (even a zero-length one), so
-// there is nothing to transfer without it.
+// Milestone 49) and are not decoded here.
+//
+// The request's evt[2:0] field selects which chip-select channel the
+// transfer targets (TC18 §13.5 Table 30's SPI row): 000b through 101b name
+// channels 0 to 5, 110b is reserved and rejected with UNSUPPORTED_CMD, and
+// 111b routes the payload away from the bus entirely and into this
+// endpoint's §12.7.1 configuration block. That decoding is not done here —
+// this method asks acf.Message.EVTDisposition, the single shared
+// implementation of Table 30, and acts on its answer.
+//
+// A transfer request must set acf.FlagWrite: a SPI transfer always carries
+// an outgoing payload (even a zero-length one), so there is nothing to
+// transfer without it. A configuration request may be either a read or a
+// write, since §12.7.1 defines both directions.
 func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.Message, error) {
 	if req.ByteBusID != e.addr {
 		return acf.Message{}, ErrWrongEndpoint
@@ -138,19 +149,55 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
 		return acf.Message{}, err
 	}
+
+	disp, err := req.EVTDisposition(EVTClass)
+	if err != nil {
+		return acf.Message{}, err
+	}
+	if disp.Action == acf.EVTActionConfigure {
+		body, cfgErr := e.srv.ApplyConfigRequest(requester, e.addr, req, e.encodeConfigBlock, e.adoptConfigBlock)
+		if cfgErr != nil {
+			return acf.Message{}, cfgErr
+		}
+		return responseFor(req, body), nil
+	}
+
 	if !req.Control.Has(acf.FlagWrite) {
 		return acf.Message{}, ErrRequestMustWrite
 	}
+	ch := Channel(disp.Channel)
+	if !ch.Valid() { // unreachable: Table 30's SPI row only yields 0-5 here
+		return acf.Message{}, ErrInvalidChannel
+	}
+	rx, err := e.transfer(ch, DecodeTransferRequest(req.Body))
+	if err != nil {
+		return acf.Message{}, err
+	}
+	return responseFor(req, EncodeTransferResponse(rx)), nil
+}
 
-	ch, tx, err := DecodeTransferRequest(req.Body)
+// encodeConfigBlock and adoptConfigBlock are this endpoint type's half of
+// server.Server.ApplyConfigRequest's §12.7.1 configuration-access contract:
+// render the current configuration as this endpoint's EP_func block, and
+// decode/validate/adopt a patched one. See ApplyConfigRequest.
+func (e *Endpoint) encodeConfigBlock() []byte {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return EncodeConfig(e.cfg)
+}
+
+func (e *Endpoint) adoptConfigBlock(raw []byte) error {
+	cfg, err := DecodeConfig(raw)
 	if err != nil {
-		return acf.Message{}, err
+		return err
 	}
-	rx, err := e.transfer(ch, tx)
-	if err != nil {
-		return acf.Message{}, err
+	if err := cfg.Validate(); err != nil {
+		return err
 	}
-	return responseFor(req, EncodeTransferResponse(ch, rx)), nil
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cfg = cfg
+	return nil
 }
 
 // transfer performs one full-duplex byte exchange on ch, bracketed by a

@@ -2454,3 +2454,172 @@ conformant in the first place.
   outside that environment rather than failing the ordinary cross-platform
   test job that also runs on `ubuntu-latest` without the veth pair or
   privilege it needs).
+
+## evt[2:0] write-semantic selector: real Table 30 dispatch across all thirteen endpoint types (v8.0.0, 2026-07-31)
+
+TC18 §13.5 opens with a sentence this repo had never acted on: "event bits
+evt[2:0] are used to control the usage of the byte_msg_payload." Table 30
+then fixes, for every endpoint type, what a request's `evt[2:0]` value
+means — which combining rule a payload is written to the interface under,
+which values are reserved and must be rejected with `UNSUPPORTED_CMD`, and
+which value routes the payload away from the physical interface entirely
+and into the endpoint's own §12.7.1 configuration block.
+
+`acf.Message.EVT` had been decoded onto the wire correctly since v2.0.0,
+and round-tripped faithfully. But its own doc comment conceded that routing
+it "remains the individual endpoint packages' responsibility" — and no
+endpoint package ever did. `grep -rn '\.EVT\b'` across non-test files
+returned hits in exactly two places, both inside `acf` itself. Twelve of
+the thirteen endpoint types ignored the field completely; `gpio` and `spi`
+went further and invented their own **in-band** selector bytes at the head
+of the request body to carry information the specification puts in the
+header. The consequences were not cosmetic:
+
+- A conformant client's `evt[2:0] = 111b` configuration request — payload
+  explicitly *not* to be presented at the interface — was driven straight
+  onto the physical bus/pins by every endpoint type in the repo.
+- Every reserved `evt[2:0]` combination Table 30 requires be rejected with
+  `UNSUPPORTED_CMD` was silently accepted and executed instead.
+- `gpio`'s request body was five bytes (an invented selector byte plus the
+  operand) where §13.7.4.1 states "A request not having exactly four bytes
+  is rejected and an error response with error code = INVALID_PARAMETER
+  will be sent."
+- `spi`'s body led with an invented channel byte, where §13.7.3 has "The
+  byte_msg_payload will be presented on PICO in full."
+- §12.9.1's mandatory general rule — "If evt[2:0] ≠ 0 and no
+  byte_msg_payload is present, then an error response shall be sent with
+  the error code = UNSUPPORTED_CMD" — was unimplemented anywhere.
+
+### One mechanism, not thirteen
+
+The fix is deliberately architectural rather than thirteen local patches.
+Table 30 states its rules **once**, as three endpoint-type rows, so this
+repo now implements them once too, in the package that already owns the
+field (`acf/evt.go`):
+
+- `acf.EVTClass` names the three rows: `EVTClassChannelSelect` (SPI),
+  `EVTClassConfigOnly` (ADC, PWM_IN, I²C, LIN, CAN, UART, ISELED, MDIO) and
+  `EVTClassArithmetic` (GPIO, PWM_OUT).
+- `acf.ClassifyEVT` decodes one `evt` value against one row, returning an
+  `EVTDisposition` (present-at-interface vs. change-configuration, plus the
+  row's own parameter: a SPI channel, or a GPIO/PWM_OUT `EVTWriteOp`), or
+  `acf.ErrEVTReserved` for a value that row reserves.
+- `acf.CheckEVTPayloadPresence` implements §12.9.1's general rule, and
+  `acf.Message.EVTDisposition` applies it before Table 30.
+- `acf.ApplyEVTWriteOp` implements the six combining rules and Table 30's
+  saturation note ("neither overflows nor wrap-arounds shall occur... 0x0000
+  on the low side and 0xFFFF at the high side"), shared by `gpio` and `pwm`
+  rather than duplicated.
+- `acf.EncodeConfigRequestBody`/`DecodeConfigRequestBody` implement §12.7.1
+  Figure 18's configuration-request payload (a relative EP_func register
+  start address, then configuration data).
+- `server.Server.ApplyConfigRequest` and `server.Server.WriteFunctionalAt`
+  are the shared server-side half: they patch an endpoint's EP_func block
+  at the request's start address, adopt-then-persist it (rolling back on a
+  persist failure so the in-memory configuration can never diverge from the
+  register map), and implement §12.7.1's ignore-on-overrun rule verbatim.
+  Each endpoint package supplies only a two-method codec
+  (`encodeConfigBlock`/`adoptConfigBlock`) — its own `EncodeConfig` and
+  `DecodeConfig`+`Validate`.
+
+Every endpoint package declares its Table 30 row once (`gpio.EVTClass`,
+`spi.EVTClass`, `adc.EVTClass`, ...) and calls
+`acf.Message.EVTDisposition`; none re-derives Table 30 for itself.
+
+### Per-package changes
+
+- **`gpio` (BREAKING wire format).** Request body is now exactly four bytes
+  — the operand bitmask alone, per §13.7.4.1 Figure 24 — and a body of any
+  other length is rejected (`INVALID_PARAMETER`). The `WriteSemantic` type
+  and its eight constants are **deleted**: `evt[2:0]` now selects
+  set/OR/AND/XOR/saturating-add/saturating-subtract/configuration-change,
+  and `100b` is rejected. `EncodeWriteRequest`/`DecodeWriteRequest` lost
+  their semantic parameter. `gpio.ErrInvalidSemantic` is gone.
+- **`spi` (BREAKING wire format).** The one-byte `Channel` sub-opcode is
+  removed from the request and response bodies; `evt[2:0]` selects the
+  channel (`110b` reserved, `111b` configuration). `EncodeTransferRequest`/
+  `DecodeTransferRequest`/`EncodeTransferResponse`/`DecodeTransferResponse`
+  no longer take or return a `Channel`, and the decoders no longer return
+  an error (every byte sequence is a valid SPI payload).
+- **`pwm`.** PWM_OUT and PWM_IN are in *different* Table 30 rows, so this
+  package exposes `EVTClassFor(Role)` rather than a constant. A PWM_OUT
+  write now combines with the currently applied waveform under the
+  `evt[2:0]`-selected rule, applied **independently to each of the two
+  16-bit fields** — the reading Table 30's own 0xFFFF saturation bound
+  describes, and the only one under which a carry out of the active-time
+  field cannot corrupt the period field. `100b` is rejected; PWM_IN follows
+  the config-only row.
+- **`adc`, `i2c`, `uart`, `lin`, `can`, `iseled`, `mdio`.** Each now
+  rejects `evt[2:0] = 001b`-`110b` with `UNSUPPORTED_CMD` without touching
+  its bus, and treats `111b` as a §12.7.1 configuration access that is
+  never presented at the interface. The evt check runs *before* each
+  endpoint's own enabled/flag checks, since a configuration request is how
+  a disabled endpoint is brought into service.
+- **`request`.** `innerMessage` now carries the original request's `EVT`
+  through to the wrapped endpoint. It previously dropped it, which — now
+  that the field is load-bearing — would have silently rewritten every
+  enveloped (compound/triggered/timed/chained) request into a plain
+  `evt[2:0] = 000b` one.
+- **`udp`.** `Router.Route` applies §12.9.1's rule centrally, before
+  dispatch, so it also covers EP0 and unregistered addresses; and
+  `errorCodeFor` maps `acf.ErrEVTReserved`/`acf.ErrEVTMissingPayload` to
+  `ErrorCodeUnsupportedCommand` rather than letting them fall through to
+  the generic `INVALID_PARAMETER` default.
+
+### Two documented specification conflicts
+
+Both are recorded in code rather than silently resolved:
+
+- **Table 30's config-only row at `000b`.** The row reads "000b to 110b —
+  reserved – request to be rejected with error code = UNSUPPORTED_CMD".
+  Read literally, that rejects `evt[2:0] = 000b` and leaves eight of the
+  thirteen endpoint types unable to carry any traffic at all — which
+  contradicts §13.7.9's Figure 33 (a conformant ADC "standard read request"
+  whose evt bits are all zero) and §13.7.7.3 ("The byte msg payload is the
+  I2C payload including the address", i.e. it reaches the bus). This
+  implementation therefore treats `000b` in that row as the ordinary
+  present-at-the-interface case and rejects `001b`-`110b`. The departure is
+  documented at `acf.ClassifyEVT`, at `acf.EVTClassConfigOnly`, in each
+  affected package's `EVTClass` doc comment, and in `REQ-EVT-003`.
+- **Table 30's `110b` operand order.** The normative sentence is
+  "'byte_msg_payload' minus 'current interface status' is written **as is**
+  to interface", while the same row's parenthetical example ("this can be
+  used to decrease the duty cycle of PWM_out") reads more naturally as the
+  opposite order. The normative sentence is implemented; the tension is
+  documented at `acf.EVTWriteSubSaturating`, and both `gpio` and `pwm` have
+  a test case that specifically discriminates the two readings.
+
+A third, minor one is recorded at `spi/doc.go`: Figure 23's caption says
+"SPI channel 3" while the figure shows `evt = 0101b`, i.e. channel 5 under
+Table 30's own mapping. Table 30 is normative and unambiguous; channel =
+`evt[2:0]`.
+
+### Tests and traceability
+
+Every endpoint package gains an `evt_test.go` (or extends its existing
+semantics test) whose assertions are transcribed from the specification
+text quoted in each test's own comment, covering the row's full selector
+range, the reserved rejection, the §12.9.1 fallback, and the
+payload-not-presented-at-the-interface property of `111b` — the last
+asserted against each package's own transport double, not merely inferred.
+`acf/evt_test.go` covers the shared mechanism row by row, plus a fuzz seed
+for the configuration-body decoder; `server/config_request_test.go` covers
+§12.7.1's patch/overrun/rollback/read behaviour; `udp/router_test.go` covers
+the central §12.9.1 rejection and the `UNSUPPORTED_CMD` mapping.
+
+`.fusa-reqs.json` grows from 579 to 597 requirements: seven new `REQ-EVT-*`
+for the shared mechanism, one new per-endpoint-type requirement for each of
+the nine affected endpoint packages, plus `REQ-RCS-032` and `REQ-UDP-018`.
+Nine existing requirements were **corrected**, not merely extended — most
+importantly `REQ-GPIO-002`, which certified an invented eighth "AndNot"
+write semantic occupying Table 30's reserved slot as one of "the eight
+defined write-semantic values". `go build`/`go vet`/`go test -race`/
+`golangci-lint run` all pass; `gofusa check` reports 0 errors and
+`gofusa trace` 597/597 requirements traced and tested.
+
+**Version**: `v8.0.0`. `gpio` and `spi` change wire-visible request-body
+shapes (5 bytes → 4, and a removed leading channel byte), `gpio.WriteSemantic`
+is deleted outright, and every endpoint type now rejects requests it
+previously executed. No compatibility shim is provided, the same posture
+every prior TC18-conformance fix pass in this document established: a wrong
+wire format was never something a shim could paper over.

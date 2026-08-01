@@ -145,13 +145,18 @@ type Message struct {
 	// than truncating it.
 	TransactionNum avtp.TransactionNum
 
-	// EVT is the 4-bit evt field: bit 3 is the request-acknowledge flag,
-	// bits 2:0 carry endpoint-specific usage (SPI channel select, GPIO/PWM
-	// write-arithmetic semantics, config-access mode, the compound-wait
-	// comparison selector, ...) or, for responses, the multi-response
-	// counter / acknowledge coding. This package only carries the field at
-	// its correct wire position; routing its value into per-endpoint
-	// behaviour remains the individual endpoint packages' responsibility.
+	// EVT is the 4-bit evt field: bit 3 is the request-acknowledge flag
+	// (see Message.EVTAckRequested), bits 2:0 carry endpoint-specific usage
+	// (SPI channel select, GPIO/PWM_OUT write-arithmetic semantics, the
+	// config-vs-data discriminator, the compound-wait comparison selector,
+	// ...) or, for responses, the multi-response counter / acknowledge
+	// coding.
+	//
+	// Decoding evt[2:0] into per-endpoint behaviour is not left to each
+	// endpoint package to reinvent: TC18 §13.5 Table 30's three
+	// endpoint-type rows are modelled once in evt.go as EVTClass, and every
+	// endpoint-type package routes its requests through
+	// Message.EVTDisposition with its own class. See evt.go.
 	EVT uint8
 
 	// HS is the wire hs bit. Every currently-defined request/response

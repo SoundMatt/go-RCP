@@ -194,6 +194,22 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 	e.mu.Lock()
 	cfg := e.cfg
 	e.mu.Unlock()
+
+	// The evt[2:0] check runs before the enabled check: a §12.7.1
+	// configuration request is precisely how a disabled endpoint is brought
+	// into service, so rejecting it with ErrNotConfigured would be circular.
+	disp, err := req.EVTDisposition(EVTClassFor(cfg.Role))
+	if err != nil {
+		return acf.Message{}, err
+	}
+	if disp.Action == acf.EVTActionConfigure {
+		body, cfgErr := e.srv.ApplyConfigRequest(requester, e.addr, req, e.encodeConfigBlock, e.adoptConfigBlock)
+		if cfgErr != nil {
+			return acf.Message{}, cfgErr
+		}
+		return responseFor(req, body), nil
+	}
+
 	if !cfg.Enabled {
 		return acf.Message{}, ErrNotConfigured
 	}
@@ -203,7 +219,14 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 		if cfg.Role != RoleOutput {
 			return acf.Message{}, ErrWriteNotSupportedForInput
 		}
-		active, period, err := DecodeWaveform(req.Body)
+		payloadActive, payloadPeriod, err := DecodeWaveform(req.Body)
+		if err != nil {
+			return acf.Message{}, err
+		}
+		e.mu.Lock()
+		curActive, curPeriod := e.appliedActive, e.appliedPeriod
+		e.mu.Unlock()
+		active, period, err := applyWaveformOp(disp.WriteOp, payloadActive, payloadPeriod, curActive, curPeriod)
 		if err != nil {
 			return acf.Message{}, err
 		}
@@ -228,6 +251,30 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 	default:
 		return acf.Message{}, ErrRequestMustReadOrWrite
 	}
+}
+
+// encodeConfigBlock and adoptConfigBlock are this endpoint type's half of
+// server.Server.ApplyConfigRequest's §12.7.1 configuration-access contract:
+// render the current configuration as this endpoint's EP_func block, and
+// decode/validate/adopt a patched one. See ApplyConfigRequest.
+func (e *Endpoint) encodeConfigBlock() []byte {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return EncodeConfig(e.cfg)
+}
+
+func (e *Endpoint) adoptConfigBlock(raw []byte) error {
+	cfg, err := DecodeConfig(raw)
+	if err != nil {
+		return err
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cfg = cfg
+	return nil
 }
 
 // applyOutput applies activeTicks/periodTicks through the configured

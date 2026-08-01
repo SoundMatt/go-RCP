@@ -98,6 +98,20 @@ func (r *Router) Route(hdr avtp.Header, req acf.Message) (acf.Message, bool) {
 		return acf.Message{}, false
 	}
 
+	// TC18 §12.9.1's general, endpoint-type-independent request-handling
+	// rule: "If evt[2:0] ≠ 0 and no byte_msg_payload is present, then an
+	// error response shall be sent with the error code = UNSUPPORTED_CMD".
+	// It is applied here, once, before dispatch — it is stated in the RC
+	// Server's own "Handling of requests" section rather than in any
+	// endpoint chapter, and it holds for EP0 and for endpoint types that
+	// have no Table 30 row at all, neither of which a per-endpoint check
+	// would cover. Each endpoint type's own evt handling re-applies it via
+	// acf.Message.EVTDisposition, so an endpoint driven directly rather
+	// than through this Router is equally protected.
+	if err := acf.CheckEVTPayloadPresence(req.EVT, len(req.Body)); err != nil {
+		return errorResponse(req, err), true
+	}
+
 	var resp acf.Message
 	var err error
 	if req.ByteBusID == regmap.EP0 {

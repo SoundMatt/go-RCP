@@ -100,6 +100,27 @@ func (e *Endpoint) HandleRequest(requester avtp.StreamID, req acf.Message) (acf.
 	if _, err := e.srv.ReadEndpoint(requester, e.addr); err != nil {
 		return acf.Message{}, err
 	}
+
+	// TC18 §13.5 Table 30 / §12.9.1: what happens to this request's
+	// byte_msg_payload is decided by evt[2:0], not by this endpoint type.
+	// For EVTClass, 111b routes the payload into this endpoint's §12.7.1
+	// configuration block instead of presenting it at the interface, and
+	// every other non-zero value is reserved and rejected with
+	// UNSUPPORTED_CMD. The decoding itself lives in acf/evt.go, shared by
+	// every endpoint type. It runs before any enabled/flag check, since a
+	// configuration request is how a disabled endpoint is brought into
+	// service in the first place.
+	disp, err := req.EVTDisposition(EVTClass)
+	if err != nil {
+		return acf.Message{}, err
+	}
+	if disp.Action == acf.EVTActionConfigure {
+		body, cfgErr := e.srv.ApplyConfigRequest(requester, e.addr, req, e.encodeConfigBlock, e.adoptConfigBlock)
+		if cfgErr != nil {
+			return acf.Message{}, cfgErr
+		}
+		return responseFor(req, body), nil
+	}
 	if !req.Control.Has(acf.FlagWrite) {
 		return acf.Message{}, ErrRequestMustWrite
 	}
@@ -152,4 +173,28 @@ func responseFor(req acf.Message, body []byte) acf.Message {
 		Control:        acf.FlagResponse | acf.FlagWrite,
 		Body:           body,
 	}
+}
+
+// encodeConfigBlock and adoptConfigBlock are this endpoint type's half of
+// server.Server.ApplyConfigRequest's §12.7.1 configuration-access contract:
+// render the current configuration as this endpoint's EP_func block, and
+// decode/validate/adopt a patched one. See ApplyConfigRequest.
+func (e *Endpoint) encodeConfigBlock() []byte {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return EncodeConfig(e.cfg)
+}
+
+func (e *Endpoint) adoptConfigBlock(raw []byte) error {
+	cfg, err := DecodeConfig(raw)
+	if err != nil {
+		return err
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cfg = cfg
+	return nil
 }
