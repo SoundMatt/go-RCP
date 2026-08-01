@@ -1,5 +1,4 @@
-//fusa:test REQ-UDP-007
-//fusa:test REQ-UDP-008
+//fusa:test REQ-UDP-019
 
 package udp_test
 

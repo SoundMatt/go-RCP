@@ -130,3 +130,4 @@ package udp
 //fusa:req REQ-UDP-013
 //fusa:req REQ-UDP-014
 //fusa:req REQ-UDP-018
+//fusa:req REQ-UDP-019
