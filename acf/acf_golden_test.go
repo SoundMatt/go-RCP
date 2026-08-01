@@ -31,9 +31,21 @@ import (
 // byte4 evt=0x8(ack)<<4|hs=0|cs=0=0x80, byte5 transaction_num=0x01, byte6
 // op=0(read)/rsp=0/err=0/ms=0/read_size-top4=0, byte7 read_size-low8=0x04.
 var goldenUntimedShortRead = []byte{
-	// AVTPDU header (13 bytes): subtype=NTSCF, flags(sv=1), seq=1,
-	// data_length=8, stream_id=02:11:22:33:44:55/0001
-	0x82, 0x80, 0x01, 0x00, 0x08, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x01,
+	// AVTPDU NTSCF header, 12 bytes, laid out by hand from TC18 §11.1 p.22
+	// Figure 6 ("NTSCF-Header Version 0") — one quadlet then stream_id:
+	//
+	//   octet 0        subtype                        = 0x82 (per Figure 6's
+	//                                                   own "subtype(0x82)")
+	//   octet 1 bit 8  sv                             = 1
+	//           bits 9-11  version                    = 0
+	//           bit 12     r (reserved)               = 0
+	//           bits 13-15 ntscf_data_length[10:8]    = 0
+	//                      -> 1 000 0 000            = 0x80
+	//   octet 2        ntscf_data_length[7:0]         = 8 -> 0x08
+	//   octet 3        sequence_num                   = 1 -> 0x01
+	//   octets 4-11    stream_id (MAC || suffix)
+	0x82, 0x80, 0x08, 0x01,
+	0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x01,
 	// RCP message (8 bytes, no body) — see breakdown above.
 	0x1C, 0x02, 0x00, 0x10, 0x80, 0x01, 0x00, 0x04,
 }
@@ -53,11 +65,30 @@ var goldenUntimedShortRead = []byte{
 // op=1(write)/rsp=0/err=0/ms=0/read_size-top4=0=0x80, byte15
 // read_size-low8=0x00, bytes16-19 body=DE AD BE EF.
 var goldenTimedLongWrite = []byte{
-	// AVTPDU header (17 bytes): subtype=TSCF, flags(sv=1, ts_status=Valid),
-	// seq=9, data_length=20, stream_id=02:11:22:33:44:55/0002,
-	// timestamp=0x00112233
-	0x83, 0x84, 0x09, 0x00, 0x14, 0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x02,
+	// AVTPDU TSCF header, 24 bytes, laid out by hand from TC18 §11.1 p.22
+	// Figure 5 ("TSCF-Header Version 0") — six quadlets:
+	//
+	//   octet 0        subtype                     = 0x05 (per Figure 5's
+	//                                                own "subtype(0x05)")
+	//   octet 1 bit 8      sv                      = 1
+	//           bits 9-11  version                 = 0
+	//           bit 12     mr (media clock restart)= 0
+	//           bits 13-14 rsv                     = 0
+	//           bit 15     tv (timestamp valid)    = 1
+	//                      -> 1 000 0 00 1        = 0x81
+	//   octet 2        sequence_num                = 9 -> 0x09
+	//   octet 3 bits 24-30 reserved                = 0
+	//           bit 31     tu (timestamp uncertain)= 0 -> 0x00
+	//   octets 4-11    stream_id (MAC || suffix)
+	//   octets 12-15   avtp_timestamp              = 0x00112233
+	//   octets 16-19   "Format specific" reserved  = 0
+	//   octets 20-21   stream_data_length          = 20 -> 0x0014
+	//   octets 22-23   reserved                    = 0
+	0x05, 0x81, 0x09, 0x00,
+	0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x00, 0x02,
 	0x00, 0x11, 0x22, 0x33,
+	0x00, 0x00, 0x00, 0x00,
+	0x00, 0x14, 0x00, 0x00,
 	// RCP message (20 bytes) — see breakdown above.
 	0x1A, 0x05, 0x00, 0x20,
 	0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
