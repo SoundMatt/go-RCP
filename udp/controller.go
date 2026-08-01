@@ -24,6 +24,7 @@ type Controller struct {
 	conn     *net.UDPConn
 	nextTxn  atomic.Uint32
 	seq      atomic.Uint32
+	encapSeq atomic.Uint32
 	closed   atomic.Bool
 	readDone chan struct{}
 
@@ -32,9 +33,11 @@ type Controller struct {
 }
 
 // NewController dials serverAddr and returns a Controller presenting
-// streamID as its own identity.
+// streamID as its own identity. If serverAddr.Port is 0, it defaults to
+// AnnexJControlPort (see defaultAnnexJPort) — a caller that wants a
+// specific port states it explicitly in serverAddr, exactly as before.
 func NewController(streamID avtp.StreamID, serverAddr *net.UDPAddr) (*Controller, error) {
-	conn, err := net.DialUDP("udp", nil, serverAddr)
+	conn, err := net.DialUDP("udp", nil, defaultAnnexJPort(serverAddr))
 	if err != nil {
 		return nil, fmt.Errorf("rcp/udp: dial stream %s: %w", streamID, err)
 	}
@@ -92,6 +95,10 @@ func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control a
 	if err != nil {
 		return acf.Message{}, fmt.Errorf("rcp/udp: stream %s: encode: %w", c.streamID, err)
 	}
+	// Annex J UDP/IP framing: a 4-byte encapsulation sequence number ahead
+	// of the AVTPDU itself — see annexj.go's provenance note. This field
+	// does not exist on the l2 (raw Ethernet) transport.
+	payload := prependEncapSeq(c.encapSeq.Add(1), frame)
 
 	ch := make(chan acf.Message, 1)
 	c.mu.Lock()
@@ -103,7 +110,7 @@ func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control a
 		c.mu.Unlock()
 	}()
 
-	if _, err := c.conn.Write(frame); err != nil {
+	if _, err := c.conn.Write(payload); err != nil {
 		return acf.Message{}, fmt.Errorf("rcp/udp: stream %s: write: %w", c.streamID, err)
 	}
 
@@ -186,7 +193,13 @@ func (c *Controller) readLoop() {
 		if err != nil {
 			return
 		}
-		frame, err := acf.DecodeFrame(buf[:n])
+		// Strip Annex J's leading encapsulation sequence number before
+		// handing the remaining bytes to acf.DecodeFrame — see annexj.go.
+		_, rest, err := stripEncapSeq(buf[:n])
+		if err != nil {
+			continue
+		}
+		frame, err := acf.DecodeFrame(rest)
 		if err != nil {
 			continue
 		}

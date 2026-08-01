@@ -3619,6 +3619,78 @@
       "asil": "ASIL-B"
     },
     {
+      "id": "REQ-UDP-015",
+      "title": "Annex J encapsulation sequence number round-trips",
+      "text": "udp's Annex J UDP/IP encapsulation (prependEncapSeq/stripEncapSeq) shall round-trip an arbitrary sequence number and AVTPDU payload exactly: stripEncapSeq(prependEncapSeq(seq, avtpdu)) shall recover the same seq and avtpdu, per IEEE 1722-2016 Annex J's 4-byte leading encapsulation sequence number field (secondary-source provenance \u2014 see udp/annexj.go).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-016",
+      "title": "Annex J encapsulation sequence number increments monotonically",
+      "text": "udp.Controller and udp.Server shall prepend a strictly monotonically-incrementing per-connection uint32 encapsulation sequence number, big-endian, ahead of every AVTPDU byte sequence they write to a UDP socket.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-UDP-017",
+      "title": "AnnexJControlPort is the default UDP port when a caller specifies none",
+      "text": "udp.NewServer (via resolveAnnexJAddr) and udp.NewController (via defaultAnnexJPort) shall default to AnnexJControlPort (17221) when the caller-supplied address names no explicit port, while leaving any caller-specified port (including 0 for an OS-assigned ephemeral port) unchanged.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-L2-001",
+      "title": "l2.EncodeFrame produces the documented Ethernet frame byte layout",
+      "text": "l2.EncodeFrame shall serialize a destination MAC (6 bytes), then a source MAC (6 bytes), then EtherTypeAVTP (0x22F0, 2 bytes big-endian), then the AVTPDU bytes unchanged, with no additional trailer or length field.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-L2-002",
+      "title": "l2.DecodeFrame round-trips l2.EncodeFrame's output",
+      "text": "l2.DecodeFrame shall recover exactly the destination MAC, source MAC, and AVTPDU payload passed to l2.EncodeFrame, for any AVTPDU payload length including zero.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-L2-003",
+      "title": "l2.DecodeFrame rejects a buffer too short for an Ethernet header",
+      "text": "l2.DecodeFrame shall return ErrShortFrame, not panic, for any input buffer shorter than l2.HeaderLen (14) bytes.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-L2-004",
+      "title": "l2.DecodeFrame rejects an unexpected EtherType",
+      "text": "l2.DecodeFrame shall return ErrUnexpectedEtherType for a well-formed Ethernet header whose EtherType field is not EtherTypeAVTP (0x22F0).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-L2-005",
+      "title": "l2.NewTransport reports ErrL2UnsupportedPlatform on a non-Linux platform",
+      "text": "On any non-Linux GOOS, l2.NewTransport shall return a nil *Transport and ErrL2UnsupportedPlatform, and every Transport method shall likewise return ErrL2UnsupportedPlatform, rather than silently no-opping or failing the build.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-L2-006",
+      "title": "l2.Transport round-trips a real AVTPDU frame over a real Linux veth pair",
+      "text": "Two l2.Transport instances bound to opposite ends of a real Linux veth pair shall round-trip an AVTPDU payload byte-for-byte end-to-end over real AF_PACKET/SOCK_RAW sockets (CI-only, requires CAP_NET_RAW; see l2/transport_linux_test.go's TestL2VethRoundTrip).",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
       "id": "REQ-MDNS-001",
       "title": "mDNS Transport delivers packets reliably on loopback",
       "text": "mdns.Transport implementations shall deliver a WritePacket payload to a peer's ReadPacket call unmodified over a loopback UDP pair.",

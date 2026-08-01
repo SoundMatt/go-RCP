@@ -20,14 +20,19 @@ type Server struct {
 	conn     *net.UDPConn
 	router   *Router
 	seq      atomic.Uint32
+	encapSeq atomic.Uint32
 	closed   atomic.Bool
 	done     chan struct{}
 }
 
 // NewServer listens on addr (e.g. "127.0.0.1:0") and serves router, replying
-// with streamID as its own AVTPDU identity.
+// with streamID as its own AVTPDU identity. If addr names a host with no
+// explicit port at all (e.g. "127.0.0.1"), it defaults to AnnexJControlPort
+// (see resolveAnnexJAddr) — a caller that wants a specific port, including
+// "0" for an OS-assigned ephemeral port, states it explicitly in addr,
+// exactly as before.
 func NewServer(streamID avtp.StreamID, addr string, router *Router) (*Server, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	udpAddr, err := resolveAnnexJAddr(addr)
 	if err != nil {
 		return nil, fmt.Errorf("rcp/udp: server stream %s: resolve: %w", streamID, err)
 	}
@@ -75,7 +80,13 @@ func (s *Server) serve() {
 		if err != nil {
 			return
 		}
-		frame, err := acf.DecodeFrame(buf[:n])
+		// Strip Annex J's leading encapsulation sequence number before
+		// handing the remaining bytes to acf.DecodeFrame — see annexj.go.
+		_, rest, err := stripEncapSeq(buf[:n])
+		if err != nil {
+			continue
+		}
+		frame, err := acf.DecodeFrame(rest)
 		if err != nil {
 			continue
 		}
@@ -107,6 +118,8 @@ func (s *Server) serve() {
 		if err != nil {
 			continue
 		}
-		_, _ = s.conn.WriteToUDP(out, clientAddr)
+		// Annex J UDP/IP framing on the reply too — see annexj.go.
+		payload := prependEncapSeq(s.encapSeq.Add(1), out)
+		_, _ = s.conn.WriteToUDP(payload, clientAddr)
 	}
 }

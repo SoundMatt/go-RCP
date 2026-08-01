@@ -12,9 +12,10 @@ import "github.com/SoundMatt/go-RCP/avtp"
 const maxTimedHeaderLen = 13 + 4
 
 // MaxFrameLen is the largest single UDP datagram this package's Controller
-// and Server ever need to send or receive: the largest AVTPDU header
-// variant plus the largest RCP-over-ACF message avtp.Header.DataLength can
-// declare. It is comfortably under the 65507-byte practical UDP payload
-// ceiling, so this package does not need the old wire package's own
-// MaxPayload-vs-UDP-ceiling accounting.
-const MaxFrameLen = maxTimedHeaderLen + avtp.MaxDataLength
+// and Server ever need to send or receive: Annex J's 4-byte encapsulation
+// sequence number (AnnexJEncapSeqLen — see annexj.go) plus the largest
+// AVTPDU header variant plus the largest RCP-over-ACF message
+// avtp.Header.DataLength can declare. It is comfortably under the
+// 65507-byte practical UDP payload ceiling, so this package does not need
+// the old wire package's own MaxPayload-vs-UDP-ceiling accounting.
+const MaxFrameLen = AnnexJEncapSeqLen + maxTimedHeaderLen + avtp.MaxDataLength

@@ -4,12 +4,14 @@
 //fusa:test REQ-UDP-004
 //fusa:test REQ-UDP-005
 //fusa:test REQ-UDP-006
+//fusa:test REQ-UDP-016
 
 package udp_test
 
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"net"
 	"sync"
@@ -238,7 +240,15 @@ func TestServer_Route_MultipleMessagesPerFrame(t *testing.T) {
 		t.Fatalf("EncodeFrame: %v", err)
 	}
 
-	if _, err = conn.Write(frameBytes); err != nil {
+	// This test bypasses udp.Controller entirely (it needs to hand-build a
+	// multi-message frame), so it must also hand-build the Annex J
+	// encapsulation this package's Controller/Server now apply
+	// automatically: a 4-byte big-endian encapsulation sequence number
+	// ahead of the AVTPDU bytes on both the request and the response — see
+	// udp/annexj.go.
+	reqEncapSeq := make([]byte, 4)
+	binary.BigEndian.PutUint32(reqEncapSeq, 1)
+	if _, err = conn.Write(append(reqEncapSeq, frameBytes...)); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -248,8 +258,11 @@ func TestServer_Route_MultipleMessagesPerFrame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
+	if n < 4 {
+		t.Fatalf("response too short to hold an Annex J encapsulation sequence number: %d bytes", n)
+	}
 
-	respFrame, err := acf.DecodeFrame(buf[:n])
+	respFrame, err := acf.DecodeFrame(buf[4:n])
 	if err != nil {
 		t.Fatalf("DecodeFrame(response): %v", err)
 	}
@@ -284,5 +297,75 @@ func TestServer_Route_MultipleMessagesPerFrame(t *testing.T) {
 	h2.mu.Unlock()
 	if count1 != 1 || count2 != 1 {
 		t.Errorf("callCounts = (%d, %d), want (1, 1) — each handler routed to individually", count1, count2)
+	}
+}
+
+// TestController_EncapSeq_Monotonic verifies a real Controller's outgoing
+// datagrams carry Annex J's 4-byte encapsulation sequence number as their
+// first 4 bytes, strictly incrementing by one on each successive send
+// (REQ-UDP-016). It dials against a plain net.ListenUDP socket (not a
+// udp.Server) so the test can inspect the exact raw bytes Controller put on
+// the wire, rather than only observing round-tripped behavior through
+// another udp.Controller/Server pair.
+func TestController_EncapSeq_Monotonic(t *testing.T) {
+	raw, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
+	if err != nil {
+		t.Fatalf("ListenUDP: %v", err)
+	}
+	defer func() { _ = raw.Close() }()
+
+	const numSends = 4
+	captured := make(chan uint32, numSends)
+	go func() {
+		buf := make([]byte, udp.MaxFrameLen)
+		for i := 0; i < numSends; i++ {
+			_ = raw.SetReadDeadline(time.Now().Add(5 * time.Second))
+			n, _, readErr := raw.ReadFromUDP(buf)
+			if readErr != nil {
+				return
+			}
+			if n < 4 {
+				continue
+			}
+			captured <- binary.BigEndian.Uint32(buf[:4])
+		}
+	}()
+
+	rawAddr, ok := raw.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		t.Fatalf("raw.LocalAddr() = %v (%T), want *net.UDPAddr", raw.LocalAddr(), raw.LocalAddr())
+	}
+	ctrl, err := udp.NewController(clientStream(), rawAddr)
+	if err != nil {
+		t.Fatalf("NewController: %v", err)
+	}
+	defer func() { _ = ctrl.Close() }()
+
+	// raw never answers, so every Request times out — that's fine, the
+	// datagram is already on the wire (and captured) by the time each short
+	// context expires.
+	for i := 0; i < numSends; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		_, _ = ctrl.Read(ctx, avtp.ByteBusID(1))
+		cancel()
+	}
+
+	var seqs []uint32
+	for i := 0; i < numSends; i++ {
+		select {
+		case s := <-captured:
+			seqs = append(seqs, s)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for captured datagram %d/%d", i+1, numSends)
+		}
+	}
+	if len(seqs) != numSends {
+		t.Fatalf("captured %d datagrams, want %d", len(seqs), numSends)
+	}
+	for i := 1; i < len(seqs); i++ {
+		if seqs[i] != seqs[i-1]+1 {
+			t.Errorf("encap seq not monotonic: %v", seqs)
+			break
+		}
 	}
 }
