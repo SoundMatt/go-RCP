@@ -164,3 +164,12 @@ package e2e
 //fusa:req REQ-CRC-007
 //fusa:req REQ-CRC-008
 //fusa:req REQ-CRC-009
+
+// TC18 normative-surface coverage (see .fusa-reqs.json REQ-TC18-*): clauses
+// this package already satisfies but which carried no requirement of their
+// own until the TC18 coverage pass. Clauses this package does NOT satisfy are
+// recorded in package tc18gap instead, not here.
+//fusa:req REQ-TC18-146
+//fusa:req REQ-TC18-150
+//fusa:req REQ-TC18-152
+//fusa:req REQ-TC18-153

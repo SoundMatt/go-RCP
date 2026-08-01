@@ -2717,3 +2717,103 @@ compatibility shim is provided — the same posture every prior
 TC18-conformance fix pass in this document established, and the only
 defensible one here: the old bytes were not an older dialect of the
 protocol, they were not the protocol.
+
+## TC18 normative-surface coverage: `.fusa-reqs.json` as a complete and honest map (2026-08-01)
+
+`.fusa-reqs.json` had 601 requirements, and every one of them was about
+something this module *does*. That is a comfortable way to run a
+requirements corpus and a misleading one. A traceability gate reporting
+601/601 traced and tested says nothing at all about the clauses that never
+got an entry, and an exhaustive re-read of TC18 §10 through §13.7.13 found
+that the unentered set was not a handful of stragglers — it was most of the
+specification's normative surface. Whole sections had zero corresponding
+requirement: §11.4 timestamps, §11.3's response taxonomy, §12.7.7's Table
+22 request-stream record, §13.2's Table 28/29 endpoint register block,
+§13.5.1's compound-wait comparison table, and every one of the per-endpoint
+functional-configuration tables (Tables 43, 45, 46, 48, 51, 52, 53, 55, 56).
+
+This pass closes that gap in the corpus. It adds **243 requirements**
+(`REQ-TC18-001` … `REQ-TC18-243`), each citing the exact TC18 clause, table
+or figure it derives from together with the line numbers in the
+specification text it was read from. It deliberately adds **no features**:
+where the module does not implement a clause, the entry says so rather than
+quietly not existing.
+
+### The two statuses, and why unimplemented entries still carry tests
+
+Every new entry carries a `status` field, a convention this pass
+establishes and applies uniformly:
+
+- `"implemented"` (22 entries) — the behaviour is already correct but
+  carried no requirement of its own. These are tagged `//fusa:req` on the
+  owning package's `doc.go` and `//fusa:test` in the new root-level
+  `tc18_conformance_test.go`, which contributes 22 tests written as literal
+  spec-derived assertions rather than round-trips: the CRC-32/AUTOSAR check
+  value `0x1697D06A` for §13.6 Table 31's parameter set, the seventeen
+  Table 27 error codes at their numeric values, an 11-bit `byte_bus_id` of
+  `0x17F` surviving a response echo un-truncated, a standard CAN identifier
+  right-aligned in its field, the payload/pad/CRC quadlet ordering of
+  Figures 19 and 20, and so on.
+
+- `"not-implemented"` (221 entries) — the clause is unimplemented, and the
+  entry's text begins `NOT IMPLEMENTED — `, states what would have to be
+  true, and says why it is not, in the terms the evidence supports:
+  explicitly optional per TC18, a documented deviation this module chose,
+  a specification-internal defect that makes the clause unimplementable as
+  written, or simply a gap not yet addressed.
+
+CI requires 100% of requirements to be both traced and tested, and that
+gate is worth keeping rather than carving an exception into. So the
+unimplemented entries are anchored in a new package, **`tc18gap`**, which
+holds them as machine-readable data — one `Gap{ReqID, Section, Title}` per
+requirement — and whose tests assert that the registry and
+`.fusa-reqs.json` agree exactly, **in both directions**. A requirement
+cannot be retitled, re-scoped, deleted, or flipped to `"implemented"`
+without the mismatch failing the build, and a gap entry cannot be added
+without its requirement. That is a real invariant over a corpus this size,
+not a formality: the failure mode it prevents is precisely the one that
+motivated this pass, a documented claim silently drifting away from what
+the file actually says.
+
+`tc18gap.Gaps()` is also the honest answer to "which parts of TC18 does
+this library not do?", in a form an integrator's gap analysis or a
+conformance harness can consume, instead of prose scattered across a dozen
+`doc.go` files.
+
+### What the survey turned up
+
+Two things stand out from reading the specification against the code
+clause by clause.
+
+The first is that the largest clusters of absence are structural, not
+incidental. Nine of the thirteen endpoint types encode a functional
+configuration that is an ad-hoc layout of this module's own invention, and
+in several cases a golden-vector test actively pins the non-conformant
+bytes. The common `ep_len`/`ep_enable&clr`/`ep_options` register triple of
+§13.7 Table 32 — referenced normatively from four other tables — exists
+nowhere. Neither does per-stream responder/acknowledge queueing, the
+acknowledge message type in its entirety, or any of §11.4's timestamp
+semantics.
+
+The second is that several clauses are unimplementable as printed, and the
+corpus now records which resolution would have to be adopted rather than
+leaving a future implementer to rediscover the ambiguity: Table 46 assigns
+`i2c_base_clk` to an address already held by `i2c_ep_enable&clr`; Table 47
+declares three I²C trigger indices with no event assigned to any of them;
+Table 48 names its enable and options rows after the PWM_IN registers and
+omits `uart_rx_fifo_size` although §13.7.8.1 makes it normative; Table 53
+assigns two CAN acceptance filters to the same offset; Table 56 collides
+`mdio_ep_status` with `mdio_ep_enable&clr`; Table 57 lists `01b` twice for
+two different MDIO access modes; and Table 43 gives `pwmo_idle_state` and
+`pwmo_idle_state_inv` the same bit position.
+
+### Scope
+
+No production behaviour changes. `.fusa-reqs.json` grows from 601 to 844
+requirements; ten package `doc.go` files gain `//fusa:req` tags; `tc18gap`
+and `tc18_conformance_test.go` are new. `go build`/`go vet`/`go test
+-race`/`gofmt` all pass, `gofusa check` reports 0 errors, and `gofusa
+trace` reports 844/844 traced and tested.
+
+No version bump: this is requirements and test coverage, with no change to
+any exported behaviour. The new `tc18gap` package is additive.

@@ -128,3 +128,9 @@ package avtp
 //fusa:req REQ-AVTP-018
 //fusa:req REQ-AVTP-019
 //fusa:req REQ-AVTP-020
+
+// TC18 normative-surface coverage (see .fusa-reqs.json REQ-TC18-*): clauses
+// this package already satisfies but which carried no requirement of their
+// own until the TC18 coverage pass. Clauses this package does NOT satisfy are
+// recorded in package tc18gap instead, not here.
+//fusa:req REQ-TC18-117

@@ -84,3 +84,10 @@ package can
 //fusa:req REQ-CANEP-009
 //fusa:req REQ-CANEP-010
 //fusa:req REQ-CANEP-011
+
+// TC18 normative-surface coverage (see .fusa-reqs.json REQ-TC18-*): clauses
+// this package already satisfies but which carried no requirement of their
+// own until the TC18 coverage pass. Clauses this package does NOT satisfy are
+// recorded in package tc18gap instead, not here.
+//fusa:req REQ-TC18-227
+//fusa:req REQ-TC18-228

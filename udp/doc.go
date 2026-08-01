@@ -130,3 +130,14 @@ package udp
 //fusa:req REQ-UDP-013
 //fusa:req REQ-UDP-014
 //fusa:req REQ-UDP-018
+
+// TC18 normative-surface coverage (see .fusa-reqs.json REQ-TC18-*): clauses
+// this package already satisfies but which carried no requirement of their
+// own until the TC18 coverage pass. Clauses this package does NOT satisfy are
+// recorded in package tc18gap instead, not here.
+//fusa:req REQ-TC18-002
+//fusa:req REQ-TC18-044
+//fusa:req REQ-TC18-045
+//fusa:req REQ-TC18-051
+//fusa:req REQ-TC18-055
+//fusa:req REQ-TC18-131
