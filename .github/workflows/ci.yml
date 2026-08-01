@@ -64,6 +64,36 @@ jobs:
           -run=^$
           ./mock/...
 
+  # ── L2 (raw Ethernet) transport, real veth pair ─────────────────────────────
+  # The l2 package's frame encode/decode logic is exercised, unprivileged, by
+  # the ordinary cross-platform "test" job above (l2/frame_test.go has no
+  # Linux/privilege requirement). This job additionally exercises
+  # transport_linux.go's real AF_PACKET/SOCK_RAW code path end-to-end: a
+  # veth pair standing in for two real Ethernet-connected hosts, one
+  # l2.Transport per side, asserting a real frame round-trips byte-for-byte
+  # (l2/transport_linux_test.go's TestL2VethRoundTrip — it self-skips outside
+  # this environment, see its doc comment). Needs root/CAP_NET_RAW for the
+  # raw socket and the veth setup itself, which ubuntu-latest runners support
+  # natively without special runner configuration.
+  l2-transport-linux:
+    name: L2 transport (Linux, veth)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Create veth pair
+        run: |
+          sudo ip link add veth0 type veth peer name veth1
+          sudo ip link set veth0 up
+          sudo ip link set veth1 up
+
+      - name: go test TestL2VethRoundTrip (-race, sudo for CAP_NET_RAW)
+        run: sudo "$(go env GOROOT)/bin/go" test -race -count=1 -run '^TestL2VethRoundTrip$' -v ./l2/...
+
   # ── Short fuzz run ────────────────────────────────────────────────────────
   fuzz-short:
     name: Fuzz (short, ubuntu-latest)

@@ -1,6 +1,6 @@
-// Package udp implements an IEEE 1722-over-UDP/IP transport for the OPEN
-// Alliance TC18 Remote Control Protocol (RCP), as described by the "OPEN
-// Alliance TC18 Remote Control Protocol Specification v0.5.1_RC".
+// Package udp implements an IEEE 1722-2016 Annex J UDP/IP transport for the
+// OPEN Alliance TC18 Remote Control Protocol (RCP), as described by the
+// "OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC".
 //
 // This is ROADMAP.md Milestone 54 (v0.67.0)'s rebuild of the old `udp`
 // package: through v0.66.1 this package (and the now-retired `wire`
@@ -11,6 +11,34 @@
 // 13), not a variant of this one" — so this rebuild carries over only the
 // socket dial/listen/read-loop/pending-request-map scaffolding, not any of
 // the old encoding.
+//
+// # UPDATE: real Annex J conformance, and a native-Ethernet sibling
+//
+// Milestone 54's original rebuild carried AVTPDU/ACF bytes directly over
+// net.DialUDP/net.ListenUDP with no additional framing and no standard
+// port — that was this package's own invented framing, not actually IEEE
+// 1722-2016 Annex J's. A later pass (see annexj.go and ROADMAP.md)
+// corrected this: Annex J prepends a 4-byte encapsulation sequence number
+// ahead of every UDP-carried AVTPDU (Controller/Server now do this too —
+// see prependEncapSeq/stripEncapSeq), and names standard destination ports
+// 17220 (Continuous/streaming traffic) and 17221 (Discrete/control-plane
+// traffic, the class RCP's own request/response/acknowledge exchanges fall
+// under — see AnnexJControlPort, this package's default port). See
+// annexj.go's doc comment for this correction's public-secondary-source
+// provenance (this package does not have access to the paywalled IEEE
+// 1722-2016 standard text itself).
+//
+// That same pass added the sibling `l2` package: a native layer-2 (raw
+// Ethernet, EtherType 0x22F0) transport carrying the same avtp.Header/
+// acf.Message wire format this package carries over UDP/IP, delivering on
+// ROADMAP.md Milestone 44's originally-stated primary transport target,
+// which no earlier milestone had actually built. This package and `l2` are
+// both permanent, equally-supported transports for the same AVTPDU wire
+// format — this package is not being deprecated in favor of `l2`, and
+// `l2` is not a fallback for this package; TC18 §10.1 documents raw
+// Ethernet and UDP/IP as two genuinely different, independent wire
+// framings a sender picks between depending on its network, and this repo
+// now supports both.
 //
 // # Why `wire` was retired rather than rebuilt
 //

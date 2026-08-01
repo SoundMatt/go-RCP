@@ -55,14 +55,23 @@
 // time-synchronization support at all, since it has no clock to schedule
 // against. See Disposition for the exact precedence between these rules.
 //
-// # Explicit non-goal
+// # Explicit non-goal (UPDATE: L2 and UDP/IP transports have since landed)
 //
-// This milestone targets Ethernet-carried AVTPDUs only. The specification
-// separately allows CAN(FD/XL)-carried AVTPDUs and 1722-over-UDP/IP as
-// alternative transports for the same wire format; both are real options
-// the spec permits, not analogous to go-RCP's old ad hoc UDP/TLS wire
-// format, and are deliberately left as a follow-on rather than blocking
-// this milestone (see ROADMAP.md Milestone 44).
+// This milestone (Phase 13, v0.57.0) targeted this header-framing format
+// itself, not a specific transport to carry it over — at the time, that was
+// deliberately left as a follow-on rather than blocking this milestone (see
+// ROADMAP.md Milestone 44's original text). Two real transports carrying
+// exactly this Header now exist: the sibling `udp` package (ROADMAP.md
+// Milestone 54, v0.67.0) carries it over UDP/IP per IEEE 1722-2016 Annex J
+// (as of the L2/Annex J transport pass documented in ROADMAP.md, this
+// includes Annex J's own 4-byte encapsulation sequence number and standard
+// port 17221 — udp/annexj.go was not conformant to either before that
+// pass), and the new `l2` package carries it natively at layer 2 with
+// EtherType 0x22F0, delivering on this milestone's own originally-stated
+// primary target (see l2/doc.go). Both are permanent, equally-supported
+// options; neither supersedes the other. The specification additionally
+// allows CAN(FD/XL)-carried AVTPDUs, which remains a real, un-implemented
+// option this package's Header does not currently target.
 //
 // # A note on spec fidelity (Guiding Principle 10)
 //

@@ -2345,3 +2345,112 @@ is a materially larger change than either fix here (this package's own
 enclosing AVTPDU's own timestamp field, not a bespoke Go-struct-field
 layout, the way cpp-RCP's `coverage_buffer`/c-RCP's `rcp_e2e_compute_crc`
 already do).
+
+## Native L2 (raw Ethernet) transport, and real Annex J UDP/IP conformance (2026-07-31)
+
+TC18 §10.1 states plainly: "[IEEE1722] can be used as a layer-2 protocol,
+which is independent from the physical layer below... IEEE1722 can also be
+used in IP-networks... an AVTPDU is marked by an EtherType value of
+0x22F0. Encapsulation of 1722 frames in IP/UDP and port usage is described
+in Annex J." Milestone 44 (AVTPDU/ACF Wire Format, v0.57.0) built the
+`avtp.Header` this quote describes, and named native-Ethernet-carried
+AVTPDUs — not UDP/IP — as this repo's own originally-stated primary
+transport target, with UDP/IP framed only as "an alternative to raw
+Ethernet framing" left as a follow-on. That follow-on (Milestone 54,
+v0.67.0) built the `udp` package, but no native-Ethernet transport was ever
+built to go with it — Milestone 44's own stated primary target sat
+unimplemented through every milestone since. This entry closes that gap,
+and, alongside it, fixes a second, independently-discovered gap: the `udp`
+package's existing UDP/IP framing was never actually IEEE 1722-2016 Annex J
+conformant in the first place.
+
+- **New `l2` package: native layer-2 transport.** `l2.EncodeFrame`/
+  `l2.DecodeFrame` implement TC18 §10.1's own wire format directly:
+  destination MAC (6 bytes) + source MAC (6 bytes, auto-read from the
+  caller-named network interface — a caller never supplies its own source
+  MAC) + EtherType 0x22F0 (2 bytes, big-endian) + the AVTPDU bytes
+  unchanged, no trailer, no encapsulation sequence number (that field is
+  UDP-only — see below). `l2.Transport` (transport_linux.go) is the real,
+  Linux-only implementation: an `AF_PACKET`/`SOCK_RAW` socket bound to one
+  named interface, requiring `CAP_NET_RAW` (or root) to open — a genuine
+  runtime privilege requirement, stated plainly in `l2/doc.go` rather than
+  hidden. `Send` takes a caller-supplied destination MAC (unicast or
+  multicast) for every frame — TC18 only says a sender "select[s] a
+  (multicast) destination address depending on the identification of the
+  stream" without specifying the derivation algorithm, and that detail
+  lives in the base IEEE 1722 standard, which this implementation does not
+  have access to either, so this implementation does not guess at one; a
+  caller decides its own destination, exactly the way it already decides
+  its own destination `*net.UDPAddr` for the sibling `udp` package. On any
+  non-Linux `GOOS`, `transport_other.go`'s build-tagged stub satisfies the
+  same exported `Transport` API but `NewTransport` always returns
+  `ErrL2UnsupportedPlatform` explicitly — never a silent no-op, never a
+  whole-repo build failure — so callers on any platform can reference this
+  package unconditionally.
+
+- **`udp` package: real Annex J UDP/IP conformance, not this repo's own
+  invented framing.** Independently re-verified against two public
+  secondary sources — a Wireshark issue tracker discussion of the real
+  Annex J wire format, and the COVESA Open1722 open-source reference
+  implementation's actual `Avtp_Udp_t` header struct
+  (`include/avtp/Udp.h`, BSD-3-Clause, github.com/COVESA/Open1722) — cross-
+  checked against each other, since this implementation does not have
+  access to the paywalled IEEE 1722-2016 standard text itself (see
+  `udp/annexj.go`'s provenance note): Annex J prepends a 4-byte
+  encapsulation sequence number ahead of every UDP-carried AVTPDU, and
+  names standard destination UDP ports 17220 ("Continuous"/streaming
+  traffic) and 17221 ("Discrete"/control-plane traffic — the class RCP's
+  own request/response/acknowledge exchanges fall under). Through this
+  entry, `udp.Controller`/`udp.Server` had neither: no encapsulation
+  sequence number field at all, and no standard/default port — callers had
+  to supply an arbitrary `*net.UDPAddr`/listen address by hand every time.
+  Fixed: `Controller` and `Server` each maintain their own per-connection
+  monotonically-incrementing `uint32` encapsulation sequence number
+  (`encapSeq`), prepended big-endian to every outgoing UDP payload ahead of
+  the AVTPDU bytes and stripped on receive before handing the remainder to
+  `acf.DecodeFrame` (`prependEncapSeq`/`stripEncapSeq`); `AnnexJControlPort`
+  (17221) is now this package's default port whenever a caller dials or
+  listens without naming one explicitly, while an explicit caller-chosen
+  port (including port 0 for an OS-assigned ephemeral port, load-bearing
+  for this package's own test suite and every sibling package's) is honored
+  completely unchanged (`resolveAnnexJAddr`, `defaultAnnexJPort`) — no
+  existing caller's behavior changes. `MaxFrameLen` grew by the new
+  4-byte field's own width to keep describing the true maximum UDP
+  datagram size. This is a wire-format-breaking change: a `udp.Controller`
+  or `udp.Server` built before this entry cannot interoperate with one
+  built after it, on the same basis every other TC18-conformance fix this
+  ecosystem has made was also breaking (see the immediately preceding
+  entries in this document) — a wrong wire format was never something a
+  compatibility shim could paper over.
+
+- **Both transports are permanent and equally supported.** This was an
+  explicit decision, not a default: `l2` does not replace or deprecate
+  `udp`, and `udp`'s Annex J fix does not make it a fallback for `l2`. TC18
+  §10.1 documents raw Ethernet and UDP/IP as two genuinely different,
+  independent wire framings for the same `avtp.Header`/`acf.Message`
+  payload — a caller picks whichever fits its network (a dedicated
+  in-vehicle Ethernet segment where every node speaks 1722 natively, versus
+  traffic that needs to ride ordinary IP routing/switching) — and this repo
+  now supports both, on that basis.
+
+- **Tests.** Both transports' wire-format logic is covered by pure,
+  privilege-free, platform-independent unit tests exercising the byte
+  manipulation directly, with no real socket involved: `l2/frame_test.go`
+  (`EncodeFrame`/`DecodeFrame` byte layout, round-trip, short-buffer and
+  wrong-EtherType rejection) and `udp/annexj_test.go`
+  (`prependEncapSeq`/`stripEncapSeq` byte layout, round-trip,
+  short-buffer rejection, monotonic-increment behavior, and the new
+  default-port helpers). `udp/udp_test.go` adds
+  `TestController_EncapSeq_Monotonic`, driving a real `udp.Controller`
+  against a plain `net.ListenUDP` socket and asserting the captured
+  encapsulation sequence numbers strictly increase by one per datagram, and
+  updates the one existing test that hand-builds raw UDP datagrams
+  (`TestServer_Route_MultipleMessagesPerFrame`) to account for the new
+  leading field. A new Linux-only CI job ("L2 transport (Linux, veth)",
+  `.github/workflows/ci.yml`) creates a real `veth` pair, runs one
+  `l2.Transport` per side, and asserts a real frame round-trips
+  byte-for-byte over real `AF_PACKET`/`SOCK_RAW` sockets under `sudo`
+  (`l2/transport_linux_test.go`'s `TestL2VethRoundTrip`, which self-skips
+  outside that environment rather than failing the ordinary cross-platform
+  test job that also runs on `ubuntu-latest` without the veth pair or
+  privilege it needs).
