@@ -1744,7 +1744,8 @@
       "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical untimed (NTSCF) Header. StreamIDValid, SequenceNum, DataLength, and StreamID shall survive the round-trip byte-for-byte.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figure 6 (NTSCF header), TC18.txt L1064-1072"
     },
     {
       "id": "REQ-AVTP-002",
@@ -1752,7 +1753,8 @@
       "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical timestamped (TSCF) Header, including the presentation Timestamp and TimestampStatus marker, in addition to the fields shared with the untimed variant. TimestampInvalid is the one exception: TC18 Figure 5 gives the wire no way to distinguish it from TimestampMissing (both are tv=0), so it shall round-trip as TimestampMissing, which Header.Disposition treats identically.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figure 5 (TSCF header), TC18.txt L1055-1062"
     },
     {
       "id": "REQ-AVTP-003",
@@ -1824,7 +1826,8 @@
       "text": "avtp.EncodeMessage followed by avtp.DecodeMessage shall reproduce an identical Message of MessageKind KindShort, and the encoded bytes shall be exactly the 10-byte request-descriptor header plus the body, with no 64-bit timestamp slot present.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.2.1 Figure 7 + Table 4 (ACF_ABB descriptor: acf_msg_type/length/pad/mtv/rsv/byte_bus_id), TC18.txt L1142-1169"
     },
     {
       "id": "REQ-AVTP-012",
@@ -1832,7 +1835,8 @@
       "text": "avtp.EncodeMessage followed by avtp.DecodeMessage shall reproduce an identical Message of MessageKind KindLong, including the 64-bit Timestamp field carried immediately after the shared request-descriptor header.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.2.2.1 Figure 8 + Table 6 (ACF_GBB descriptor incl. message_timestamp slot), TC18.txt L1217-1280"
     },
     {
       "id": "REQ-AVTP-013",
@@ -1840,7 +1844,8 @@
       "text": "avtp.EncodeMessage/DecodeMessage shall preserve every combination of the Ack, Read, Write, Response, Error, and MoreSegments control bits, and Message.SegmentNumber/Message.ReadSize shall interpret ReadSizeOrSegment as a segment number when MoreSegments is set and as a read size otherwise.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.2.1 Table 4 + \u00a711.2.2.1 Table 6 (evt/hs/cs/transaction_num/op/rsp/err/ms/read_size-or-segment_num fields), TC18.txt L1160-1169,1271-1280"
     },
     {
       "id": "REQ-AVTP-014",
@@ -1848,7 +1853,8 @@
       "text": "avtp.DecodeMessage shall return ErrShortMessage for a buffer shorter than its declared length (including a truncated 64-bit timestamp slot on a KindLong message), ErrUnknownMessageKind for an unrecognized kind tag, and ErrReservedBitsSet for nonzero reserved pad or control bits.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.2.1 Table 4 + \u00a711.2.2.1 Table 6 (malformed-input rejection over the same descriptor fields), TC18.txt L1153-1169,1250-1280"
     },
     {
       "id": "REQ-AVTP-015",
@@ -2896,7 +2902,8 @@
       "text": "e2e.Compute shall be deterministic for a given (stream, Message) pair, and shall produce a different CRC32 value when the stream, ByteBusID, TransactionNum, Control, ReadSizeOrSegment, Timestamp, or Body of its input changes.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.6 Figures 19-20 (CRC scope: stream_id + avtp_timestamp + whole message), TC18.txt L3809-3812"
     },
     {
       "id": "REQ-CRC-002",
@@ -2904,7 +2911,8 @@
       "text": "e2e.Protect shall append a Len-byte trailing CRC32 safe point to a Message's Body computed by Compute over the message as given, and e2e.Verify shall strip and validate that trailing field, returning a Message with Body restored to its original contents when the safe point is valid.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.6 Table 31 (CRC32P4 parameters) + acf_msg_length quadlet adjustment, TC18.txt L3792-3815"
     },
     {
       "id": "REQ-CRC-003",
@@ -2912,7 +2920,8 @@
       "text": "e2e.Verify shall report ErrShortSafePoint when a message's Body is shorter than Len, and shall report ErrCRCMismatch without returning a usable inner message when the trailing CRC32 does not match the CRC recomputed over any covered field, including a tampered payload byte with an otherwise-intact trailing CRC.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.6, CRC-mismatch handling on request receipt, TC18.txt L3827-3828"
     },
     {
       "id": "REQ-CRC-004",
@@ -2920,7 +2929,8 @@
       "text": "e2e.ComputeFragmented, given a shared header and a slice of per-segment Body byte slices, shall produce exactly the CRC32 that e2e.Compute would produce for a single message carrying the same header with Body set to every segment's Body concatenated in order.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.6 (fragmented-request CRC over first AVTPDU/ACF header only), TC18.txt L3816-3823"
     },
     {
       "id": "REQ-CRC-005",
