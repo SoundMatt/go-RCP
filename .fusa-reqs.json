@@ -1749,7 +1749,7 @@
     {
       "id": "REQ-AVTP-002",
       "title": "Timestamped (TSCF) AVTPDU header round-trips all fields",
-      "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical timestamped (TSCF) Header, including the presentation Timestamp and TimestampStatus marker, in addition to the fields shared with the untimed variant.",
+      "text": "avtp.EncodeHeader followed by avtp.DecodeHeader shall reproduce an identical timestamped (TSCF) Header, including the presentation Timestamp and TimestampStatus marker, in addition to the fields shared with the untimed variant. TimestampInvalid is the one exception: TC18 Figure 5 gives the wire no way to distinguish it from TimestampMissing (both are tv=0), so it shall round-trip as TimestampMissing, which Header.Disposition treats identically.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1773,7 +1773,7 @@
     {
       "id": "REQ-AVTP-005",
       "title": "Header decode rejects nonzero reserved bits",
-      "text": "avtp.DecodeHeader shall return ErrReservedBitsSet when any bit documented as reserved in the AVTPDU header's flags byte is nonzero, for both the untimed and timestamped header variants.",
+      "text": "avtp.DecodeHeader shall return ErrReservedBitsSet when any bit TC18 §11.1 p.22 marks reserved within the AVTPDU header's first (subtype-data) quadlet is nonzero: the untimed header's r bit (Figure 6, bit 12), and the timestamped header's rsv field (Figure 5, bits 13-14) and reserved bits 24-30.",
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B"
@@ -1864,6 +1864,38 @@
       "text": "avtp.DecodeHeader, DecodeMessage, and DecodeFrame shall return an error or a valid value for any arbitrary byte slice and shall never panic or slice out of bounds, as verified by fuzz testing; in addition, a fixed set of golden byte-vector fixtures shall pin the exact encoding of representative server requests so later milestones can regression-test against a frozen wire format.",
       "standard": "iso21434",
       "level": "CAL-3",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-017",
+      "title": "Encoded AVTPDU headers match TC18 Figures 5 and 6 byte-for-byte",
+      "text": "avtp.EncodeHeader shall produce exactly the octet layouts defined by OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC §11.1 p.22. An untimed header shall be 12 octets: one quadlet packing subtype(8) | sv(1) | version(3) | r(1) | ntscf_data_length(11) | sequence_num(8) per Figure 6, immediately followed by the 64-bit stream_id with no reserved gap. A timestamped header shall be 24 octets: the Figure 5 subtype-data quadlet packing subtype(8) | sv(1) | version(3) | mr(1) | rsv(2) | tv(1) | sequence_num(8) | reserved(7) | tu(1), then stream_id(64), avtp_timestamp(32), the reserved format-specific quadlet(32), and a quadlet carrying stream_data_length(16) followed by 16 reserved bits.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-018",
+      "title": "AVTPDU subtype tags carry the specification's own values",
+      "text": "avtp.SubtypeNTSCF shall equal 0x82 and avtp.SubtypeTSCF shall equal 0x05, the values labelled on the subtype field of TC18 §11.1 p.22 Figure 6 and Figure 5 respectively, so that a frame this package emits is recognised as the intended AVTPDU control format by a conformant peer.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-019",
+      "title": "The timestamped header's timestamp marker is carried by TC18's separate tv and tu bits",
+      "text": "avtp.EncodeHeader shall encode Header.TimestampStatus into the two single-bit fields TC18 Figure 5 defines for it — tv (bit 15) and tu (bit 31) — as TimestampValid: tv=1,tu=0; TimestampUncertain: tv=1,tu=1; TimestampMissing and TimestampInvalid: tv=0,tu=0. avtp.DecodeHeader shall report tv=0 as TimestampMissing regardless of tu, tv=1 with tu=0 as TimestampValid, and tv=1 with tu=1 as TimestampUncertain.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B"
+    },
+    {
+      "id": "REQ-AVTP-020",
+      "title": "A timestamped header's stream_data_length decodes at its full 16-bit width",
+      "text": "avtp.DecodeHeader shall read a timestamped (TSCF) header's stream_data_length as the full 16-bit field TC18 Figure 5 defines, without masking it to the narrower 11-bit width of the untimed header's ntscf_data_length, so that a conformant peer's larger frame is reported accurately rather than silently truncated.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
       "asil": "ASIL-B"
     },
     {

@@ -7,9 +7,14 @@ import "github.com/SoundMatt/go-RCP/avtp"
 // does not export its own wire length (Header.wireLen is unexported, an
 // internal encode/decode bookkeeping detail, not a public transport
 // concern), so this package restates just the one number it actually needs
-// — the untimed header (13 bytes) plus the 4-byte timestamp field TSCF
-// headers append — as its own transport-level buffer-sizing constant.
-const maxTimedHeaderLen = 13 + 4
+// as its own transport-level buffer-sizing constant.
+//
+// Per TC18 §11.1 p.22 Figure 5 a TSCF header is six quadlets: the "subtype
+// data" quadlet, stream_id (two quadlets), avtp_timestamp, the "Format
+// specific" reserved quadlet, and the "Packet Info" quadlet carrying
+// stream_data_length. That is 24 octets, not the 17 this constant claimed
+// through v8.0.0, when avtp itself mis-encoded both header variants.
+const maxTimedHeaderLen = 6 * 4
 
 // MaxFrameLen is the largest single UDP datagram this package's Controller
 // and Server ever need to send or receive: Annex J's 4-byte encapsulation

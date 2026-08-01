@@ -73,19 +73,45 @@
 // allows CAN(FD/XL)-carried AVTPDUs, which remains a real, un-implemented
 // option this package's Header does not currently target.
 //
-// # A note on spec fidelity (Guiding Principle 10)
+// # Spec fidelity: the header layout was wrong through v8.0.0 (RESOLVED)
 //
-// This package's exact numeric AVTPDU subtype tags (SubtypeNTSCF,
-// SubtypeTSCF) and internal header bit-field widths have not yet been
+// Through v8.0.0 this doc carried an open caveat: the package's numeric
+// AVTPDU subtype tags and header bit-field widths "have not yet been
 // independently re-verified against the governing OPEN Alliance TC18
-// Remote Control Protocol Specification; see the ecosystem audit tracking
-// issues for known gaps. Structural behaviour — which fields exist, what
-// they mean, and the validation/fallback rules around them — is what this
-// milestone targets and tests; the precise numeric tag values are flagged
-// here as an open item to confirm once a public interoperability reference
-// becomes available, per this repo's established practice of surfacing
-// spec ambiguity rather than silently guessing (see the I²C bus-speed-enum
-// note at Milestone 48 for precedent).
+// Remote Control Protocol Specification". That verification has now been
+// done, against §11.1 p.22 Figure 6 (NTSCF-Header Version 0) and Figure 5
+// (TSCF-Header Version 0), cross-checked against the worked CRC32 examples
+// on p.79 (Figure 20 for NTSCF, Figure 19 for TSCF). Both header variants
+// were wrong, and neither would ever have interoperated with a conformant
+// peer:
+//
+//   - The NTSCF header was encoded as 13 octets — subtype(1), a flags
+//     octet, sequence_num(1), a plain 16-bit data-length field, then
+//     stream_id(8). Figure 6 defines exactly 12: a single quadlet packing
+//     subtype(8) | sv(1) | version(3) | r(1) | ntscf_data_length(11) |
+//     sequence_num(8), immediately followed by the 64-bit stream_id, with
+//     no reserved gap. The length field is 11 bits straddling two octets
+//     and precedes sequence_num, rather than following it as a whole
+//     16-bit word.
+//
+//   - The TSCF header was encoded as that same wrong 13-octet layout plus a
+//     bare 4-byte timestamp, 17 octets in all. Figure 5 defines 24: the
+//     "subtype data" quadlet (subtype | sv | version | mr | rsv | tv |
+//     sequence_num | reserved | tu), stream_id(64), avtp_timestamp(32), a
+//     reserved "Format specific" quadlet, and a "Packet Info" quadlet
+//     carrying stream_data_length(16) plus 16 reserved bits. Its
+//     timestamp-validity marker is two separate single bits (tv and tu) in
+//     two different octets, not the 2-bit field this package packed into
+//     the flags octet.
+//
+//   - SubtypeTSCF was 0x83, apparently derived as "one past NTSCF's 0x82"
+//     rather than read off the specification. Figure 5 labels the field
+//     "subtype(0x05)". SubtypeNTSCF's 0x82 was correct.
+//
+// Fixing all three is a wire-format break with no compatibility shim, the
+// same posture every prior TC18-conformance pass in ROADMAP.md took: a
+// wrong wire format was never something a shim could paper over. See
+// ROADMAP.md's v9.0.0 section.
 package avtp
 
 //fusa:req REQ-AVTP-001
@@ -98,3 +124,7 @@ package avtp
 //fusa:req REQ-AVTP-008
 //fusa:req REQ-AVTP-009
 //fusa:req REQ-AVTP-010
+//fusa:req REQ-AVTP-017
+//fusa:req REQ-AVTP-018
+//fusa:req REQ-AVTP-019
+//fusa:req REQ-AVTP-020

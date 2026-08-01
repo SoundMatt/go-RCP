@@ -8,6 +8,10 @@
 //fusa:test REQ-AVTP-008
 //fusa:test REQ-AVTP-009
 //fusa:test REQ-AVTP-010
+//fusa:test REQ-AVTP-017
+//fusa:test REQ-AVTP-018
+//fusa:test REQ-AVTP-019
+//fusa:test REQ-AVTP-020
 
 // Message-, ControlFlags-, and Frame-level tests (originally REQ-AVTP-011
 // through REQ-AVTP-016) moved to the acf package's own test files when the
@@ -16,6 +20,7 @@
 package avtp_test
 
 import (
+	"bytes"
 	"errors"
 	"reflect"
 	"testing"
@@ -130,18 +135,185 @@ func TestDecodeHeader_ReservedBitsSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EncodeHeader: %v", err)
 	}
-	untimed[1] |= 0x01
+	// TC18 Figure 6: NTSCF's sole reserved bit "r" is bit 12 — octet 1,
+	// bit 3 (0x08). Bits 13-15 of that octet are ntscf_data_length's top
+	// three, and bits 0-2 are sv/version, so 0x08 is the only bit here a
+	// conformant sender must leave clear.
+	untimed[1] |= 0x08
 	if _, _, decErr := avtp.DecodeHeader(untimed); !errors.Is(decErr, avtp.ErrReservedBitsSet) {
-		t.Errorf("untimed reserved bit: DecodeHeader = %v, want ErrReservedBitsSet", decErr)
+		t.Errorf("untimed r bit: DecodeHeader = %v, want ErrReservedBitsSet", decErr)
 	}
 
+	// TC18 Figure 5: TSCF's "rsv" field is bits 13-14 — octet 1, mask 0x06.
 	timed, err := avtp.EncodeHeader(avtp.Header{Timed: true, StreamID: testStreamID()})
 	if err != nil {
 		t.Fatalf("EncodeHeader: %v", err)
 	}
-	timed[1] |= 0x01
-	if _, _, err := avtp.DecodeHeader(timed); !errors.Is(err, avtp.ErrReservedBitsSet) {
-		t.Errorf("timed reserved bit: DecodeHeader = %v, want ErrReservedBitsSet", err)
+	timed[1] |= 0x02
+	if _, _, decErr := avtp.DecodeHeader(timed); !errors.Is(decErr, avtp.ErrReservedBitsSet) {
+		t.Errorf("timed rsv field: DecodeHeader = %v, want ErrReservedBitsSet", decErr)
+	}
+
+	// TC18 Figure 5: bits 24-30 — octet 3, mask 0xFE — are reserved; only
+	// bit 31 ("tu") carries meaning there.
+	timed2, err := avtp.EncodeHeader(avtp.Header{Timed: true, StreamID: testStreamID()})
+	if err != nil {
+		t.Fatalf("EncodeHeader: %v", err)
+	}
+	timed2[3] |= 0x80
+	if _, _, decErr := avtp.DecodeHeader(timed2); !errors.Is(decErr, avtp.ErrReservedBitsSet) {
+		t.Errorf("timed octet-3 reserved: DecodeHeader = %v, want ErrReservedBitsSet", decErr)
+	}
+}
+
+// ── REQ-AVTP-017: encoded headers match TC18 Figures 5 and 6 byte-for-byte ─
+//
+// The byte expectations below are laid out by hand from the specification's
+// own figures — "OPEN Alliance TC18 Remote Control Protocol Specification
+// v0.5.1_RC" §11.1 p.22, Figure 6 (NTSCF-Header Version 0) and Figure 5
+// (TSCF-Header Version 0) — not copied back out of EncodeHeader. Both
+// figures were read from a 600-DPI render of p.22 and cross-checked against
+// the worked examples on p.79 (Figure 20 NTSCF, Figure 19 TSCF).
+func TestEncodeHeader_UntimedWireLayout(t *testing.T) {
+	h := avtp.Header{
+		StreamIDValid: true,
+		SequenceNum:   0x5A,
+		DataLength:    0x123, // 291: exercises all 11 bits' straddle
+		StreamID:      testStreamID(),
+	}
+	// Figure 6, one quadlet then stream_id (12 octets total):
+	//   octet 0      subtype                     = 0x82
+	//   octet 1      sv=1 | version=000 | r=0 | ntscf_data_length[10:8]=001
+	//                -> 1 000 0 001              = 0x81
+	//   octet 2      ntscf_data_length[7:0]      = 0x23
+	//   octet 3      sequence_num                = 0x5A
+	//   octets 4-11  stream_id
+	want := []byte{
+		0x82, 0x81, 0x23, 0x5A,
+		0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x12, 0x34,
+	}
+	got, err := avtp.EncodeHeader(h)
+	if err != nil {
+		t.Fatalf("EncodeHeader: %v", err)
+	}
+	if len(got) != 12 {
+		t.Errorf("NTSCF header length = %d, want 12 (TC18 Figure 6)", len(got))
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("NTSCF wire layout:\n got  % X\n want % X", got, want)
+	}
+}
+
+func TestEncodeHeader_TimedWireLayout(t *testing.T) {
+	h := avtp.Header{
+		Timed:           true,
+		StreamIDValid:   true,
+		SequenceNum:     0x5A,
+		DataLength:      0x123,
+		StreamID:        testStreamID(),
+		Timestamp:       0xDEADBEEF,
+		TimestampStatus: avtp.TimestampUncertain, // tv=1, tu=1
+	}
+	// Figure 5, six quadlets (24 octets total):
+	//   octet 0        subtype                        = 0x05
+	//   octet 1        sv=1|version=000|mr=0|rsv=00|tv=1 -> 1 000 0 00 1 = 0x81
+	//   octet 2        sequence_num                   = 0x5A
+	//   octet 3        reserved=0000000 | tu=1        = 0x01
+	//   octets 4-11    stream_id
+	//   octets 12-15   avtp_timestamp                 = 0xDEADBEEF
+	//   octets 16-19   "Format specific" reserved     = 0
+	//   octets 20-21   stream_data_length             = 0x0123
+	//   octets 22-23   reserved                       = 0
+	want := []byte{
+		0x05, 0x81, 0x5A, 0x01,
+		0x02, 0x11, 0x22, 0x33, 0x44, 0x55, 0x12, 0x34,
+		0xDE, 0xAD, 0xBE, 0xEF,
+		0x00, 0x00, 0x00, 0x00,
+		0x01, 0x23, 0x00, 0x00,
+	}
+	got, err := avtp.EncodeHeader(h)
+	if err != nil {
+		t.Fatalf("EncodeHeader: %v", err)
+	}
+	if len(got) != 24 {
+		t.Errorf("TSCF header length = %d, want 24 (TC18 Figure 5)", len(got))
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("TSCF wire layout:\n got  % X\n want % X", got, want)
+	}
+}
+
+// ── REQ-AVTP-018: subtype tags carry the specification's own values ────────
+
+func TestSubtypeValues(t *testing.T) {
+	// TC18 §11.1 p.22 Figure 6 labels the NTSCF header's first octet
+	// "subtype(0x82)"; Figure 5 labels the TSCF header's "subtype(0x05)".
+	// Both are repeated by the p.79 worked examples (Figures 19 and 20).
+	if avtp.SubtypeNTSCF != 0x82 {
+		t.Errorf("SubtypeNTSCF = %#x, want 0x82 (TC18 Figure 6)", avtp.SubtypeNTSCF)
+	}
+	if avtp.SubtypeTSCF != 0x05 {
+		t.Errorf("SubtypeTSCF = %#x, want 0x05 (TC18 Figure 5)", avtp.SubtypeTSCF)
+	}
+}
+
+// ── REQ-AVTP-019: TSCF's tv/tu bit pair carries the timestamp marker ───────
+
+func TestHeader_TimestampMarkerBits(t *testing.T) {
+	tests := []struct {
+		status     avtp.TimestampStatus
+		wantTV     bool
+		wantTU     bool
+		wantDecode avtp.TimestampStatus
+	}{
+		// TC18 Figure 5: tv is bit 15 (octet 1, mask 0x01), tu is bit 31
+		// (octet 3, mask 0x01).
+		{avtp.TimestampValid, true, false, avtp.TimestampValid},
+		{avtp.TimestampUncertain, true, true, avtp.TimestampUncertain},
+		{avtp.TimestampMissing, false, false, avtp.TimestampMissing},
+		// Invalid and Missing are indistinguishable on the wire (both
+		// tv=0); decode reports the zero value. Disposition treats them
+		// identically, so nothing downstream observes the collapse.
+		{avtp.TimestampInvalid, false, false, avtp.TimestampMissing},
+	}
+	for _, tt := range tests {
+		b, err := avtp.EncodeHeader(avtp.Header{Timed: true, TimestampStatus: tt.status})
+		if err != nil {
+			t.Fatalf("EncodeHeader(%v): %v", tt.status, err)
+		}
+		if gotTV := b[1]&0x01 != 0; gotTV != tt.wantTV {
+			t.Errorf("%v: tv = %v, want %v", tt.status, gotTV, tt.wantTV)
+		}
+		if gotTU := b[3]&0x01 != 0; gotTU != tt.wantTU {
+			t.Errorf("%v: tu = %v, want %v", tt.status, gotTU, tt.wantTU)
+		}
+		h, _, err := avtp.DecodeHeader(b)
+		if err != nil {
+			t.Fatalf("DecodeHeader(%v): %v", tt.status, err)
+		}
+		if h.TimestampStatus != tt.wantDecode {
+			t.Errorf("%v: decoded status = %v, want %v", tt.status, h.TimestampStatus, tt.wantDecode)
+		}
+	}
+}
+
+// ── REQ-AVTP-020: TSCF's stream_data_length is a full 16 bits on decode ────
+
+func TestDecodeHeader_TimedFullWidthDataLength(t *testing.T) {
+	// TC18 Figure 5's "Packet Info" row gives stream_data_length bits 0-15
+	// of its quadlet — 16 bits, unlike NTSCF's 11 — so a decoder must not
+	// mask it down to 11 or a conformant peer's larger frame is misparsed.
+	b, err := avtp.EncodeHeader(avtp.Header{Timed: true, StreamID: testStreamID()})
+	if err != nil {
+		t.Fatalf("EncodeHeader: %v", err)
+	}
+	b[20], b[21] = 0xAB, 0xCD
+	h, _, err := avtp.DecodeHeader(b)
+	if err != nil {
+		t.Fatalf("DecodeHeader: %v", err)
+	}
+	if h.DataLength != 0xABCD {
+		t.Errorf("DataLength = %#x, want 0xABCD", h.DataLength)
 	}
 }
 

@@ -2623,3 +2623,97 @@ is deleted outright, and every endpoint type now rejects requests it
 previously executed. No compatibility shim is provided, the same posture
 every prior TC18-conformance fix pass in this document established: a wrong
 wire format was never something a shim could paper over.
+
+## AVTPDU header layout: both NTSCF and TSCF headers were wrong on the wire (v9.0.0, 2026-07-31)
+
+Every frame this repo has ever emitted was unreadable by a conformant peer.
+The `avtp` package's own doc comment had said so, in a way: through
+`v8.0.0` it carried an explicit caveat that its "exact numeric AVTPDU
+subtype tags (`SubtypeNTSCF`, `SubtypeTSCF`) and internal header bit-field
+widths have not yet been independently re-verified against the governing
+OPEN Alliance TC18 Remote Control Protocol Specification". That
+verification has now been done, and all three of the flagged items were
+wrong.
+
+The primary source is TC18 v0.5.1_RC §11.1 p.22 — Figure 6
+("NTSCF-Header Version 0") and Figure 5 ("TSCF-Header Version 0"). Both are
+raster figures, so the text extraction this repo's earlier audits leaned on
+preserves field *order* but not bit *widths*; they were read instead off a
+600-DPI render of the page, with the field-divider positions measured in
+pixels and mapped back onto the figures' own 0-31 bit ruler, then
+cross-checked against the worked CRC32 examples on p.79 (Figure 20 for
+NTSCF, Figure 19 for TSCF), which repeat both layouts and both subtype
+values independently.
+
+**The NTSCF header is 12 octets, not 13.** Figure 6 defines a single
+32-bit "subtype data" quadlet packing `subtype(8) | sv(1) | version(3) |
+r(1) | ntscf_data_length(11) | sequence_num(8)`, immediately followed by
+the 64-bit `stream_id` — no reserved gap. This package encoded 13: a
+subtype octet, a flags octet, `sequence_num`, a *plain 16-bit*
+`data_length` word, then `stream_id`. Three separate errors compound
+there — the length field is 11 bits and straddles two octets rather than
+occupying a whole word of its own; it *precedes* `sequence_num` rather
+than following it; and the extra octet shifts `stream_id` and everything
+after it one byte late.
+
+**The TSCF header is 24 octets, not 17.** Figure 5 defines six quadlets:
+the subtype-data quadlet (`subtype(8) | sv(1) | version(3) | mr(1) |
+rsv(2) | tv(1) | sequence_num(8) | reserved(7) | tu(1)`), `stream_id(64)`,
+`avtp_timestamp(32)`, a reserved "Format specific" quadlet, and a "Packet
+Info" quadlet carrying `stream_data_length(16)` plus 16 reserved bits.
+This package encoded the wrong 13-octet NTSCF layout with a bare 4-byte
+timestamp bolted on. Two consequences beyond the length: the
+timestamp-validity marker is two *separate single bits* in two different
+octets (`tv` at bit 15, `tu` at bit 31), not the 2-bit field this package
+packed into its flags octet; and `stream_data_length` is a full 16 bits
+where NTSCF's is 11, so `DecodeHeader` masking it to 11 would have
+silently truncated a conformant peer's larger frame.
+
+**`SubtypeTSCF` was `0x83`, and the specification says `0x05`.** Figure 5
+labels the field "subtype(0x05)" outright; Figure 19 on p.79 repeats it.
+`0x83` looks derived as "one past NTSCF's `0x82`" rather than read off
+anything. `SubtypeNTSCF`'s `0x82` was correct — Figure 6 and Figure 20 both
+label it. This is the identical bug rust-RCP carried and fixed in its own
+PR #134; go-RCP's was found as a byproduct of that fix.
+
+`Header.TimestampStatus` keeps its four-value API but now maps onto the
+real `tv`/`tu` pair: `TimestampValid` is `tv=1,tu=0`, `TimestampUncertain`
+is `tv=1,tu=1`, and both `TimestampMissing` and `TimestampInvalid` are
+`tv=0,tu=0` — the wire genuinely cannot distinguish "no marker set" from
+"the sender could not vouch for it", so `DecodeHeader` reports `tv=0` as
+`TimestampMissing` (the zero value, so a default-constructed timed header
+round-trips exactly) and `TimestampInvalid` round-trips as
+`TimestampMissing`. `Header.Disposition` already treated the two
+identically, so no dispatch behaviour changes. `DecodeHeader` now rejects
+nonzero values in exactly the bits the figures mark reserved within the
+first quadlet — NTSCF's `r`, TSCF's `rsv` and its bits 24-30 — where before
+it rejected a nibble that, under the correct layout, holds
+`ntscf_data_length`'s top bits and TSCF's `tv`. TSCF's `mr` bit is read
+and ignored rather than rejected: RCP has no media clock, but `mr` is a
+defined IEEE 1722 field, not a reserved one.
+
+Downstream, `udp`'s `maxTimedHeaderLen` buffer-sizing constant went from
+`13 + 4` to `6 * 4`; nothing else in the repo hardcoded a header length.
+`acf/acf_golden_test.go`'s two frozen wire vectors were re-derived by hand
+from the figures — octet by octet, with the derivation written out in the
+fixture comment — rather than re-copied out of the fixed encoder's own
+output, and `avtp/avtp_test.go` gains four new tests asserting the exact
+byte layout of both variants, both subtype values, the `tv`/`tu` mapping,
+and the full-width TSCF length decode. The two fuzz seeds that poked a
+"maximum data length" into octets 3-4 now poke it into octets 1-2, where
+the field actually lives.
+
+`.fusa-reqs.json` grows from 597 to 601 requirements (`REQ-AVTP-017`
+through `REQ-AVTP-020`), and two existing ones were **corrected**:
+`REQ-AVTP-002`, which certified an unqualified TSCF round-trip the wire
+cannot actually deliver for `TimestampInvalid`, and `REQ-AVTP-005`, which
+described the reserved bits by the wrong positions. `go build`/`go vet`/
+`go test -race`/`golangci-lint run` all pass; `gofusa check` reports 0
+errors and `gofusa trace` 601/601 requirements traced and tested.
+
+**Version**: `v9.0.0`. Every AVTPDU this module emits or accepts changes
+shape, in both variants, and one of the two subtype tags changes value. No
+compatibility shim is provided — the same posture every prior
+TC18-conformance fix pass in this document established, and the only
+defensible one here: the old bytes were not an older dialect of the
+protocol, they were not the protocol.

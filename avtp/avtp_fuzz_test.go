@@ -27,7 +27,10 @@ func FuzzDecodeHeader(f *testing.F) {
 	if err != nil {
 		f.Fatalf("EncodeHeader: %v", err)
 	}
-	huge[3], huge[4] = 0x07, 0xFF // max representable 11-bit data_length
+	// ntscf_data_length is 11 bits straddling octets 1 and 2 (TC18 Figure
+	// 6, bits 13-23), not a whole 16-bit word further along the header.
+	huge[1] |= 0x07
+	huge[2] = 0xFF // 0x7FF: max representable ntscf_data_length
 	f.Add(huge)
 
 	f.Fuzz(func(t *testing.T, b []byte) {
