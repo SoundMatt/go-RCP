@@ -2,10 +2,16 @@ package request
 
 // Kind selects which conditional-request shape a Message's envelope carries.
 // KindPlain is the zero value and is never itself present on the wire — a
-// Message with acf.FlagExtended unset carries no envelope at all and is
-// treated as KindPlain internally (see Dispatcher.Submit); every other value
-// is a byte this package's own envelope encoding writes as Body's first
-// byte.
+// Message that is not acf.KindLong with MTV false carries no envelope at
+// all and is treated as KindPlain internally (see Dispatcher.Submit's
+// isConditionalEnvelope); every other value is a byte this package's own
+// envelope encoding currently writes as Body's first byte.
+//
+// That placement is itself a known, tracked gap: TC18 §11.2.2/§11.2.3
+// repurpose the message_timestamp slot (acf.Message.Timestamp) for this
+// metadata when MTV is false, not Body — see request/doc.go's "Wire layer"
+// section and the udp package's Controller.Request, which has no working
+// path to send a KindLong/MTV-false envelope at all today.
 type Kind uint8
 
 const (
