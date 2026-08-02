@@ -1910,7 +1910,8 @@
       "text": "server.NewServer shall return a Server in StateUnconfigured with no endpoints declared, an empty pin-mapping table, and zero-value stream/queue configuration.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.3 (\"The three lifecycle states the device may be in are...\"), TC18.txt L2063"
     },
     {
       "id": "REQ-RCS-002",
@@ -2262,7 +2263,8 @@
       "text": "spi.Channel.Valid shall return true for exactly Channel0 through Channel5 (MaxChannels) and false for any other value.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.3.1 (\"the SPI endpoint may support up to 6 pre-configurable sets of SPI configurations\"), TC18.txt L4192"
     },
     {
       "id": "REQ-SPI-002",
@@ -2550,7 +2552,8 @@
       "text": "adc.Endpoint.Trigger shall take Config.SampleCount raw readings from the configured Transport, arithmetic-average them, combine the average with the endpoint's previous value under Config.Combine, mask the result to Config.ResolutionBits, and queue a TriggerMeasurementDone event carrying that value.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.9.2 (\"an implementation may decide to fix\" the samples-per-interval field read-only; this implementation instead makes it writable via Config.SampleCount, the more general of the two spec-permitted choices), TC18.txt L5040"
     },
     {
       "id": "REQ-ADC-005",
@@ -2726,7 +2729,8 @@
       "text": "request.Sequencer.Advance shall add its delta modulo 2^32 (wrapping rather than saturating), each SequencerID shall address an independent register starting at zero, and evaluating a Conditional shall advance its register only when the comparison holds.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.2 (\"[an implementation] may support only a lower number of sequencers\"), TC18.txt L3473"
     },
     {
       "id": "REQ-REQ-005",
@@ -2742,7 +2746,8 @@
       "text": "request.EncodeTriggered/DecodeTriggered and EncodeTimed/DecodeTimed shall round-trip their trigger source or target execution time alongside an inner Control/Body.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.3 (\"Each endpoint may be configured to start a request upon receiving a selected trigger signal\"), TC18.txt L1413"
     },
     {
       "id": "REQ-REQ-007",
@@ -2886,7 +2891,8 @@
       "text": "request.Dispatcher.Submit shall reject a safety-request Kind with ErrSafeStateNotConfigured when no SafeStateCheck is configured, and Dispatcher.Pump shall leave a safety-request ticket in StateStarted on every call for which SetSafeStateCheck's configured function reports false for that ticket's requester, advancing it only once that function reports true.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.7.7 (\"a safe state may be enforced. The safe state to enter can be chosen via the Safety_Measure parameter\"), TC18.txt L2935"
     },
     {
       "id": "REQ-REQ-025",
@@ -3306,7 +3312,8 @@
       "text": "wakeup.PowerState.Valid shall return true for exactly PowerNormal, PowerStandBy, PowerSleep, and PowerUnpowered and false for any other value, and PowerState.String/StartKind.String shall render a distinct, non-empty name for each of their defined values and \"Unknown\" for any other value.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.4 (\"The RC Server may support different power modes\"), TC18.txt L2268"
     },
     {
       "id": "REQ-WAKEUP-004",
