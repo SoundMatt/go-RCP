@@ -60,13 +60,19 @@ func (c *Controller) RawConn() (interface{ Control(func(uintptr)) error }, error
 	return c.conn.SyscallConn()
 }
 
-// Request sends one plain (KindPlain) request to addr with the given
+// Request sends one plain (KindShort) request to addr with the given
 // control flags and body, and blocks for the matching response (by
-// acf.Message.TransactionNum) or ctx's expiry, whichever comes first. A
-// caller building a conditional-request envelope (request.EncodeCompound
-// and friends) sets FlagExtended in control itself and passes the encoded
-// envelope as body — Request only owns the addressing/correlation
-// bookkeeping, not the envelope's own shape.
+// acf.Message.TransactionNum) or ctx's expiry, whichever comes first.
+//
+// Request always constructs Kind: acf.KindShort — it does not yet have a
+// way to send a request/-package conditional/cancel/chained/timed envelope
+// (request.EncodeCompound, EncodeCancelAll, and friends), which the wire
+// format requires routing as Kind: acf.KindLong with MTV false instead (see
+// request/doc.go's "Wire layer" section). The acf.FlagExtended-based
+// mechanism this comment used to describe was removed in acf v2.0 (see
+// acf/doc.go) and was never replaced with a working Controller-level path;
+// see the request package's own doc.go for the current, tracked scope of
+// this gap.
 func (c *Controller) Request(ctx context.Context, addr avtp.ByteBusID, control acf.ControlFlags, body []byte) (acf.Message, error) {
 	if c.closed.Load() {
 		return acf.Message{}, fmt.Errorf("rcp/udp: stream %s: %w", c.streamID, ErrClosed)
