@@ -25,7 +25,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 func testStreamID() avtp.StreamID {

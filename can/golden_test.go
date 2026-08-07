@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/can"
+	"github.com/SoundMatt/go-RCP/v9/can"
 )
 
 // ── REQ-CANEP-010 (golden-vector half): frozen CAN Config/Frame byte

@@ -5,7 +5,7 @@ package uart_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/uart"
+	"github.com/SoundMatt/go-RCP/v9/uart"
 )
 
 // ── REQ-UART-009 (fuzz half): decoders never panic on arbitrary input ─────

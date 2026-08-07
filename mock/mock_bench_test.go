@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/mock"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/mock"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // BenchmarkClient_Request_RoundTrip measures the in-process Client -> Router

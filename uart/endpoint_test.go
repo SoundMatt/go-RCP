@@ -11,10 +11,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/regmap"
-	"github.com/SoundMatt/go-RCP/uart"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
+	"github.com/SoundMatt/go-RCP/v9/uart"
 )
 
 func writeReq(tx []byte) acf.Message {

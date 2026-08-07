@@ -1,6 +1,6 @@
 package regmap
 
-import "github.com/SoundMatt/go-RCP/avtp"
+import "github.com/SoundMatt/go-RCP/v9/avtp"
 
 // AccessController implements the EP0 root-client concept: exactly one
 // stream may hold the root-client role, with full-register-map write

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/l2"
+	"github.com/SoundMatt/go-RCP/v9/l2"
 )
 
 // TestL2VethRoundTrip verifies two real l2.Transport instances, bound to a

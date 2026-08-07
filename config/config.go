@@ -38,8 +38,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 	"gopkg.in/yaml.v3"
 )
 

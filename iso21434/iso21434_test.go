@@ -13,7 +13,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/iso21434"
+	"github.com/SoundMatt/go-RCP/v9/iso21434"
 )
 
 // REQ-I214-001: ComputeRisk returns the correct risk value (impact × feasibility).

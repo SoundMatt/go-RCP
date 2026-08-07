@@ -5,7 +5,7 @@ package request_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // ── REQ-REQ-010 (fuzz half): decoders never panic on arbitrary input ──────

@@ -1,6 +1,6 @@
 package acf
 
-import "github.com/SoundMatt/go-RCP/avtp"
+import "github.com/SoundMatt/go-RCP/v9/avtp"
 
 // Frame is a full AVTPDU carrying zero or more RCP-over-ACF messages: the
 // avtp package's IEEE 1722 header framing wrapped around a sequence of this

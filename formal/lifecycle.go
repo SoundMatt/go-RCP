@@ -1,10 +1,10 @@
 package formal
 
 import (
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/lifecycle"
-	"github.com/SoundMatt/go-RCP/regmap"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/lifecycle"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
+	"github.com/SoundMatt/go-RCP/v9/server"
 )
 
 // LifecycleRank orders lifecycle.LifecycleState values for the two

@@ -3,8 +3,8 @@ package request
 import (
 	"encoding/binary"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // This file implements this package's own wire encoding for the

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/iseled"
+	"github.com/SoundMatt/go-RCP/v9/iseled"
 )
 
 // TestCommandRoundTrip checks EncodeCommand/DecodeCommand round-trip, and

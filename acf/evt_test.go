@@ -13,7 +13,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/v9/acf"
 )
 
 // ── REQ-EVT-001..007: TC18 §13.5 Table 30 / §12.9.1 / §12.7.1 ─────────────

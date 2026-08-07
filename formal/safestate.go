@@ -3,8 +3,8 @@ package formal
 import (
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/e2e"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
 )
 
 // SafeStateOf snapshots sup's current InSafeState verdict for stream as a

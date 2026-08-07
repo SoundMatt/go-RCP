@@ -1,6 +1,6 @@
 package wakeup
 
-import "github.com/SoundMatt/go-RCP/regmap"
+import "github.com/SoundMatt/go-RCP/v9/regmap"
 
 // EndpointType re-exports regmap.EndpointTypeWakeup so a caller that only
 // imports this package doesn't also need to import server just to declare

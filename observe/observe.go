@@ -7,9 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -75,7 +75,7 @@ type observingController struct {
 func New(inner Controller, cfg Config) Controller {
 	t := cfg.Tracer
 	if t == nil {
-		t = otel.Tracer("github.com/SoundMatt/go-RCP/observe")
+		t = otel.Tracer("github.com/SoundMatt/go-RCP/v9/observe")
 	}
 	return &observingController{inner: inner, tracer: t, metrics: cfg.Metrics}
 }

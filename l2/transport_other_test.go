@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/l2"
+	"github.com/SoundMatt/go-RCP/v9/l2"
 )
 
 // TestNewTransport_UnsupportedPlatform verifies NewTransport fails

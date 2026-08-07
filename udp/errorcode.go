@@ -3,11 +3,11 @@ package udp
 import (
 	"errors"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/e2e"
-	"github.com/SoundMatt/go-RCP/pwm"
-	"github.com/SoundMatt/go-RCP/regmap"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
+	"github.com/SoundMatt/go-RCP/v9/pwm"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // ErrorCode is the numeric error-response code errorResponse carries as the

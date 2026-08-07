@@ -5,7 +5,7 @@ package gpio_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/gpio"
+	"github.com/SoundMatt/go-RCP/v9/gpio"
 )
 
 // ── REQ-GPIO-011 (fuzz half): decoders never panic on arbitrary input ─────

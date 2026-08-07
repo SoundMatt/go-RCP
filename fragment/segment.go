@@ -1,6 +1,6 @@
 package fragment
 
-import "github.com/SoundMatt/go-RCP/acf"
+import "github.com/SoundMatt/go-RCP/v9/acf"
 
 // maxSegmentIndex is the largest segment number a non-terminal segment can
 // carry in the wire's 16-bit ReadSizeOrSegment field (see

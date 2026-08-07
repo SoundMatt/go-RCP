@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Handler is the shape every Phase 14 endpoint type's Endpoint.HandleRequest

@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Server is the listening side of this package's AVTPDU/ACF-over-UDP/IP

@@ -15,9 +15,9 @@ import (
 	"time"
 
 	relay "github.com/SoundMatt/RELAY/v2"
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	rcp "github.com/SoundMatt/go-RCP/v9"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // fakeController is a hand-rolled rcp.Controller that lets a test force the

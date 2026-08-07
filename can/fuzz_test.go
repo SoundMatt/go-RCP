@@ -5,7 +5,7 @@ package can_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/can"
+	"github.com/SoundMatt/go-RCP/v9/can"
 )
 
 // ── REQ-CANEP-005 (fuzz half): decoders never panic on arbitrary input ────

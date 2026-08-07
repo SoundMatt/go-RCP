@@ -44,10 +44,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/request"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/request"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // ErrBusy is returned when a request is rejected because its endpoint's

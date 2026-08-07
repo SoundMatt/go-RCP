@@ -50,7 +50,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/udsbr"
+	"github.com/SoundMatt/go-RCP/v9/udsbr"
 )
 
 // DoIP protocol constants (ISO 13400-2).

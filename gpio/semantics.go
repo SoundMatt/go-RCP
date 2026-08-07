@@ -1,6 +1,6 @@
 package gpio
 
-import "github.com/SoundMatt/go-RCP/acf"
+import "github.com/SoundMatt/go-RCP/v9/acf"
 
 // applyValue combines the request's operand (the byte_msg_payload) with the
 // endpoint's current pin-value word under op — TC18 §13.5 Table 30's

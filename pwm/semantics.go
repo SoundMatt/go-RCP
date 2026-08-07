@@ -1,6 +1,6 @@
 package pwm
 
-import "github.com/SoundMatt/go-RCP/acf"
+import "github.com/SoundMatt/go-RCP/v9/acf"
 
 // waveformSaturateAt is the high-side saturation bound TC18 §13.5 Table 30's
 // note states directly: "The values are saturated at 0x0000 on the low side

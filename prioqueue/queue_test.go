@@ -12,10 +12,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/prioqueue"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/prioqueue"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 func testStream() avtp.StreamID {

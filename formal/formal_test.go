@@ -13,7 +13,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/formal"
+	"github.com/SoundMatt/go-RCP/v9/formal"
 )
 
 // stateN extracts the "n" int counter from a State.

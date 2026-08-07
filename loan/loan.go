@@ -43,10 +43,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	rcp "github.com/SoundMatt/go-RCP"
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/udp"
+	rcp "github.com/SoundMatt/go-RCP/v9"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // Controller wraps a *udp.Controller, adding zero-copy request-body loaning

@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/config"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/config"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 const yamlConfig = `

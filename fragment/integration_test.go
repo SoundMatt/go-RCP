@@ -7,14 +7,14 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/can"
-	"github.com/SoundMatt/go-RCP/fragment"
-	"github.com/SoundMatt/go-RCP/gpio"
-	"github.com/SoundMatt/go-RCP/regmap"
-	"github.com/SoundMatt/go-RCP/server"
-	"github.com/SoundMatt/go-RCP/uart"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/can"
+	"github.com/SoundMatt/go-RCP/v9/fragment"
+	"github.com/SoundMatt/go-RCP/v9/gpio"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
+	"github.com/SoundMatt/go-RCP/v9/server"
+	"github.com/SoundMatt/go-RCP/v9/uart"
 )
 
 // splitAndReassemble runs msg through fragment.Split at maxBody and back

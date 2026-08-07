@@ -6,8 +6,8 @@ import (
 	"hash/crc32"
 	"io"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Len is the byte length of the trailing CRC32 safe-point field Protect

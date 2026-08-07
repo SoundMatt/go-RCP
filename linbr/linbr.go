@@ -40,10 +40,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/lin"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/lin"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // ErrChecksumMismatch is returned when a decoded frame's trailing checksum

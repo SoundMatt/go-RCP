@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/wakeup"
+	"github.com/SoundMatt/go-RCP/v9/wakeup"
 )
 
 // TestPowerStateRequestRoundTrip and TestWakeHandshakeRoundTrip check

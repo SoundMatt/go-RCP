@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // TestSequencer_GetSetAdvance checks a register starts at zero, Set

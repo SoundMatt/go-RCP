@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // LivenessState is one stream's current liveness verdict, per Monitor.State.

@@ -5,8 +5,8 @@ package acf_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // ── REQ-AVTP-016 (fuzz half, message/frame-decoder share): decoders never

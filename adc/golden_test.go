@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/adc"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/adc"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // ── REQ-ADC-010 (golden-vector half): frozen ADC Config/response byte

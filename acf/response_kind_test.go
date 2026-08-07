@@ -5,7 +5,7 @@ package acf_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/v9/acf"
 )
 
 // ── REQ-AVTP-021: response classification (TC18 §11.3 Table 15) ───────────

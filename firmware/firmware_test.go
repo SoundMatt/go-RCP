@@ -15,8 +15,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/firmware"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/firmware"
 )
 
 // TestUpdate_RejectsEmptyImage verifies Update refuses a zero-length image

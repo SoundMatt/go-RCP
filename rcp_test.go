@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	relay "github.com/SoundMatt/RELAY/v2"
-	rcp "github.com/SoundMatt/go-RCP"
+	rcp "github.com/SoundMatt/go-RCP/v9"
 )
 
 // ── Sentinel errors ───────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ package discovery
 import (
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // This file implements ROADMAP.md Milestone 46 (Discovery, v0.59.0): the

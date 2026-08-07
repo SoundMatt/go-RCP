@@ -8,8 +8,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/server"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/server"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // TestRegistry_DialAndLookup verifies Registry.Dial + Lookup round-trip a

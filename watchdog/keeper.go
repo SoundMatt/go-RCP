@@ -3,9 +3,9 @@ package watchdog
 import (
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/e2e"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // PurgeEvent records one stream's watchdog-driven purge outcome from a

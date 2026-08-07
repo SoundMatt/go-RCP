@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // StreamConfig configures one stream's request-arrival-timed watchdog

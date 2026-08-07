@@ -5,7 +5,7 @@ package spi_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/spi"
+	"github.com/SoundMatt/go-RCP/v9/spi"
 )
 
 // ── REQ-SPI-010 (fuzz half): decoders never panic on arbitrary input ──────

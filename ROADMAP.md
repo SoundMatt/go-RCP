@@ -2717,3 +2717,46 @@ compatibility shim is provided — the same posture every prior
 TC18-conformance fix pass in this document established, and the only
 defensible one here: the old bytes were not an older dialect of the
 protocol, they were not the protocol.
+
+## Module path gains its required /v9 suffix (v9.2.1, 2026-08-07)
+
+Closes the gap disclosed (not fixed) in the v5.0.0 entry above: `go.mod`'s
+module path was still bare `github.com/SoundMatt/go-RCP`, with no `/vN`
+suffix, despite this repo having been on major version v5 then — and now
+v9 — since the TC18 cutover. Per Go's semantic-import-versioning rule (the
+same one RELAY's own `/v2` fix addressed, and the same one this repo's own
+v5.0.0 entry independently confirmed by reproducing the exact failure:
+`go install github.com/SoundMatt/go-RCP/cmd/go-rcp@v4.0.1` fails with
+`invalid version: module contains a go.mod file, so module path must match
+major version`), every tag this repo has ever created from `v2.0.0`
+onward was never actually consumable via `go get`/`go install` at all.
+
+Fixed here: `go.mod`'s module path becomes `github.com/SoundMatt/go-RCP/v9`,
+and every one of this repo's own internal import statements across all
+~265 Go files, plus `README.md`'s install/import instructions and
+`pkg.go.dev` badge, `.golangci.yml`'s two `exclude-functions` symbol paths,
+and `SAFETY_PLAN.md`'s module-identity reference, move to match.
+`.fusa.json`'s own `"module"` field is deliberately left unsuffixed, matching
+the same choice RELAY's own `.fusa.json` already made after its `/v2` fix —
+gofusa does not appear to validate this field against real import paths,
+and diverging from that established convention would just be a new
+inconsistency for no gain. `go build`/`go vet`/`go test ./...` all pass
+unchanged; a freshly-installed `gofusa` (v0.48.0, this repo's own CI pin)
+reports 0 `check` errors and the same requirement-trace coverage as before
+this change (only the two pre-existing, unrelated `codegen.go` template-
+literal orphan tags, unchanged).
+
+**Not attempted**: retroactively fixing or re-tagging the already-published
+`v2.0.0` through `v5.0.0` tags. Those tags stay exactly as they are —
+historical, and never actually go-modules-consumable — rather than rewriting
+already-public git history; this is a forward fix only, matching how RELAY
+handled the identical situation for its own `/v2` cutover.
+
+**Version**: `v9.2.1`, marked BREAKING by this repo's own convention despite
+being a pure import-path change with no wire or behavioral difference: every
+downstream import statement referencing this module changes, the same
+posture `v9.0.0` above and RELAY's own `/v2` fix both already established
+for this class of change. In practice no consumer could have successfully
+`go get`-ed any tagged version of this module since `v2.0.0` in the first
+place, so this is better read as "first real, resolvable release" than as
+breaking a working one.

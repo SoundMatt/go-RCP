@@ -5,7 +5,7 @@ package server_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // ── REQ-RCS-020 (fuzz half): decoders never panic on arbitrary input ──────

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/mdio"
+	"github.com/SoundMatt/go-RCP/v9/mdio"
 )
 
 // TestMode_Valid checks Valid recognizes exactly the four defined mdio_mode

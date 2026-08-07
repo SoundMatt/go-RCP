@@ -1,6 +1,6 @@
 package udp
 
-import "github.com/SoundMatt/go-RCP/avtp"
+import "github.com/SoundMatt/go-RCP/v9/avtp"
 
 // maxTimedHeaderLen is the largest AVTPDU header this package's decode path
 // needs to budget for: the presentation-timestamped (TSCF) variant. avtp

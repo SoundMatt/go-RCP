@@ -1,9 +1,9 @@
 package fragment
 
 import (
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // Submitter is the subset of *request.Dispatcher's own method set Gateway

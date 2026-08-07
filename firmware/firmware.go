@@ -8,7 +8,7 @@ import (
 	"hash/crc32"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/v9/acf"
 )
 
 // TransportFunc delivers one chunk's raw bytes over whatever underlying

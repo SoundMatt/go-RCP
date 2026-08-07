@@ -52,10 +52,10 @@ import (
 	"net"
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/request"
-	rcpudp "github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/request"
+	rcpudp "github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // PCPMap maps each request.Kind.Priority() rank (0-6) to an IEEE 802.1p PCP

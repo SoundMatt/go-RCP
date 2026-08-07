@@ -3,8 +3,8 @@ package powerstate
 import (
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/wakeup"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/wakeup"
 )
 
 // Transmitter sends one wake-handshake message to target on behalf of a

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Clock is an injectable time source, the same posture
