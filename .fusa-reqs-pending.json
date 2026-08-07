@@ -1,0 +1,15 @@
+{
+  "_readme": "Staging area for TC18 MUST/SHOULD/MAY requirements confirmed missing from .fusa-reqs.json (no corresponding requirement AND no implementation found). NOT consumed by gofusa -- entries here have no //fusa:req/test trace and would fail the repo's 100% traceability CI gate if merged into .fusa-reqs.json directly (RELAY spec section 20.1.2). Migrate an entry into .fusa-reqs.json only once real impl + test tags exist for it. Same schema as .fusa-reqs.json (id/title/text/standard/level/asil/tc18) plus a 'gap' field describing what's missing. See RELAY's project_xrcp_relay_master_checklist memory record for the cross-repo tracking convention this file follows. Deliberately excludes the conditional-request envelope layer (Compound/CompoundWait/Triggered/Timed/Chained/Cancel) -- that gap is already exhaustively documented in project_gorcp_conditional_envelope_gap.md memory and needs a full redesign, not incremental requirement entries; see task #67.",
+  "requirements": [
+    {
+      "id": "REQ-PWM-012",
+      "title": "PWM_OUT must emit all three TC18 Table 42 trigger signals, not just exec-done",
+      "text": "A PWM_OUT endpoint's trigger events shall distinguish TC18's three mandated trigger signal numbers: signal 0 (PWM request exec done -- requested values applied), signal 1 (at the start of the cycle), and signal 2 (in the middle of the active pulse, even when duty cycle is 0%). Signal 1 exists so other PWM_OUT endpoints can create phase-correlated signals; signal 2 exists so e.g. ADC endpoints can synchronize sampling to the active phase of this endpoint's waveform.",
+      "standard": "iso26262",
+      "level": "ASIL-B",
+      "asil": "ASIL-B",
+      "tc18": "§13.7.5.1 Table 42 (\"pwmo trigger outputs\"), TC18.txt L4530-4542",
+      "gap": "Confirmed absent (2026-08-07): pwm/endpoint.go's TriggerKind enum has exactly one PWM_OUT-relevant value, TriggerOutputUpdated, fired whenever a write request changes the applied waveform (endpoint.go:300) -- this roughly maps to TC18's signal 0 (exec-done) but is not distinguished as signal 0 specifically. There is no signal-numbered event at all, and signals 1 (start-of-cycle) and 2 (mid-active-pulse) are entirely absent -- these are genuine periodic, waveform-synchronized hardware/simulation-timer events (they must fire once per PWM cycle / once per pulse midpoint regardless of whether any write request ever occurs), fundamentally different in kind from a request-driven config-change event, and cannot be synthesized from HandleRequest's existing write-triggered logic. Implementing this requires the endpoint to model real waveform-cycle timing, not just request/response state."
+    }
+  ]
+}
