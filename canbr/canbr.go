@@ -34,10 +34,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/can"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/can"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // ErrNotAResponse is returned when a request's response body does not

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/codegen"
+	"github.com/SoundMatt/go-RCP/v9/codegen"
 )
 
 const yamlManifest = `

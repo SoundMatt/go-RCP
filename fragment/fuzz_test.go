@@ -5,8 +5,8 @@ package fragment_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/fragment"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/fragment"
 )
 
 // ── REQ-FRAG-004 (fuzz half): Reassembler.Add never panics on an arbitrary

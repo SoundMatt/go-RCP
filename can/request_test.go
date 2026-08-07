@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/can"
+	"github.com/SoundMatt/go-RCP/v9/can"
 )
 
 // TestFrameRoundTrip checks EncodeFrame/DecodeFrame round-trip for each

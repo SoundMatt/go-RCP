@@ -1,8 +1,8 @@
 package gpio
 
 import (
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // MaxPins is the largest number of independently configured pins one GPIO

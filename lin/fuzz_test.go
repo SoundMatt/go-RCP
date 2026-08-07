@@ -5,7 +5,7 @@ package lin_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/lin"
+	"github.com/SoundMatt/go-RCP/v9/lin"
 )
 
 // ── REQ-LINEP-007 (fuzz half): decoders never panic on arbitrary input ────

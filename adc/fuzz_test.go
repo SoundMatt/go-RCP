@@ -5,7 +5,7 @@ package adc_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/adc"
+	"github.com/SoundMatt/go-RCP/v9/adc"
 )
 
 // ── REQ-ADC-009 (fuzz half): decoders never panic on arbitrary input ──────

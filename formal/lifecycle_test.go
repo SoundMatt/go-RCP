@@ -8,9 +8,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/formal"
-	"github.com/SoundMatt/go-RCP/lifecycle"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/formal"
+	"github.com/SoundMatt/go-RCP/v9/lifecycle"
 )
 
 func lifecycleRoot() avtp.StreamID {

@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/discovery"
-	"github.com/SoundMatt/go-RCP/regmap"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/discovery"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
+	"github.com/SoundMatt/go-RCP/v9/server"
 )
 
 // fakeClock provides a controllable clock for testing the Discovery

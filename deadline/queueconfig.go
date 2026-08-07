@@ -3,7 +3,7 @@ package deadline
 import (
 	"time"
 
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // DeadlineForQueue derives a Config.Deadline from q's own configured

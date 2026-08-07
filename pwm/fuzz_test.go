@@ -5,7 +5,7 @@ package pwm_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/pwm"
+	"github.com/SoundMatt/go-RCP/v9/pwm"
 )
 
 // ── REQ-PWM-009 (fuzz half): decoders never panic on arbitrary input ──────

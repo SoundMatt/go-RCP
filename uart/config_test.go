@@ -8,9 +8,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
-	"github.com/SoundMatt/go-RCP/uart"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/server"
+	"github.com/SoundMatt/go-RCP/v9/uart"
 )
 
 // rootStream and newDeclaredEndpoint are this package's own test helpers

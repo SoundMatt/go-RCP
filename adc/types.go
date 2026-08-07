@@ -1,8 +1,8 @@
 package adc
 
 import (
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // EndpointType re-exports regmap.EndpointTypeADC so a caller that only

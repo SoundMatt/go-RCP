@@ -3,7 +3,7 @@ package iseled_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/iseled"
+	"github.com/SoundMatt/go-RCP/v9/iseled"
 )
 
 // ── decoders never panic on arbitrary input (covered under REQ-ISELED-003/

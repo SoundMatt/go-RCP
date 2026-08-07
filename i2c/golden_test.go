@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/i2c"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/i2c"
 )
 
 // ── REQ-I2C-009 (golden-vector half): frozen I2C Config/request/response

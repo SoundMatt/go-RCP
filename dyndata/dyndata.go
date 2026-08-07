@@ -31,9 +31,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // FieldKind is the allowed wire type for a schema field.

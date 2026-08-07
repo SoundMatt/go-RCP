@@ -5,7 +5,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Registry is a caller-keyed collection of dialed Controllers. The retired

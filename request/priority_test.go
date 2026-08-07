@@ -5,10 +5,10 @@ package request_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/gpio"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/gpio"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // orderRecorder wraps a gpio.Endpoint and records the order in which

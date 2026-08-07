@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/fragment"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/fragment"
 )
 
 // ── REQ-FRAG-012: frozen segment sequencing, end to end through avtp's own

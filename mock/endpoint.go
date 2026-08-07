@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // EndpointFunc is a caller-supplied function implementing one endpoint's

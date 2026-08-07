@@ -15,9 +15,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/federation"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/federation"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // newController dials a *udp.Controller for registry bookkeeping tests.

@@ -5,7 +5,7 @@ package regmap_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // wantGeneralBlock is a GeneralBlock with a distinguishable value in every

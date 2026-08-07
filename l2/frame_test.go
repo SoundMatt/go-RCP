@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/l2"
+	"github.com/SoundMatt/go-RCP/v9/l2"
 )
 
 func mac(b0 byte) [6]byte {

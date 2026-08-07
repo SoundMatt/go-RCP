@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/iseled"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/iseled"
 )
 
 // ── REQ-ISELED-009 (golden-vector half): frozen ISELED Config/Command byte

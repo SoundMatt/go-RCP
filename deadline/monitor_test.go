@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/deadline"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/deadline"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 type fakeClock struct{ t time.Time }

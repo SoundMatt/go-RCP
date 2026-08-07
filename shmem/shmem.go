@@ -42,9 +42,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // copyBody returns a fresh copy of src, or nil for an empty src.

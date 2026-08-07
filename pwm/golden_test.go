@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/pwm"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/pwm"
 )
 
 // ── REQ-PWM-010 (golden-vector half): frozen PWM Config/waveform byte

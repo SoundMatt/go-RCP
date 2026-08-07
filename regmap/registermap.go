@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"sort"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // GeneralBlock is the general server register block: the fixed magic value

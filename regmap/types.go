@@ -3,7 +3,7 @@ package regmap
 import (
 	"fmt"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // EP0 is the reserved byte_bus_id that addresses the RC Server itself as a

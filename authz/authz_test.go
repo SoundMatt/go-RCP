@@ -15,11 +15,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/authz"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/authz"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/server"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // stubHandler answers every request with FlagResponse set and an echoed

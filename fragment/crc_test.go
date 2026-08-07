@@ -7,9 +7,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/e2e"
-	"github.com/SoundMatt/go-RCP/fragment"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
+	"github.com/SoundMatt/go-RCP/v9/fragment"
 )
 
 // TestReassembler_FinishProtected checks FinishProtected verifies a

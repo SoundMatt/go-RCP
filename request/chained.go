@@ -3,7 +3,7 @@ package request
 import (
 	"encoding/binary"
 
-	"github.com/SoundMatt/go-RCP/acf"
+	"github.com/SoundMatt/go-RCP/v9/acf"
 )
 
 // ChainedSegment is one sub-request packed inside a KindChained envelope:

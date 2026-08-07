@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/gpio"
+	"github.com/SoundMatt/go-RCP/v9/gpio"
 )
 
 // TestConfig_Validate checks PinCount bounds and the active-pin masking rule

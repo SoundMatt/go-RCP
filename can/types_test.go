@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/can"
+	"github.com/SoundMatt/go-RCP/v9/can"
 )
 
 // TestFormat_Valid checks Valid recognizes exactly the three defined frame

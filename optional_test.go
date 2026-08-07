@@ -13,7 +13,7 @@ import (
 	"time"
 
 	relay "github.com/SoundMatt/RELAY/v2"
-	rcp "github.com/SoundMatt/go-RCP"
+	rcp "github.com/SoundMatt/go-RCP/v9"
 )
 
 func asHealth(t *testing.T, n relay.Caller) relay.HealthProvider {

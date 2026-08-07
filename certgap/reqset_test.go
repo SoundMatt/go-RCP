@@ -6,7 +6,7 @@ package certgap_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/certgap"
+	"github.com/SoundMatt/go-RCP/v9/certgap"
 )
 
 // REQ-CERT-009: BuildRequirementFamilies returns unique, ASIL-B-targeted,

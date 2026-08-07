@@ -7,9 +7,9 @@ package mock
 import (
 	"fmt"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/server"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // Fixture bundles an in-process server.Server, its Router, and a Client

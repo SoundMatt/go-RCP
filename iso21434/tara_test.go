@@ -8,7 +8,7 @@ package iso21434_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/iso21434"
+	"github.com/SoundMatt/go-RCP/v9/iso21434"
 )
 
 // REQ-I214-009: GoalRegistry.All returns every registered goal, satisfied

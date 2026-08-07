@@ -9,9 +9,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/mock"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/mock"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // TestNewFixture_ClaimsRootAndWiresRouter verifies NewFixture's Server has

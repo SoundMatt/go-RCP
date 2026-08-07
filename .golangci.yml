@@ -20,8 +20,8 @@ linters:
         - (io.Closer).Close
         - (*os.File).Close
         - os.Remove
-        - (*github.com/SoundMatt/go-RCP/mock.Controller).Close
-        - (*github.com/SoundMatt/go-RCP/mock.Registry).Close
+        - (*github.com/SoundMatt/go-RCP/v9/mock.Controller).Close
+        - (*github.com/SoundMatt/go-RCP/v9/mock.Registry).Close
     govet:
       enable-all: true
       disable:

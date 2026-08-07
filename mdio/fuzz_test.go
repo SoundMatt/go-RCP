@@ -3,7 +3,7 @@ package mdio_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/mdio"
+	"github.com/SoundMatt/go-RCP/v9/mdio"
 )
 
 // ── decoders never panic on arbitrary input (covered under REQ-MDIO-004's

@@ -26,8 +26,8 @@ import (
 	"time"
 
 	relay "github.com/SoundMatt/RELAY/v2"
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Controller is the narrow interface Adapt wraps: a TC18 client capable of

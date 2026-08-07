@@ -3,9 +3,9 @@ package i2c
 import (
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/server"
 )
 
 // Transport performs the endpoint's actual byte exchange on the bus: given

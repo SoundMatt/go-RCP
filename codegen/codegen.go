@@ -169,8 +169,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // Addr{{.TypeName}} is the declared byte_bus_id for the {{.EndpointType}} endpoint "{{.EndpointName}}" on server "{{.ServerName}}".

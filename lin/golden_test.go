@@ -6,9 +6,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/lin"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/lin"
 )
 
 // ── REQ-LINEP-008 (golden-vector half): frozen LIN Config/request/response

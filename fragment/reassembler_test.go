@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/fragment"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/fragment"
 )
 
 // splitBody returns the 3-segment split (segment bodies only) of msg at

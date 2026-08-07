@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/mock"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/mock"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 func newTestClient() *mock.Client {

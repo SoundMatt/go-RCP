@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/e2e"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
 )
 
 // fakeClock is a manually-advanced clock for deterministic Supervisor tests,

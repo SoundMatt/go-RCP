@@ -5,7 +5,7 @@ package wakeup_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/wakeup"
+	"github.com/SoundMatt/go-RCP/v9/wakeup"
 )
 
 // TestPowerState_Valid checks Valid recognizes exactly the four defined

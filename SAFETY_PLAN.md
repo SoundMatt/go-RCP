@@ -14,7 +14,7 @@
 
 This Software Safety Plan (SSP) defines the lifecycle, activities, methods, and
 responsibilities for the development and verification of go-RCP
-(`github.com/SoundMatt/go-RCP`) in accordance with:
+(`github.com/SoundMatt/go-RCP/v9`) in accordance with:
 
 - ISO 26262:2018 — Road vehicles — Functional Safety (Parts 3, 4, 6, 8)
 - IEC 61508:2010 — Functional Safety of E/E/PE Safety-related Systems (Part 3)

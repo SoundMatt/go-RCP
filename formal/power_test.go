@@ -7,9 +7,9 @@ package formal_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/formal"
-	"github.com/SoundMatt/go-RCP/wakeup"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/formal"
+	"github.com/SoundMatt/go-RCP/v9/wakeup"
 )
 
 func powerRoot() avtp.StreamID {

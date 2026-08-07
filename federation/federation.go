@@ -45,7 +45,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // ErrAlreadyOwned is returned when a server key is already registered to

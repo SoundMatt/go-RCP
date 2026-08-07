@@ -1,6 +1,6 @@
 package regmap
 
-import "github.com/SoundMatt/go-RCP/avtp"
+import "github.com/SoundMatt/go-RCP/v9/avtp"
 
 // PinAssignment binds one physical hardware pin to a named signal of one
 // declared endpoint. Pin numbering is board-specific and opaque to this

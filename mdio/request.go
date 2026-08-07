@@ -3,7 +3,7 @@ package mdio
 import (
 	"encoding/binary"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // requestHeaderLen is the packed 2-byte request header: an 8-bit reserved

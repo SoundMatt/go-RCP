@@ -5,7 +5,7 @@ package tsn
 import (
 	"syscall"
 
-	rcpudp "github.com/SoundMatt/go-RCP/udp"
+	rcpudp "github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // setSocketPriority sets SO_PRIORITY on the UDP socket so the Linux traffic

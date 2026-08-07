@@ -8,10 +8,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/fragment"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/fragment"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // echoHandler is a minimal request.Handler test double recording the

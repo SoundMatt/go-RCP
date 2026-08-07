@@ -3,7 +3,7 @@ package acf
 import (
 	"encoding/binary"
 
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // MessageKind selects which of the two RCP-over-ACF message encodings a

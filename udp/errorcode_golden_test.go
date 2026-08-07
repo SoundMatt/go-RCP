@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // ── REQ-UDP-007/008 (golden-vector half): frozen ErrorCode numeric values

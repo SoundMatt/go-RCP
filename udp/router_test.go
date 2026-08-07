@@ -10,14 +10,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/e2e"
-	"github.com/SoundMatt/go-RCP/pwm"
-	"github.com/SoundMatt/go-RCP/regmap"
-	"github.com/SoundMatt/go-RCP/request"
-	"github.com/SoundMatt/go-RCP/server"
-	"github.com/SoundMatt/go-RCP/udp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
+	"github.com/SoundMatt/go-RCP/v9/pwm"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
+	"github.com/SoundMatt/go-RCP/v9/request"
+	"github.com/SoundMatt/go-RCP/v9/server"
+	"github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // TestRouter_Register_Duplicate verifies a second Register call for the

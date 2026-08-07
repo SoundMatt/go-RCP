@@ -17,7 +17,7 @@ protocol this module implemented before v1.0.0.
 
 [![CI](https://github.com/SoundMatt/go-RCP/actions/workflows/ci.yml/badge.svg)](https://github.com/SoundMatt/go-RCP/actions/workflows/ci.yml)
 [![DCO](https://github.com/SoundMatt/go-RCP/actions/workflows/dco.yml/badge.svg)](https://github.com/SoundMatt/go-RCP/actions/workflows/dco.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/SoundMatt/go-RCP.svg)](https://pkg.go.dev/github.com/SoundMatt/go-RCP)
+[![Go Reference](https://pkg.go.dev/badge/github.com/SoundMatt/go-RCP/v9.svg)](https://pkg.go.dev/github.com/SoundMatt/go-RCP/v9)
 
 ## CLI
 
@@ -25,7 +25,7 @@ protocol this module implemented before v1.0.0.
 `relay conform --strict` gate exercises:
 
 ```bash
-go install github.com/SoundMatt/go-RCP/cmd/go-rcp@latest
+go install github.com/SoundMatt/go-RCP/v9/cmd/go-rcp@latest
 
 go-rcp version --format json      # tool + spec version (§12.1)
 go-rcp capabilities                # capabilities document (§12.2)
@@ -137,7 +137,7 @@ Part II for the full program and each satellite package's disposition.
 ## Install
 
 ```bash
-go get github.com/SoundMatt/go-RCP
+go get github.com/SoundMatt/go-RCP/v9
 ```
 
 ## Quick start
@@ -147,9 +147,9 @@ import (
     "context"
     "fmt"
 
-    "github.com/SoundMatt/go-RCP/acf"
-    "github.com/SoundMatt/go-RCP/avtp"
-    "github.com/SoundMatt/go-RCP/mock"
+    "github.com/SoundMatt/go-RCP/v9/acf"
+    "github.com/SoundMatt/go-RCP/v9/avtp"
+    "github.com/SoundMatt/go-RCP/v9/mock"
 )
 
 // Fixture bundles an in-process server.Server, its Router, and a root

@@ -4,11 +4,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/discovery"
-	"github.com/SoundMatt/go-RCP/lifecycle"
-	"github.com/SoundMatt/go-RCP/regmap"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/discovery"
+	"github.com/SoundMatt/go-RCP/v9/lifecycle"
+	"github.com/SoundMatt/go-RCP/v9/regmap"
 )
 
 // Server is a single RC Server: its lifecycle state, its register map, and

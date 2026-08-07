@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/grpcbridge"
+	"github.com/SoundMatt/go-RCP/v9/grpcbridge"
 )
 
 // Subscribe after Close reports ErrClosed rather than attempting to dial.

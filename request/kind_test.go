@@ -7,7 +7,7 @@ package request_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // TestKind_Valid checks Valid recognizes exactly the eight non-plain Kind

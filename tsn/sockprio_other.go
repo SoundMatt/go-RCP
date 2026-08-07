@@ -3,7 +3,7 @@
 package tsn
 
 import (
-	rcpudp "github.com/SoundMatt/go-RCP/udp"
+	rcpudp "github.com/SoundMatt/go-RCP/v9/udp"
 )
 
 // setSocketPriority is a no-op on non-Linux platforms.

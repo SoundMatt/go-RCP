@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/mdio"
+	"github.com/SoundMatt/go-RCP/v9/mdio"
 )
 
 // TestReadWriteRequestRoundTrip checks Encode/Decode round-trip for read

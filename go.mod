@@ -1,4 +1,4 @@
-module github.com/SoundMatt/go-RCP
+module github.com/SoundMatt/go-RCP/v9
 
 go 1.25.0
 

@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/discovery"
-	"github.com/SoundMatt/go-RCP/e2e"
-	"github.com/SoundMatt/go-RCP/request"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/discovery"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
+	"github.com/SoundMatt/go-RCP/v9/request"
 )
 
 // FaultType describes the failure mode to inject. See doc.go for how each

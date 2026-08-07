@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/avtp"
-	rcpmdns "github.com/SoundMatt/go-RCP/mdns"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	rcpmdns "github.com/SoundMatt/go-RCP/v9/mdns"
 )
 
 func testStream(n byte) avtp.StreamID {

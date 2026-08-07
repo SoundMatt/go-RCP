@@ -3,7 +3,7 @@ package wakeup_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/wakeup"
+	"github.com/SoundMatt/go-RCP/v9/wakeup"
 )
 
 // ── decoders never panic on arbitrary input (covered under REQ-WAKEUP-002/

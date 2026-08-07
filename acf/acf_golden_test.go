@@ -6,8 +6,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
 )
 
 // ── REQ-AVTP-016 (golden-vector half): frozen server-request byte layouts ──

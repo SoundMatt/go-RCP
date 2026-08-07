@@ -5,7 +5,7 @@ package i2c_test
 import (
 	"testing"
 
-	"github.com/SoundMatt/go-RCP/i2c"
+	"github.com/SoundMatt/go-RCP/v9/i2c"
 )
 
 // ── REQ-I2C-008 (fuzz half): decoders never panic on arbitrary input ──────

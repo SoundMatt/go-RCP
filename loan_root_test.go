@@ -3,7 +3,7 @@ package rcp_test
 import (
 	"testing"
 
-	rcp "github.com/SoundMatt/go-RCP"
+	rcp "github.com/SoundMatt/go-RCP/v9"
 )
 
 // TestNewLoan_RoundTrip verifies NewLoan exposes the payload and that Return

@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SoundMatt/go-RCP/acf"
-	"github.com/SoundMatt/go-RCP/avtp"
-	"github.com/SoundMatt/go-RCP/e2e"
-	"github.com/SoundMatt/go-RCP/gpio"
-	"github.com/SoundMatt/go-RCP/request"
-	"github.com/SoundMatt/go-RCP/server"
+	"github.com/SoundMatt/go-RCP/v9/acf"
+	"github.com/SoundMatt/go-RCP/v9/avtp"
+	"github.com/SoundMatt/go-RCP/v9/e2e"
+	"github.com/SoundMatt/go-RCP/v9/gpio"
+	"github.com/SoundMatt/go-RCP/v9/request"
+	"github.com/SoundMatt/go-RCP/v9/server"
 )
 
 // newGPIOEndpoint mirrors request_test's own helper of the same name
