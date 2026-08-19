@@ -1745,7 +1745,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.1 Figure 6 (NTSCF header), TC18.txt L1064-1072"
+      "tc18": "\u00a711.1 Figure 6 (NTSCF header layout), TC18.txt L1130-1138",
+      "tc18_master_id": "TC18-11.1-004"
     },
     {
       "id": "REQ-AVTP-002",
@@ -1754,7 +1755,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.1 Figure 5 (TSCF header), TC18.txt L1055-1062"
+      "tc18": "\u00a711.1 Figure 5 (TSCF header layout), TC18.txt L1120-1128",
+      "tc18_master_id": "TC18-11.1-002"
     },
     {
       "id": "REQ-AVTP-003",
@@ -1778,7 +1780,9 @@
       "text": "avtp.DecodeHeader shall return ErrReservedBitsSet when any bit TC18 \u00a711.1 p.22 marks reserved within the AVTPDU header's first (subtype-data) quadlet is nonzero: the untimed header's r bit (Figure 6, bit 12), and the timestamped header's rsv field (Figure 5, bits 13-14) and reserved bits 24-30.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figures 5-6 (reserved bit positions in both header layouts), TC18.txt L1120-1138",
+      "tc18_master_id": "TC18-11.1-002"
     },
     {
       "id": "REQ-AVTP-006",
@@ -1794,7 +1798,9 @@
       "text": "Header.Disposition shall return DispositionScheduled only when the header is timestamped (Timed true), its TimestampStatus is TimestampValid, and the caller reports time-sync support.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.2 (TSCF-received requests execute no earlier than presentation time), TC18.txt L1159",
+      "tc18_master_id": "TC18-11.2-001"
     },
     {
       "id": "REQ-AVTP-008",
@@ -1802,7 +1808,9 @@
       "text": "Header.Disposition shall return DispositionBestEffort for a timestamped header whose TimestampStatus is TimestampMissing, TimestampInvalid, or TimestampUncertain, when the caller reports time-sync support.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.3 (invalid/uncertain timestamp handling), TC18.txt L4038-4041",
+      "tc18_master_id": "TC18-13.3-002"
     },
     {
       "id": "REQ-AVTP-009",
@@ -1810,7 +1818,9 @@
       "text": "Header.Disposition shall return DispositionDrop for any timestamped (Timed true) header when the caller reports no time-sync support, regardless of the header's TimestampStatus marker.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 (TSCF dropped when time-sync unsupported, no response sent), TC18.txt L1140",
+      "tc18_master_id": "TC18-11.1-005"
     },
     {
       "id": "REQ-AVTP-010",
@@ -1827,7 +1837,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.2.1 Figure 7 + Table 4 (ACF_ABB descriptor: acf_msg_type/length/pad/mtv/rsv/byte_bus_id), TC18.txt L1142-1169"
+      "tc18": "\u00a711.2.1 Figure 7 (ABB message standard request layout) + Table 4, TC18.txt L1204-1239",
+      "tc18_master_id": "TC18-11.2.1-004"
     },
     {
       "id": "REQ-AVTP-012",
@@ -1836,7 +1847,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.2.2.1 Figure 8 + Table 6 (ACF_GBB descriptor incl. message_timestamp slot), TC18.txt L1217-1280"
+      "tc18": "\u00a711.2.2.1 GBB message layout (Figure) + Table 6 -- evt/hs/cs/transaction_num/op/rsp/err/ms/read_size-or-segment_num common fields plus trigger-specific fields, TC18.txt L1286-1361",
+      "tc18_master_id": "TC18-11.2.2.1-004"
     },
     {
       "id": "REQ-AVTP-013",
@@ -1845,7 +1857,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.2.1 Table 4 + \u00a711.2.2.1 Table 6 (evt/hs/cs/transaction_num/op/rsp/err/ms/read_size-or-segment_num fields), TC18.txt L1160-1169,1271-1280"
+      "tc18": "\u00a711.2.2.1 Table 6 (evt/hs/cs/transaction_num/op/rsp/err/ms/read_size-or-segment_num field combinations), TC18.txt L1303-1358",
+      "tc18_master_id": "TC18-11.2.2.1-004"
     },
     {
       "id": "REQ-AVTP-014",
@@ -1854,7 +1867,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.2.1 Table 4 + \u00a711.2.2.1 Table 6 (malformed-input rejection over the same descriptor fields), TC18.txt L1153-1169,1250-1280"
+      "tc18": "\u00a711.2.1 Table 4 + \u00a711.2.2.1 Table 6 (malformed-input rejection over the same descriptor fields), TC18.txt L1218-1236,1308-1359",
+      "tc18_master_id": "TC18-11.2.1-005"
     },
     {
       "id": "REQ-AVTP-015",
@@ -1878,7 +1892,9 @@
       "text": "avtp.EncodeHeader shall produce exactly the octet layouts defined by OPEN Alliance TC18 Remote Control Protocol Specification v0.5.1_RC \u00a711.1 p.22. An untimed header shall be 12 octets: one quadlet packing subtype(8) | sv(1) | version(3) | r(1) | ntscf_data_length(11) | sequence_num(8) per Figure 6, immediately followed by the 64-bit stream_id with no reserved gap. A timestamped header shall be 24 octets: the Figure 5 subtype-data quadlet packing subtype(8) | sv(1) | version(3) | mr(1) | rsv(2) | tv(1) | sequence_num(8) | reserved(7) | tu(1), then stream_id(64), avtp_timestamp(32), the reserved format-specific quadlet(32), and a quadlet carrying stream_data_length(16) followed by 16 reserved bits.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figures 5+6 (exact header octet layouts), TC18.txt L1120-1138",
+      "tc18_master_id": "TC18-11.1-002"
     },
     {
       "id": "REQ-AVTP-018",
@@ -1886,7 +1902,9 @@
       "text": "avtp.SubtypeNTSCF shall equal 0x82 and avtp.SubtypeTSCF shall equal 0x05, the values labelled on the subtype field of TC18 \u00a711.1 p.22 Figure 6 and Figure 5 respectively, so that a frame this package emits is recognised as the intended AVTPDU control format by a conformant peer.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figures 5-6 (subtype field values 0x82/0x05), TC18.txt L1120-1138",
+      "tc18_master_id": "TC18-11.1-002"
     },
     {
       "id": "REQ-AVTP-019",
@@ -1894,7 +1912,9 @@
       "text": "avtp.EncodeHeader shall encode Header.TimestampStatus into the two single-bit fields TC18 Figure 5 defines for it \u2014 tv (bit 15) and tu (bit 31) \u2014 as TimestampValid: tv=1,tu=0; TimestampUncertain: tv=1,tu=1; TimestampMissing and TimestampInvalid: tv=0,tu=0. avtp.DecodeHeader shall report tv=0 as TimestampMissing regardless of tu, tv=1 with tu=0 as TimestampValid, and tv=1 with tu=1 as TimestampUncertain.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figure 5 (tv/tu bit positions), TC18.txt L1120-1128",
+      "tc18_master_id": "TC18-11.1-002"
     },
     {
       "id": "REQ-AVTP-020",
@@ -1902,7 +1922,9 @@
       "text": "avtp.DecodeHeader shall read a timestamped (TSCF) header's stream_data_length as the full 16-bit field TC18 Figure 5 defines, without masking it to the narrower 11-bit width of the untimed header's ntscf_data_length, so that a conformant peer's larger frame is reported accurately rather than silently truncated.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a711.1 Figure 5 (stream_data_length field width), TC18.txt L1120-1128",
+      "tc18_master_id": "TC18-11.1-002"
     },
     {
       "id": "REQ-RCS-001",
@@ -4763,7 +4785,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "\u00a711.3 Table 15 + \u00a711.3.1-\u00a711.3.4, TC18.txt L1876-1926"
+      "tc18": "\u00a711.3 Tables 16-17 + \u00a711.3.1-\u00a711.3.4 (response classification by evt/err/op), TC18.txt L2228-2301",
+      "tc18_master_id": "TC18-11.3.1-001"
     }
   ]
 }
