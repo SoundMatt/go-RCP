@@ -2568,7 +2568,9 @@
       "text": "uart.Endpoint.HandleRequest shall dispatch a request with FlagWrite set to TX and a request with FlagRead set to RX, shall return ErrRequestMustReadOrWrite for a request with neither flag set, and shall return ErrReadRequestNotPayloadLess for a read request carrying a nonempty body.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.8.1 (\"A read request having a byte_msg_payload will be rejected with error code = UNKNOWN_CMD.\"), TC18.txt L5303",
+      "tc18_master_id": "TC18-13.7.8.1-005"
     },
     {
       "id": "REQ-UART-005",
@@ -2576,7 +2578,9 @@
       "text": "uart.Endpoint.HandleRequest shall return ErrWrongEndpoint when a request's ByteBusID does not match the endpoint's own address, the underlying server.ErrAccessDenied when the requesting stream has no access grant, and ErrUARTNotConfigured when the endpoint's Config.Enabled is false.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-UART-006",
@@ -2584,7 +2588,9 @@
       "text": "uart.Endpoint shall transmit through its configured Transport when one is set via SetTransport, shall default to looping transmitted bytes directly into its own RX FIFO when none is set, and shall queue a TriggerTXComplete event carrying the accepted byte count for every TX write.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.8.4 Table 52 (\"uart trigger signals\" — \"0  Transmit request finalized\", \"1  Read request finalized\"), TC18.txt L5416-5421",
+      "tc18_master_id": "TC18-13.7.8.4-002"
     },
     {
       "id": "REQ-UART-007",
@@ -2592,7 +2598,9 @@
       "text": "uart.Endpoint's RX read handling shall drain up to the request's ReadSizeOrSegment bytes from the RX FIFO, reporting complete=false and returning fewer bytes when the FIFO cannot fill the full request, and complete=true once the full requested count is available.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.8.1 (\"A read request will be started as soon as the fifo-rx-buffer is filled with as many bytes as requested in the read_size or when the uart_timeout has expired or in case the read_size is larger than the uart_rx_fifo_size, when the fifo is full. In the latter case the response is fragmented.\"), TC18.txt L5297-5299",
+      "tc18_master_id": "TC18-13.7.8.1-004"
     },
     {
       "id": "REQ-UART-008",
@@ -2624,7 +2632,9 @@
       "text": "uart.EVTClass shall be acf.EVTClassConfigOnly, and uart.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4085-4092",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-ADC-001",
@@ -2657,7 +2667,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "§13.7.9.2 (\"an implementation may decide to fix\" the samples-per-interval field read-only; this implementation instead makes it writable via Config.SampleCount, the more general of the two spec-permitted choices), TC18.txt L5040"
+      "tc18": "§13.7.9.1 (\"For the readings acquired during the averaging interval given in number of samples (an implementation may decide to fix this to 1) the average is calculated. Finally, the COMBINE_NR_VAL defines how many measurement values (i.e. averaging results) will be put in one response frame.\"), TC18.txt L5455-5457",
+      "tc18_master_id": "TC18-13.7.9.1-006"
     },
     {
       "id": "REQ-ADC-005",
@@ -2665,7 +2676,9 @@
       "text": "adc.Endpoint.Trigger shall return ErrChannelNotConfigured when Config.Enabled is false, and shall treat every raw sample as zero when no Transport is set via SetTransport.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-ADC-006",
@@ -2681,7 +2694,9 @@
       "text": "adc.Endpoint.HandleRequest shall perform a fresh Trigger for a read request when Config.TriggerMode is TriggerModeOnDemand, and shall instead return the endpoint's latest already-measured value without sampling when TriggerMode is TriggerModeExternal or TriggerModeSelf.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.9.1 (\"Anyhow, the RC Client may request ADCs reading at any time. Once a reading is requested, then the ADC samples.\"), TC18.txt L5450-5451",
+      "tc18_master_id": "TC18-13.7.9.1-004"
     },
     {
       "id": "REQ-ADC-008",
@@ -2713,7 +2728,9 @@
       "text": "adc.EVTClass shall be acf.EVTClassConfigOnly, and adc.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4085-4092",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-PWM-001",
@@ -2745,7 +2762,9 @@
       "text": "pwm.Endpoint.HandleRequest shall return ErrRequestMustReadOrWrite for a request with neither FlagRead nor FlagWrite set, ErrWrongEndpoint when its ByteBusID does not match the endpoint's own address, the underlying server.ErrAccessDenied when the requesting stream has no access grant, and ErrNotConfigured when the endpoint's Config.Enabled is false.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-PWM-005",
@@ -2769,7 +2788,9 @@
       "text": "pwm.Endpoint.HandleRequest shall return the most recently captured waveform for a read request against a RoleInput endpoint, through the configured InputTransport when one is set via SetInputTransport or via SetCapturedWaveform/SetSignalLost otherwise, and shall return ErrSignalLost rather than stale data when no valid waveform has been captured or signal loss was most recently reported.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.6.1 (\"If the period of the incoming signal exceeds the configured maximum allowed period or if the external PWM source stops, the PWM_IN endpoint will detect this and if enabled within the EP_config (EP_RESP_ON_ERR) notify the RC Client with an error response message.\"), TC18.txt L5078-5080",
+      "tc18_master_id": "TC18-13.7.6.1-001"
     },
     {
       "id": "REQ-PWM-008",
@@ -2801,7 +2822,9 @@
       "text": "pwm.EVTClassFor shall return acf.EVTClassArithmetic for RoleOutput and acf.EVTClassConfigOnly for RoleInput or any unrecognized role, matching TC18 \u00a713.5 Table 30's placement of PWM_OUT and PWM_IN in different rows. pwm.Endpoint.HandleRequest shall apply the evt[2:0]-selected combining rule to a PWM_OUT write independently for each of the payload's two 16-bit fields, saturating at 0x0000 and 0xFFFF per Table 30's note; reject evt[2:0] = 100b (RoleOutput) or 001b-110b (RoleInput) with acf.ErrEVTReserved without altering the applied waveform; reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload; and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access that is not presented at the waveform generator.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field \u2014 GPIO/PWM_OUT row (\"000b The byte_msg_payload is presented at the interface ... 001b/010b/011b [OR/AND/XOR with current interface status] ... 100b reserved \u2013 request shall be ignored and an err-response with error code = UNSUPPORTED_CMD shall be sent ... 101b/110b [add/subtract] ... 111b [reconfigure]\") for RoleOutput, and ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\") for RoleInput, TC18.txt L4085-4119",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-REQ-001",
@@ -3437,7 +3460,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "§12.4 (\"The RC Server may support different power modes\"), TC18.txt L2268"
+      "tc18": "§12.4 (\"The RC Server may support different power modes.\"), TC18.txt L2644",
+      "tc18_master_id": "TC18-12.4-001"
     },
     {
       "id": "REQ-WAKEUP-004",
@@ -3461,7 +3485,9 @@
       "text": "wakeup.Endpoint.HandleRequest shall return ErrNotConfigured for a request handled against an endpoint whose Config.Enabled is false, and shall return ErrCannotRequestUnpowered without changing State for a write request targeting PowerUnpowered.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-WAKEUP-007",
@@ -3477,7 +3503,9 @@
       "text": "wakeup.Endpoint.transitionTo shall determine Endpoint.LastStartKind as StartHot on a Sleep-to-Normal wake by default and StartCold when Endpoint.SetRetentionLost was called since the preceding Normal-to-Sleep transition, shall queue exactly Config.WakeHandshakeRepeatCount TriggerWakeHandshake events with sequentially increasing Sequence numbers on that wake, and Endpoint.AcknowledgeWake shall discard every not-yet-drained TriggerWakeHandshake event while leaving every other queued TriggerEvent untouched.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.2.1 (\"After establishing a network connection, the WakeUp endpoint sends repetitive messages. The timing interval is configurable (flush_time).\"), TC18.txt L4488-4489",
+      "tc18_master_id": "TC18-13.7.2.1-002"
     },
     {
       "id": "REQ-WAKEUP-009",
