@@ -2252,7 +2252,9 @@
       "text": "gpio.Endpoint.HandleRequest shall take the write semantic of a write request from the request's evt[2:0] field per TC18 \u00a713.5 Table 30's GPIO/PWM_OUT row \u2014 000b set, 001b bitwise OR, 010b bitwise AND, 011b bitwise XOR, 101b saturating add, 110b saturating subtract, 111b configuration change \u2014 and shall never take it from a byte of the request body. It shall reject evt[2:0] = 100b with acf.ErrEVTReserved (error code UNSUPPORTED_CMD) without altering any pin, reject a request whose evt[2:0] is non-zero and whose byte_msg_payload is absent with acf.ErrEVTMissingPayload per \u00a712.9.1, and reject a write request whose body is not exactly four bytes with ErrShortBuffer or ErrTrailingBytes (error code INVALID_PARAMETER) per \u00a713.7.4.1.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, GPIO/PWM_OUT row (\"000b The byte_msg_payload is presented at the interface ... 001b/010b/011b [OR/AND/XOR with current interface status] ... 100b reserved \u2013 request shall be ignored and an err-response with error code = UNSUPPORTED_CMD shall be sent ... 101b/110b [add/subtract] ... 111b [reconfigure]\"), TC18.txt L4093-4115",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-GPIO-003",
@@ -2260,7 +2262,9 @@
       "text": "gpio.Endpoint.HandleRequest shall apply the evt[2:0]-selected set/OR/AND/XOR combining rules to only the output-direction pins (Config.Direction bits set), leaving every input-direction pin's value unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.4.3 (\"A write request to an input pin is ignored for this input pin.\"), TC18.txt L4890",
+      "tc18_master_id": "TC18-13.7.4.3-004"
     },
     {
       "id": "REQ-GPIO-004",
@@ -2268,7 +2272,9 @@
       "text": "gpio.Endpoint.HandleRequest shall clamp the evt[2:0] = 101b saturating add at the endpoint's active-pin mask and the evt[2:0] = 110b saturating subtract at zero, rather than wrapping on overflow/underflow, per TC18 \u00a713.5 Table 30's note that \"neither overflows nor wrap-arounds shall occur\"; the subtraction shall compute byte_msg_payload minus current interface status, in that order, per the same table's normative wording for 110b.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 (\"While doing additions and subtractions neither overflows nor wrap-arounds shall occur. The values are saturated at 0x0000 on the low side and 0xFFFF at the high side.\"), TC18.txt L4118-4119",
+      "tc18_master_id": "TC18-13.5-003"
     },
     {
       "id": "REQ-GPIO-005",
@@ -2276,7 +2282,9 @@
       "text": "gpio.Endpoint.HandleRequest shall, for a request with evt[2:0] = 111b, treat the byte_msg_payload as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block (a relative register start address followed by configuration data) rather than presenting it at the pins, persist an accepted configuration through server.Server.WriteFunctional, adopt it for subsequent requests, and leave the pin value unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a712.7.1 (\"The configuration of endpoints can be changed by accessing the EP_functional configuration of the respective EP via the RC Servers (EP0) register map or directly without the need to determine the base address of the respective EP in the register map. This can be done by setting evt[2:0] = 111b in request as described above.\"), TC18.txt L2845-2847",
+      "tc18_master_id": "TC18-12.7.1-001"
     },
     {
       "id": "REQ-GPIO-006",
@@ -2324,7 +2332,9 @@
       "text": "gpio.EncodeConfig/DecodeConfig and gpio.EncodeWriteRequest/DecodeWriteRequest/DecodeValue shall round-trip their respective structures and shall return ErrShortBuffer or ErrTrailingBytes rather than panicking on a malformed buffer. A write request body shall be exactly four bytes \u2014 the operand bitmask alone, with no in-band semantic selector byte.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.7.4.1 (\"A request not having exactly four bytes is rejected and an error response with error code = INVALID_PARAMETER will be sent.\"), TC18.txt L4799-4800",
+      "tc18_master_id": "TC18-13.7.4.1-005"
     },
     {
       "id": "REQ-GPIO-012",
@@ -2341,7 +2351,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "§13.7.3.1 (\"the SPI endpoint may support up to 6 pre-configurable sets of SPI configurations\"), TC18.txt L4192"
+      "tc18": "§13.5 Table 33: EP specific usage of evt-field, SPI row (\"000b to 101b ... selects channel 0 … 5 ... 110b reserved – request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4076-4084",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-SPI-002",
@@ -2365,7 +2376,9 @@
       "text": "spi.Endpoint.HandleRequest shall dispatch a transfer request to the chip-select channel named by the request's evt[2:0] field per TC18 \u00a713.5 Table 30's SPI row (\"selects channel 0 \u2026 5\"), and shall never take the channel from a byte of the request body; it shall return ErrChannelNotConfigured when that channel's ChannelConfig.Enabled is false.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, SPI row (\"000b to 101b ... selects channel 0 \u2026 5; the interface settings are to be applied according to this selection; the CSN pin assigned to this selection is to be asserted\"), TC18.txt L4076-4079",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-SPI-005",
@@ -2389,7 +2402,9 @@
       "text": "spi.Endpoint shall queue a TriggerTransferComplete event carrying the number of bytes received for every completed transfer.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.3.1 Table 41: spi trigger outputs (\"0 SPI execution done\"), TC18.txt L4606-4611",
+      "tc18_master_id": "TC18-13.7.3.1-007"
     },
     {
       "id": "REQ-SPI-008",
@@ -2397,7 +2412,9 @@
       "text": "spi.Endpoint shall queue a TriggerChipSelectEdge asserted event immediately before, and a deasserted event immediately after, each transfer's byte exchange, and spi.Endpoint.DrainTriggers shall return all queued events in that recorded order.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.3.1 Table 41: spi trigger outputs (\"2 + 2 x n  CSn asserted (with 0 =< n < 16)\" / \"3 + 2 x n  CSn de-asserted (with 0 =< n < 16)\"), TC18.txt L4606-4611",
+      "tc18_master_id": "TC18-13.7.3.1-007"
     },
     {
       "id": "REQ-SPI-009",
@@ -2429,7 +2446,9 @@
       "text": "spi.EVTClass shall be acf.EVTClassChannelSelect, and spi.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reach each of the six channels via evt[2:0] = 000b..101b, reject evt[2:0] = 110b with acf.ErrEVTReserved without performing any bus transfer, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access that is not presented on any SPI bus.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, SPI row (\"000b to 101b ... selects channel 0 \u2026 5 ... 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4076-4084",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-I2C-001",
@@ -3446,7 +3465,9 @@
       "text": "fragment.Split shall return the given Message unchanged as a single-element slice when its Body already fits within maxBody, shall return ErrInvalidMaxSegmentBody for a non-positive maxBody, ErrAlreadyFragmented when the Message already carries avtp.FlagMoreSegments, and ErrTooManySegments when the Body would require more non-terminal segments than the wire's 16-bit segment-number field can represent.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.7.9 (\"In case an AVTPDU containing a single ACF_type would exceed the 'Max_AVTPDUsize' fragmentation as supported in ACF_ABB and ACF_GBB by the ms-bit will be performed.\"), TC18.txt L3408-3409",
+      "tc18_master_id": "TC18-12.7.9-003"
     },
     {
       "id": "REQ-FRAG-002",
@@ -3454,7 +3475,9 @@
       "text": "fragment.Split shall set avtp.FlagMoreSegments and a 0-based ReadSizeOrSegment segment number on every segment but the last, shall clear avtp.FlagMoreSegments and restore the original ReadSizeOrSegment value on the last segment, shall preserve Kind/ByteBusID/TransactionNum/Timestamp verbatim across every segment, and the ascending-order concatenation of every segment's Body shall equal the original Body.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.1 Table 4: Usage of ABB message for standard requests (\"ms: 0b – the fragment sequence is completed with this ABB message, 1b - more data to follow in one or more subsequent ABB messages\" / \"read_size/segment_num: if op = 0 this is read_size, else segment_num\"), TC18.txt L1233-1235",
+      "tc18_master_id": "TC18-11.2.1-005"
     },
     {
       "id": "REQ-FRAG-003",
@@ -3494,7 +3517,9 @@
       "text": "fragment.Reassembler.Finish shall return the ascending-order concatenation of every segment Body accepted for a completed sequence's Key together with that sequence's shared descriptor fields, shall return ErrIncomplete for a Key whose sequence has not yet received its terminal segment, and ErrUnknownSequence for a Key naming no sequence this Reassembler currently holds.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.8.2 (\"Fragmentation as supported by ACF_GBB/ACF_ABB needs to be considered to get complete requests.\"), TC18.txt L3571",
+      "tc18_master_id": "TC18-12.8.2-003"
     },
     {
       "id": "REQ-FRAG-008",
@@ -3510,7 +3535,9 @@
       "text": "fragment.Reassembler.FinishProtected shall recompute the trailing CRC32 safe point of a completed sequence's terminal segment via e2e.ComputeFragmented over the sequence's own per-segment Body slices, returning the reassembled Message with that field stripped on a match, wrapping e2e.ErrCRCMismatch on a mismatch, and returning e2e.ErrShortSafePoint when the terminal segment's Body is too short to contain one \u2014 matching what e2e.Verify computes for the same logical message sent unfragmented.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.6 (\"Fragmentation, if applied to a message, happens after CRC calculation. So, the CRC is only calculated once and will be transmitted in the last segment.\"), TC18.txt L4274-4275",
+      "tc18_master_id": "TC18-13.6-007"
     },
     {
       "id": "REQ-FRAG-010",
@@ -3526,7 +3553,9 @@
       "text": "fragment.Gateway.Response shall return an unchanged single-element slice for a Message whose Body already fits within the configured MaxSegmentBody, and shall otherwise split it per fragment.Split's own segmenting rule.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.7.9 (\"In case an AVTPDU containing a single ACF_type would exceed the 'Max_AVTPDUsize' fragmentation as supported in ACF_ABB and ACF_GBB by the ms-bit will be performed.\"), TC18.txt L3408-3409",
+      "tc18_master_id": "TC18-12.7.9-003"
     },
     {
       "id": "REQ-FRAG-012",
