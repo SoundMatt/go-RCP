@@ -2840,7 +2840,9 @@
       "text": "request.Kind.Priority shall rank the three cancellation variants equally and ahead of every other Kind, followed in order by KindChained, KindTriggered, KindTimed, KindCompoundWait, KindCompound, and KindPlain last.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.9.2 (\"In case two or more requests are due for execution then the priorities are as follows: 1. cancellation 2. triggered 3. timed 4. compound 5. compound wait 6. chained 7. standard\"), TC18.txt L3652-3661",
+      "tc18_master_id": "TC18-12.9.2-003"
     },
     {
       "id": "REQ-REQ-003",
@@ -2857,7 +2859,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "§13.2 (\"[an implementation] may support only a lower number of sequencers\"), TC18.txt L3473"
+      "tc18": "§12.10 (\"[an implementation] may support only a lower number of sequencers\"), TC18.txt L3871",
+      "tc18_master_id": "TC18-12.10-004"
     },
     {
       "id": "REQ-REQ-005",
@@ -2865,7 +2868,9 @@
       "text": "request.EncodeCompound/DecodeCompound and EncodeCompoundWait/DecodeCompoundWait shall round-trip a Conditional and (for Compound) an inner Control/Body, PeekKind shall report the leading Kind byte without consuming the rest of the buffer, and each decoder shall reject a short buffer, trailing bytes, or a mismatched Kind tag.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.2 Figure 8 (\"GBB message for compound requests\") + §11.2.2.3 Figure 9 (\"GBB message for compound wait requests\"), TC18.txt L1394-1406,1494-1504",
+      "tc18_master_id": "TC18-11.2.2.2-004"
     },
     {
       "id": "REQ-REQ-006",
@@ -2874,7 +2879,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "§11.2.2.3 (\"Each endpoint may be configured to start a request upon receiving a selected trigger signal\"), TC18.txt L1413"
+      "tc18": "§11.2.2.5 (\"Each endpoint may be configured to start a request upon receiving a selected trigger signal\") + §11.2.2.7 Figure 13 (\"Timed request\"), TC18.txt L1691,1871-1880",
+      "tc18_master_id": "TC18-11.2.2.5-003"
     },
     {
       "id": "REQ-REQ-007",
@@ -2882,7 +2888,9 @@
       "text": "request.EncodeCancelAll/DecodeCancelAll, EncodeCancelTransaction/DecodeCancelTransaction, and EncodeCancelSequencer/DecodeCancelSequencer shall round-trip their scope, and EncodeConditionalResponse/DecodeConditionalResponse and EncodeCancelResponse/DecodeCancelResponse shall round-trip their result payloads.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.3.1 Figure 14 (\"Request cancellation of all requests in EP request queue\") + §11.2.3.2 Figure 15 + §11.2.3.3 Figure 16 (narrower cancellation variants), TC18.txt L1986-1997,2058-2069,2145-2156",
+      "tc18_master_id": "TC18-11.2.3.1-002"
     },
     {
       "id": "REQ-REQ-008",
@@ -2890,7 +2898,9 @@
       "text": "request.EncodeChained/DecodeChained shall round-trip an ordered list of ChainedSegment values, reject zero segments, and reject a truncated buffer.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.6 Figure 12 (\"ACF_GBB for chained requests\"), TC18.txt L1781-1789",
+      "tc18_master_id": "TC18-11.2.2.6-003"
     },
     {
       "id": "REQ-REQ-009",
@@ -2898,7 +2908,9 @@
       "text": "request.EncodeChainedResponse/DecodeChainedResponse shall round-trip a partial ChainedResult, preserving which segment (if any) is marked Failed and the original Total segment count even when fewer segments actually ran.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.6 (\"request will not be executed in case the previous request returned an error, as a consequence the remainder of the chain is not executed, and the request send an error response with error code = CHAIN_ABORTED\"), TC18.txt L1835-1837",
+      "tc18_master_id": "TC18-11.2.2.6-011"
     },
     {
       "id": "REQ-REQ-010",
@@ -2914,7 +2926,9 @@
       "text": "request.Dispatcher shall dispatch a Message without avtp.FlagExtended set directly to its wrapped Handler with the same Control/Body semantics a Phase 14 endpoint's own HandleRequest already implements, and the resulting response shall not carry avtp.FlagExtended.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.1 (\"unconditional execution of request (mandatory feature)\"), TC18.txt L1204",
+      "tc18_master_id": "TC18-11.2.1-001"
     },
     {
       "id": "REQ-REQ-012",
@@ -2922,7 +2936,9 @@
       "text": "request.Dispatcher shall call the wrapped Handler for a KindCompound ticket only when its Conditional matches, shall advance the addressed sequencer register only on a match, and shall report ConditionalResult.Matched and the resulting sequencer value in the response regardless of outcome.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2 (\"Compound requests: Execution is based on sequencer states and starts when the sequencer is in the state that is specified in the request\"), TC18.txt L1165-1167",
+      "tc18_master_id": "TC18-11.2-002"
     },
     {
       "id": "REQ-REQ-013",
@@ -2930,7 +2946,9 @@
       "text": "request.Dispatcher shall evaluate a KindCompoundWait ticket's Conditional and report its outcome without ever calling the wrapped Handler, regardless of whether the condition matches.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2 (\"Compound wait requests: This type of request does not change any interface status. It creates a response as soon as an interface reaches that status specified in the request\"), TC18.txt L1168-1171",
+      "tc18_master_id": "TC18-11.2-002"
     },
     {
       "id": "REQ-REQ-014",
@@ -2938,7 +2956,9 @@
       "text": "request.Dispatcher.Pump shall leave a KindTriggered ticket pending until its registered TriggerPump for the referenced source reports at least one new event, shall call each distinct source's TriggerPump at most once per Pump call, and shall consume at most one reported event per satisfied ticket.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.5 (\"Each endpoint may be configured to start a request upon receiving a selected trigger signal\"), TC18.txt L1691",
+      "tc18_master_id": "TC18-11.2.2.5-003"
     },
     {
       "id": "REQ-REQ-015",
@@ -2946,7 +2966,9 @@
       "text": "request.Dispatcher.Pump shall leave a KindTimed ticket pending until called with now at or past its encoded target execution time.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.7 (\"In any case the presentation_time is the earliest point in time, when the request shall be executed\"), TC18.txt L1952",
+      "tc18_master_id": "TC18-11.2.2.7-007"
     },
     {
       "id": "REQ-REQ-016",
@@ -2954,7 +2976,9 @@
       "text": "request.Dispatcher shall call the wrapped Handler once per ChainedSegment in declared order, and shall stop executing remaining segments (without skipping ahead) the moment one segment's Handler call returns an error, reporting ErrChainedSegmentFailed.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2.6 (\"the second and following requests always wait on the predecessor request to finish its execution\"), TC18.txt L1793-1795",
+      "tc18_master_id": "TC18-11.2.2.6-004"
     },
     {
       "id": "REQ-REQ-017",
@@ -2962,7 +2986,9 @@
       "text": "request.Dispatcher shall have KindCancelAll finalize every other pending ticket, KindCancelTransaction finalize only the pending ticket matching its TransactionNum, and KindCancelSequencer finalize only pending KindCompound/KindCompoundWait tickets gated on its SequencerID, each reporting ErrTicketCancelled and leaving every non-matching pending ticket untouched.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.3.1 (\"Clear all requests from an EP request storage that have been received in the same stream as the request for cancellation\"), TC18.txt L1983-1985",
+      "tc18_master_id": "TC18-11.2.3.1-001"
     },
     {
       "id": "REQ-REQ-018",
@@ -2978,7 +3004,9 @@
       "text": "request.Dispatcher.Pump shall execute every ticket that becomes ready within one call in Kind.Priority order (lower rank first), regardless of submission order, when more than one ticket on the same Dispatcher becomes eligible simultaneously.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.9.2 (\"In case two or more requests are due for execution then the priorities are as follows: 1. cancellation 2. triggered 3. timed 4. compound 5. compound wait 6. chained 7. standard\"), TC18.txt L3652-3661",
+      "tc18_master_id": "TC18-12.9.2-003"
     },
     {
       "id": "REQ-REQ-020",
@@ -2986,7 +3014,9 @@
       "text": "request.Dispatcher.Response shall report ErrUnknownTicket for an unissued or Forgotten TicketID and ErrPending for a ticket not yet StateFinalized; Forget shall discard only a finalized ticket's bookkeeping and be a no-op otherwise; Pending shall count only tickets not yet StateFinalized.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.9.3 (\"a request moves through the states request pending, request started (RS), request under execution (RE), and request finalized (RF)\"), TC18.txt L3679-3684",
+      "tc18_master_id": "TC18-12.9.3-001"
     },
     {
       "id": "REQ-REQ-021",
@@ -3002,7 +3032,9 @@
       "text": "request.Kind.IsSafety and Kind.Base shall round-trip losslessly for KindCompoundSafety/KindCompoundWaitSafety/KindTriggeredSafety against their respective base Kind; Kind.Valid shall accept exactly those three safety-tagged values and reject KindSafetyFlag applied to any other base Kind; Kind.Priority shall rank a safety-request Kind identically to its Base kind.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2 (\"If the MSB of the identifier (0x8x) is set the request is treated as a safety request and will not be deleted when the EP needs to go to safe state\"), TC18.txt L1257-1259",
+      "tc18_master_id": "TC18-11.2.2-001"
     },
     {
       "id": "REQ-REQ-023",
@@ -3010,7 +3042,9 @@
       "text": "request.EncodeCompoundSafety, EncodeCompoundWaitSafety, and EncodeTriggeredSafety shall produce envelopes with an identical body layout to their base-kind Encode counterpart differing only in the leading Kind byte, decodable by the same DecodeCompound/DecodeCompoundWait/DecodeTriggered function as the base kind, with PeekKind reporting the safety-tagged Kind value.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2 Table 5 (\"Different types of conditional requests\", listing 0x0F/0x8F Compound, 0x0B/0x8B Compound wait, 0x0E/0x8E Triggered), TC18.txt L1260-1267",
+      "tc18_master_id": "TC18-11.2.2-002"
     },
     {
       "id": "REQ-REQ-024",
@@ -3019,7 +3053,8 @@
       "standard": "iso26262",
       "level": "ASIL-B",
       "asil": "ASIL-B",
-      "tc18": "§12.7.7 (\"a safe state may be enforced. The safe state to enter can be chosen via the Safety_Measure parameter\"), TC18.txt L2935"
+      "tc18": "§11.2.2 (\"If the MSB of the identifier (0x8x) is set the request is treated as a safety request and will not be deleted when the EP needs to go to safe state\"), TC18.txt L1257-1259",
+      "tc18_master_id": "TC18-11.2.2-001"
     },
     {
       "id": "REQ-REQ-025",
@@ -3027,7 +3062,9 @@
       "text": "request.Dispatcher.PurgeNonSafety shall finalize every not-yet-finalized ticket whose Kind is not a safety-request variant with ErrPurgedByWatchdog, and shall leave every safety-request ticket's state and pending status completely unchanged.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2 (\"If the MSB of the identifier (0x8x) is set the request is treated as a safety request and will not be deleted when the EP needs to go to safe state\"), TC18.txt L1257-1259",
+      "tc18_master_id": "TC18-11.2.2-001"
     },
     {
       "id": "REQ-CRC-001",
