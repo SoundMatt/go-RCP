@@ -3550,7 +3550,9 @@
       "text": "watchdog.Keeper.Tick shall not call PurgeNonSafety on any Dispatcher registered under a stream for which the configured e2e.Supervisor's InSafeState currently reports false, and shall not include that stream in its returned PurgeEvent slice.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2 (\"If the MSB of the identifier (0x8x) is set the request is treated as a safety request and will not be deleted when the EP needs to go to safe state.\"), TC18.txt L1257-1259",
+      "tc18_master_id": "TC18-11.2.2-001"
     },
     {
       "id": "REQ-WDG-003",
@@ -3558,7 +3560,9 @@
       "text": "watchdog.Keeper.Tick shall call PurgeNonSafety on every Dispatcher registered against a stream for which the configured e2e.Supervisor's InSafeState currently reports true, leaving every safety-request ticket on that Dispatcher untouched and leaving every Dispatcher registered only against untripped streams untouched.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§11.2.2 (\"If the MSB of the identifier (0x8x) is set the request is treated as a safety request and will not be deleted when the EP needs to go to safe state.\"), TC18.txt L1257-1259",
+      "tc18_master_id": "TC18-11.2.2-001"
     },
     {
       "id": "REQ-WDG-004",
@@ -3590,7 +3594,9 @@
       "text": "powerstate.Driver.Pump shall queue every TriggerWakeHandshake value drained from the wrapped wakeup.Endpoint during that call, and shall invoke its configured Transmitter at most once per Pump call, in the order the repeats were queued.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.4.1 (\"the RC Server will send via the responder stream ... a repetitive response to the sleep request with a WakeUp message and the WakeUp source. The message will be repeated until a valid AVTPDU from the sleep request Client is received. Repetition time of the message can be configured inside the WakeUp EP.\"), TC18.txt L2672-2677",
+      "tc18_master_id": "TC18-12.4.1-003"
     },
     {
       "id": "REQ-PWR-003",
@@ -3598,7 +3604,9 @@
       "text": "powerstate.Driver.Pump shall, when its configured Transmitter returns an error, leave the handshake it attempted to send at the front of this Driver's own pending queue for the next Pump call to retry, and shall return that error to its caller.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.4.1 (\"the RC Server will send via the responder stream ... a repetitive response to the sleep request with a WakeUp message and the WakeUp source. The message will be repeated until a valid AVTPDU from the sleep request Client is received. Repetition time of the message can be configured inside the WakeUp EP.\"), TC18.txt L2672-2677",
+      "tc18_master_id": "TC18-12.4.1-003"
     },
     {
       "id": "REQ-PWR-004",
@@ -3606,7 +3614,9 @@
       "text": "powerstate.Driver.Acknowledge shall discard every wake-handshake repeat still queued on the wrapped wakeup.Endpoint (via Endpoint.AcknowledgeWake) and every repeat this Driver had already pulled into its own pending queue but not yet successfully transmitted.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.4.1 (\"The message will be repeated until a valid AVTPDU from the sleep request Client is received.\"), TC18.txt L2672-2677",
+      "tc18_master_id": "TC18-12.4.1-003"
     },
     {
       "id": "REQ-PWR-005",
@@ -3678,7 +3688,9 @@
       "text": "prioqueue.Queue.Pop shall return the pending Item whose Kind has the numerically lowest request.Kind.Priority() value among everything currently queued, matching the specification's fixed cross-type execution-priority ordering (cancellation, chained, triggered, timed, compound-wait, compound, plain).",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.9.2 (\"In case two or more requests are due for execution then the priorities are as follows: 1. cancellation 2. triggered 3. timed 4. compound 5. compound wait 6. chained 7. standard\"), TC18.txt L3652-3660",
+      "tc18_master_id": "TC18-12.9.2-003"
     },
     {
       "id": "REQ-PQ-003",
@@ -3686,7 +3698,9 @@
       "text": "prioqueue.Queue.Pop shall, for two or more pending Items whose Kind.Priority() values are equal, release them in the order they were enqueued via Push.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§12.9.2 (\"When two or more requests with the same priority are due then starting the execution shall happen in the order with which the requests arrived in the EP request storage.\"), TC18.txt L3663-3664",
+      "tc18_master_id": "TC18-12.9.2-004"
     },
     {
       "id": "REQ-PQ-004",
@@ -4774,7 +4788,9 @@
       "text": "acf.Message.EVTSelector shall return the request's evt[2:0] value with the evt[3] request-acknowledge bit masked off, and acf.Message.EVTAckRequested shall report evt[3]. acf.ClassifyEVT shall produce the same result for a given evt[2:0] whether or not evt[3] is set.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 (\"evt[3] is used to request an acknowledge. I.e. evt[3] = 1 requests acknowledge.\"), TC18.txt L4072",
+      "tc18_master_id": "TC18-13.5-002"
     },
     {
       "id": "REQ-EVT-002",
@@ -4782,7 +4798,9 @@
       "text": "acf.ClassifyEVT for acf.EVTClassChannelSelect shall map evt[2:0] = 000b..101b to EVTActionInterface on channels 0..5 respectively, return acf.ErrEVTReserved for 110b, and map 111b to EVTActionConfigure, per TC18 \u00a713.5 Table 30's SPI row. It shall return acf.ErrEVTUnknownClass for a class value outside Table 30's three rows.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, SPI row (\"000b to 101b ... selects channel 0 \u2026 5 ... 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4076-4084",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-EVT-003",
@@ -4790,7 +4808,9 @@
       "text": "acf.ClassifyEVT for acf.EVTClassConfigOnly shall map evt[2:0] = 000b to EVTActionInterface, return acf.ErrEVTReserved for 001b through 110b, and map 111b to EVTActionConfigure. The 000b mapping is a documented departure from TC18 \u00a713.5 Table 30's literal \"000b to 110b reserved\" text, adopted because \u00a713.7.9 Figure 33 shows a conformant request with evt = 0000b and \u00a713.7.7.3 requires an ordinary payload to reach the interface; the departure shall remain documented at acf.ClassifyEVT.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4085-4092",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-EVT-004",
@@ -4798,7 +4818,9 @@
       "text": "acf.ClassifyEVT for acf.EVTClassArithmetic shall map evt[2:0] = 000b/001b/010b/011b/101b/110b to the set/OR/AND/XOR/saturating-add/saturating-subtract combining rules respectively, return acf.ErrEVTReserved for 100b, and map 111b to EVTActionConfigure, per TC18 \u00a713.5 Table 30's GPIO/PWM_OUT row.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, GPIO/PWM_OUT row (\"000b The byte_msg_payload is presented at the interface ... 001b/010b/011b [OR/AND/XOR with current interface status] ... 100b reserved \u2013 request shall be ignored and an err-response with error code = UNSUPPORTED_CMD shall be sent ... 101b/110b [add/subtract] ... 111b [reconfigure]\"), TC18.txt L4093-4115",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-EVT-005",
@@ -4806,7 +4828,9 @@
       "text": "acf.CheckEVTPayloadPresence shall return acf.ErrEVTMissingPayload when evt[2:0] is non-zero and the request carries no byte_msg_payload, and nil otherwise, per TC18 \u00a712.9.1: \"If evt[2:0] \u2260 0 and no byte_msg_payload is present, then an error response shall be sent with the error code = UNSUPPORTED_CMD\". acf.Message.EVTDisposition shall apply this rule before Table 30's per-type interpretation.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a712.9.1 (\"If evt[2:0] \u2260 0 and no byte_msg_payload is present, then an error response shall be sent with the error code = UNSUPPORTED_CMD\"), TC18.txt L3611-3612",
+      "tc18_master_id": "TC18-12.9.1-011"
     },
     {
       "id": "REQ-EVT-006",
@@ -4814,7 +4838,9 @@
       "text": "acf.ApplyEVTWriteOp shall compute payload, payload|current, payload&current, payload^current, a saturating payload+current and a saturating payload-current for the six combining rules of TC18 \u00a713.5 Table 30's GPIO/PWM_OUT row; the arithmetic rules shall saturate at zero on the low side and at the caller-supplied bound on the high side rather than wrapping; and the subtraction shall use the operand order the table states normatively (byte_msg_payload minus current interface status).",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 (\"While doing additions and subtractions neither overflows nor wrap-arounds shall occur. The values are saturated at 0x0000 on the low side and 0xFFFF at the high side.\"), TC18.txt L4118-4119",
+      "tc18_master_id": "TC18-13.5-003"
     },
     {
       "id": "REQ-EVT-007",
@@ -4822,7 +4848,9 @@
       "text": "acf.EncodeConfigRequestBody/DecodeConfigRequestBody shall round-trip a configuration request's byte_msg_payload as a big-endian 16-bit relative EP_func register start address followed by the configuration data, and DecodeConfigRequestBody shall return acf.ErrShortConfigRequest rather than panicking for a body too short to hold that address.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a712.7.1, Figure 19 \u2013 Configuration request (\"relative Register start address in EP_func\" / \"configuration data\"), TC18.txt L2849-2860",
+      "tc18_master_id": "TC18-12.7.1-002"
     },
     {
       "id": "REQ-UDP-019",
