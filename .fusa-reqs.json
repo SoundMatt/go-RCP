@@ -3112,7 +3112,9 @@
       "text": "lin.Endpoint.HandleRequest shall return ErrBusNotConfigured for a transfer request handled against an endpoint whose Config.Enabled is false.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-LINEP-005",
@@ -3152,7 +3154,9 @@
       "text": "lin.EVTClass shall be acf.EVTClassConfigOnly, and lin.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4085-4092",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-CANEP-001",
@@ -3294,7 +3298,9 @@
       "text": "iseled.Endpoint.HandleRequest shall return ErrChainNotConfigured for a command handled against an endpoint whose Config.Enabled is false, and ErrDeviceAddressOutOfRange for a targeted Command whose Address is not DeviceBroadcast and is not less than the configured DeviceCount.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-ISELED-007",
@@ -3302,7 +3308,9 @@
       "text": "iseled.Endpoint.HandleRequest shall answer a targeted Command with a single-entry AggregatedResponse echoing its Data through the default loopback with no Transport configured, or through the Transport configured via SetTransport when one is set, and shall queue a TriggerEvent recording the response count on every exchange.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.7.12.1 (\"The ISELED endpoint creates a single trigger event, when transmission of a data packet has been completed on the ISELED network.\"), TC18.txt L5913-5914",
+      "tc18_master_id": "TC18-13.7.12.1-002"
     },
     {
       "id": "REQ-ISELED-008",
@@ -3326,7 +3334,9 @@
       "text": "iseled.EVTClass shall be acf.EVTClassConfigOnly, and iseled.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4085-4092",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-MDIO-001",
@@ -3374,7 +3384,9 @@
       "text": "mdio.Endpoint.HandleRequest shall return ErrNotConfigured for a request handled against an endpoint whose Config.Enabled is false, and shall return the Request.Validate error for a decoded Request that fails validation.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "§13.1 (\"A used endpoint might be enabled or disabled. If enabled, it starts processing requests from its request storage. If disabled, the processing is stopped, and the RC Client can e.g. preload the storage with a sequence of requests to executed as soon as the endpoint gets enabled.\"), TC18.txt L3907-3909",
+      "tc18_master_id": "TC18-13.1-003"
     },
     {
       "id": "REQ-MDIO-007",
@@ -3398,7 +3410,9 @@
       "text": "mdio.EVTClass shall be acf.EVTClassConfigOnly, and mdio.Endpoint.HandleRequest shall route every request through acf.Message.EVTDisposition: it shall reject evt[2:0] = 001b through 110b with acf.ErrEVTReserved without presenting the byte_msg_payload at the interface, reject a non-zero evt[2:0] with no byte_msg_payload with acf.ErrEVTMissingPayload per TC18 \u00a712.9.1, and treat evt[2:0] = 111b as a TC18 \u00a712.7.1 configuration access into the endpoint's EP_func block that is not presented at the interface.",
       "standard": "iso26262",
       "level": "ASIL-B",
-      "asil": "ASIL-B"
+      "asil": "ASIL-B",
+      "tc18": "\u00a713.5 Table 33: EP specific usage of evt-field, ADC/PWM_IN/I\u00b2C/LIN/CAN/UART/ISELED/MDIO row (\"000b to 110b reserved \u2013 request to be rejected with error code = UNSUPPORTED_CMD ... 111b The byte_msg_payload is not presented to the interface but used to change the configuration of the endpoint\"), TC18.txt L4085-4092",
+      "tc18_master_id": "TC18-13.5-001"
     },
     {
       "id": "REQ-WAKEUP-001",
