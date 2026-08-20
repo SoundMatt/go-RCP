@@ -104,7 +104,7 @@ func (c *Client) Discover(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.Control.Has(acf.FlagError) {
+	if resp.ResponseKind() == acf.ResponseError {
 		return nil, fmt.Errorf("rcp/mock: client %s: discover: %s", c.streamID, resp.Body)
 	}
 	return resp.Body, nil
